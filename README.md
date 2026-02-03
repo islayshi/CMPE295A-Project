@@ -1,1 +1,1 @@
-# CMPE295A-Project
+# CMPE295A-Project (placeholder name, change later)
