@@ -1,0 +1,9 @@
+name,date,longitude,latitude,prettyname,acres,containper,xlo,xhi,ylo,yhi,irwinid,htb,modis,viirs,wfigs,firis,fireguard
+ok-north-2390,2026-04-05,-98.743,36.062,North 2390,20,0,10000,10000,10000,10000,{5D91A4AD-E32B-46C8-B5FB-16968D2CD614},48,no,yes,yes,yes,yes
+ok-mull,2026-04-06,-96.363,36.539,Mull,550,0,10000,10000,10000,10000,{94A1DC46-C1D1-443B-A71F-9D092788F5F7},48,no,yes,yes,yes,yes
+nm-foote,2026-04-06,-103.573,35.194,Foote,60,0,10000,10000,10000,10000,{A7AE43AB-0C6E-424F-9A32-BE154562F798},48,no,yes,yes,yes,yes
+ok-corley,2026-04-06,-96.390,36.553,Corley,204,0,10000,10000,10000,10000,{67CC447A-F44D-49D6-ABF2-F023E7168F84},48,no,yes,yes,yes,yes
+ca-swiss,2026-04-07 16:28:11 PDT,-120.405261,38.306181,Swiss Fire,0,0,10000,10000,10000,10000,"",48,no,yes,yes,yes,no
+mo-sweet,2026-04-08,-93.824,36.533,Sweet,10,0,10000,10000,10000,10000,{07732ED3-3E09-4424-B390-2F00887C5CBE},48,no,yes,yes,yes,yes
+co-cougar-run,2026-04-08,-105.212,40.317,Cougar Run,0,0,10000,10000,10000,10000,{E9ED1A4F-186D-4EF6-ADD8-2E653D2C7F84},48,no,yes,yes,yes,yes
+al-montgomery-creek,2026-04-07,-87.364,34.372,Montgomery Creek,45,0,10000,10000,10000,10000,{3F7FB31E-6C41-4D99-8C4E-A44AEC41322B},48,no,yes,yes,yes,yes
