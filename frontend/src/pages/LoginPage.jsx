@@ -1,6 +1,20 @@
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 
 const LoginPage = () => {
+
+  {/* TO DELETE LATER THIS IS ONLY TO SEE IF DJANGO AND REACT CAN TALK TO EACH OTHER */}
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/test/')
+        .then(response => response.json())
+        .then(data => {
+            console.log("Backend connection successful:", data.message);
+        })
+        .catch(error => {
+            console.error("Backend connection failed:", error);
+        });
+  }, []);
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#111] text-white font-sans">
       <div className="w-full max-w-md p-8 space-y-6 bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-800">
@@ -41,5 +55,7 @@ const LoginPage = () => {
     </div>
   );
 };
+
+
 
 export default LoginPage;
