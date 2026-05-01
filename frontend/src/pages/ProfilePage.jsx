@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 const ProfilePage = () => {
     const [customAddresses, setCustomAddresses] = useState([]);
     const [otherHealth, setOtherHealth] = useState(false);
+    const [showModal, setShowModal] = useState(false);
 
     const addAddress = () => {
         if (customAddresses.length < 5) {
@@ -127,11 +128,57 @@ const ProfilePage = () => {
                         </div>
                     </section>
 
-                    <button className="w-full py-4 bg-[#7F77DD] hover:bg-[#6b62c7] text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98]">
+                    <button
+                        type="button" // Change to button type to prevent form refresh
+                        onClick={() => setShowModal(true)}
+                        className="w-full py-4 bg-[#7F77DD] hover:bg-[#6b62c7] text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98]"
+                    >
                         Finished Editing
                     </button>
                 </div>
             </div>
+
+            {/* MODAL OVERLAY */}
+            {showModal && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+                    {/* Black Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setShowModal(false)}
+                    />
+
+                    {/* Pop-up Window */}
+                    <div className="relative bg-[#1a1a1a] border border-gray-800 w-full max-w-sm rounded-2xl p-8 shadow-2xl animate-in zoom-in duration-200">
+                        <div className="text-center">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-900/20 mb-4">
+                                <span className="text-red-500 text-2xl font-bold">!</span>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-white mb-2">STOP!</h3>
+                            <p className="text-gray-400 text-sm mb-8">
+                                You have unsaved changes! Would you like to save changes or exit?
+                            </p>
+
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    type="button"
+                                    className="w-full py-3 bg-[#7F77DD] hover:bg-[#6b62c7] text-white font-semibold rounded-lg transition-colors"
+                                >
+                                    Save Changes
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    className="w-full py-3 bg-transparent border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg transition-all"
+                                >
+                                    Exit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
