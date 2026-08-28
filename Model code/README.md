@@ -115,13 +115,3 @@ python predict_firemask_to_geojson.py `
   --out predicted_firemask_2020-09-11.geojson
 ```
 
-## Repo hygiene (recommended)
-
-- Don’t commit:
-  - raw weather dumps (thousands of rows × many cities)
-  - huge GeoJSONs
-  - generated `.npz` samples
-  - trained `.keras` models
-
-Use `.gitignore` below.
-
