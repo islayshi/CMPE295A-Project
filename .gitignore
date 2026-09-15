@@ -26,3 +26,17 @@ dist-ssr
 # personal files
 .env
 .vite/
+
+# Python & Django (Backend)
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+media/
+staticfiles/
+
+# Docker
+*.tar
