@@ -178,6 +178,28 @@ cd ../frontend
 npm install
 ```
 
+### 🛑 Troubleshooting macOS GDAL Issues
+Because GeoDjango heavily relies on C++ spatial libraries, macOS users (especially on Apple Silicon) often run into Homebrew linkage issues like `Library not loaded: libabsl_log_internal_check_op...dylib` or `gdal-config not found`.
+
+**Fix 1: Re-link Homebrew dependencies**
+```bash
+brew update
+brew upgrade
+brew reinstall abseil gdal
+```
+
+**Fix 2: Explicitly set GDAL library paths in `.env`**
+If Django still can't find GDAL, add the Homebrew library paths to your environment. In `backend/.env` (or your shell profile):
+```bash
+# For Apple Silicon (M1/M2/M3):
+export GDAL_LIBRARY_PATH="/opt/homebrew/opt/gdal/lib/libgdal.dylib"
+export GEOS_LIBRARY_PATH="/opt/homebrew/opt/geos/lib/libgeos_c.dylib"
+
+# For Intel Macs:
+export GDAL_LIBRARY_PATH="/usr/local/opt/gdal/lib/libgdal.dylib"
+export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
+```
+
 ---
 
 ## ▶️ Running Locally
