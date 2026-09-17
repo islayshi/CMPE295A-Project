@@ -40,3 +40,18 @@ staticfiles/
 
 # Docker
 *.tar
+
+# Environment secrets — NEVER commit
+.env
+*.env
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyo
+db.sqlite3
+staticfiles/
+
+# Docker volumes
+postgres_data/
+redis_data/

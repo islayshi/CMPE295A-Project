@@ -1,0 +1,64 @@
+# ==============================================================
+# Fight Fire With AI — Python Dependencies
+# ==============================================================
+# Python version: 3.12 (stable)
+# Install: pip install -r requirements.txt
+#
+# Mirrors the GCP Cloud Run environment.
+# For local dev, ensure PostgreSQL + PostGIS are running via docker-compose.
+# ==============================================================
+
+# --------------------------------------------------------------
+# Django Core Stack
+# --------------------------------------------------------------
+Django>=5.1,<6.0                  # Web framework + ORM
+djangorestframework>=3.15,<4.0    # REST API layer (Design Doc §2)
+django-cors-headers>=4.4,<5.0     # CORS for React frontend polling
+
+# --------------------------------------------------------------
+# GeoDjango + PostGIS (spatial capabilities)
+# Design Doc §2: PostGIS for A* routing and spatial queries
+# --------------------------------------------------------------
+psycopg2-binary>=2.9,<3.0         # PostgreSQL driver (binary for Cloud Run)
+GDAL>=3.7                         # Geospatial library — required by GeoDjango
+
+# --------------------------------------------------------------
+# OpenAPI Documentation — NFR-U01
+# Serves Swagger UI at /api/docs/
+# --------------------------------------------------------------
+drf-spectacular>=0.27,<1.0
+
+# --------------------------------------------------------------
+# Celery + Redis — Task Queue and Cache
+# Design Doc §2: Celery (Compute Engine) + Redis (Memorystore)
+# ADR-003: Daily inference cron decision
+# --------------------------------------------------------------
+celery>=5.4,<6.0                  # Async task worker
+celery[redis]>=5.4,<6.0           # Redis transport for Celery
+redis>=5.0,<6.0                   # Redis Python client (cache + broker)
+django-celery-beat>=2.7,<3.0      # Celery Beat cron scheduler in Django admin
+
+# --------------------------------------------------------------
+# HTTP Client — for ML Adapter and external API calls
+# Used in: harvester/tasks.py → _call_ml_adapter(), fetch_nws_alerts()
+# NFR-R05: Retry logic wrapped around requests calls
+# --------------------------------------------------------------
+requests>=2.32,<3.0
+
+# --------------------------------------------------------------
+# Google Cloud + Earth Engine (Week 2 harvesters)
+# --------------------------------------------------------------
+# google-cloud-storage>=2.18       # GCS uploads for feature files
+# earthengine-api>=0.1.400         # GEE satellite data access
+# google-auth>=2.34                # GCP authentication
+
+# --------------------------------------------------------------
+# Production Server
+# --------------------------------------------------------------
+gunicorn>=22.0,<23.0              # WSGI server for Cloud Run
+
+# --------------------------------------------------------------
+# Development & Testing
+# --------------------------------------------------------------
+pytest>=8.0,<9.0
+pytest-django>=4.9,<5.0
