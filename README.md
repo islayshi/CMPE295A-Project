@@ -18,22 +18,8 @@ The system directly extends three peer-reviewed publications by Dr. Jerry Gao:
 - **Malik et al., IEEE CCWC 2022:** Ensemble majority voting via Cellular Automata Rule 30.
 
 ### Architecture Overview
+<img width="1477" height="1452" alt="image" src="https://github.com/user-attachments/assets/1ce2a0c2-2664-49a6-9f6f-49b9a6db83c9" />
 
-```
-[External Data Sources]
-  GEE (GOES-18, VIIRS, Landsat) + NOAA/NWS + USGS DEM
-          |
-          v  (Celery daily cron — Compute Engine)
-[Django Harvester] --HTTP POST--> [FastAPI ML Adapter] --> [Vertex AI]
-                                        |                  U-Net / PINN / RL
-                                        |<--- GeoJSON FeatureCollection ----┘
-          |
-          v
-[Cloud SQL (PostGIS)] + [Memorystore (Redis)]
-          |
-          v  (REST polling every 5 min)
-[Django REST API — Cloud Run] --> [React Frontend — Cloud CDN]
-```
 
 The backend is a modular Django monolith (Cloud Run) paired with a separate FastAPI ML Adapter (Cloud Run) that acts as a translation layer between the data pipeline and Vertex AI model endpoints. The two halves communicate through a strict GeoJSON FeatureCollection contract, enabling the backend and ML teams to develop independently.
 
