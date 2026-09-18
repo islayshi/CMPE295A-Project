@@ -16,6 +16,9 @@ NFR References:
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv() # Load variables from .env into os.environment
 
 # ---------------------------------------------------------------------------
 # Base Paths
