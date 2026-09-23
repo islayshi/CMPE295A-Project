@@ -62,3 +62,5 @@ gunicorn>=22.0,<23.0              # WSGI server for Cloud Run
 # --------------------------------------------------------------
 pytest>=8.0,<9.0
 pytest-django>=4.9,<5.0
+earthengine-api==0.1.411
+earthengine-api==1.7.45

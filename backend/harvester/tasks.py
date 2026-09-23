@@ -229,26 +229,82 @@ def store_geojson_result(geojson: dict) -> int:
 # INDIVIDUAL HARVESTER TASKS (Stubs — fully implemented in Week 2)
 # ===========================================================================
 
-@shared_task(name="harvester.tasks.fetch_goes18_imagery")
-def fetch_goes18_imagery():
+@shared_task(name="harvester.tasks.fetch_goes18_imagery", bind=True, max_retries=3, default_retry_delay=60)
+def fetch_goes18_imagery(self):
     """
-    PLACEHOLDER — Week 2 Implementation.
-
     Fetches the daily GOES-18 fire detection composite from GEE:
-      GEE Collection: NOAA/GOES/18/FDCC
-      GEE Collection: NOAA/GOES/18/MCMIPC
+      GEE Collection: NOAA/GOES/18/FDCC (Fire Detection)
+      GEE Collection: NOAA/GOES/18/MCMIPC (Cloud & Moisture Imagery)
 
-    Exports processed composite to GCS:
+    Crops the imagery to the exact BayAreaGrid extent calculated dynamically
+    from PostGIS, and exports it to GCS:
       gs://{GCS_BUCKET_NAME}/daily/{date}/goes18_fire.tif
 
-    ML Interface Contract §1.1: This data is provided to the ML team
-    via GCS for model training and daily inference.
+    MOCK MODE: When settings.MOCK_INFERENCE is True, the GEE logic is
+    built but the final export.start() command is bypassed to save costs.
     """
-    logger.info('{"event": "fetch_goes18", "status": "STUB — not yet implemented"}')
-    # TODO Week 2:
-    # import ee
-    # ee.Initialize(credentials=...)
-    # collection = ee.ImageCollection('NOAA/GOES/18/FDCC') ...
+    import ee
+    from django.contrib.gis.db.models import Extent
+    from grid.models import BayAreaGrid
+
+    run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    logger.info('{"event": "fetch_goes18_start", "date": "%s"}', run_date)
+
+    if not settings.GEE_PROJECT_ID:
+        logger.warning('{"event": "fetch_goes18_skip", "reason": "GEE_PROJECT_ID not set"}')
+        return
+
+    try:
+        # Initialize GEE using Application Default Credentials (ADC)
+        ee.Initialize(project=settings.GEE_PROJECT_ID)
+
+        # Dynamically calculate the bounding box from the PostGIS grid
+        extent = BayAreaGrid.objects.aggregate(ext=Extent('geometry'))['ext']
+        if not extent:
+            logger.error('{"event": "fetch_goes18_error", "error": "BayAreaGrid is empty"}')
+            return
+        
+        # extent format: (xmin, ymin, xmax, ymax)
+        roi = ee.Geometry.Rectangle([extent[0], extent[1], extent[2], extent[3]])
+
+        # Query GOES-18 Fire Detection for the last 24 hours
+        # (Using a hardcoded recent date range for predictable daily extraction)
+        start_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = datetime.now(timezone.utc)
+
+        fdcc = ee.ImageCollection('NOAA/GOES/18/FDCC') \
+            .filterBounds(roi) \
+            .filterDate(start_time.isoformat(), end_time.isoformat())
+        
+        # If no imagery is found yet today, log and exit gracefully
+        if fdcc.size().getInfo() == 0:
+            logger.warning('{"event": "fetch_goes18_empty", "reason": "No imagery found for date range"}')
+            return
+
+        # Take the maximum fire temperature / area over the daily window
+        daily_composite = fdcc.select(['Area', 'Temp']).max().clip(roi)
+
+        # Build the export task
+        export_path = f"daily/{run_date}/goes18_fire"
+        task = ee.batch.Export.image.toCloudStorage(
+            image=daily_composite,
+            description=f'GOES18_Export_{run_date}',
+            bucket=settings.GCS_BUCKET_NAME,
+            fileNamePrefix=export_path,
+            scale=2000, # GOES-18 FDCC native resolution is roughly 2km
+            region=roi,
+            fileFormat='GeoTIFF'
+        )
+
+        if settings.MOCK_INFERENCE:
+            logger.info('{"event": "fetch_goes18_mock_bypass", "action": "skipped export.start()"}')
+        else:
+            task.start()
+            logger.info('{"event": "fetch_goes18_export_started", "path": "%s"}', export_path)
+            
+    except Exception as exc:
+        logger.error('{"event": "fetch_goes18_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)
 
 
 @shared_task(name="harvester.tasks.fetch_viirs_hotspots")

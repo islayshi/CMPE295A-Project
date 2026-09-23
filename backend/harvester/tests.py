@@ -165,3 +165,48 @@ def test_trigger_daily_inference_happy_path():
     # --- Assert task returned success ---
     assert result.result["status"] == "success"
     assert result.result["predictions_written"] == 2
+
+@pytest.mark.django_db
+def test_fetch_goes18_imagery_mock_bypass(settings):
+    """
+    Verifies that fetch_goes18_imagery() correctly builds the GEE logic
+    but BYPASSES the final export.start() call when MOCK_INFERENCE=True.
+    """
+    from django.contrib.gis.geos import Polygon, Point
+    from grid.models import BayAreaGrid
+    from harvester.tasks import fetch_goes18_imagery
+
+    settings.GEE_PROJECT_ID = "test-project"
+    settings.MOCK_INFERENCE = True
+
+    # Seed one grid cell so Extent() returns a valid bounding box
+    BayAreaGrid.objects.create(
+        id=1001,
+        geometry=Polygon(((-122.2, 37.0), (-122.1, 37.0), (-122.1, 37.1), (-122.2, 37.1), (-122.2, 37.0))),
+        centroid=Point(-122.15, 37.05),
+        row=0, col=0
+    )
+
+    with patch.dict("sys.modules", {"ee": MagicMock()}) as mock_modules:
+        mock_ee = mock_modules["ee"]
+        # Configure the mock to return a size > 0 so it doesn't exit early
+        mock_collection = MagicMock()
+        mock_collection.filterBounds.return_value = mock_collection
+        mock_collection.filterDate.return_value = mock_collection
+        mock_collection.size.return_value.getInfo.return_value = 1
+        mock_ee.ImageCollection.return_value = mock_collection
+
+        mock_task = MagicMock()
+        mock_ee.batch.Export.image.toCloudStorage.return_value = mock_task
+
+        # Run task
+        fetch_goes18_imagery.apply()
+
+        # Assert GEE was initialized with ADC project ID
+        mock_ee.Initialize.assert_called_once_with(project="test-project")
+        
+        # Assert the export task was BUILT
+        mock_ee.batch.Export.image.toCloudStorage.assert_called_once()
+        
+        # Assert the export task was NOT STARTED (Mock bypass)
+        mock_task.start.assert_not_called()

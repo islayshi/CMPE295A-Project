@@ -214,6 +214,7 @@ NWS_API_USER_AGENT = os.environ.get(
     "FightFireWithAI/1.0 (contact@example.com)"
 )
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "fightfirewai-features")
+GEE_PROJECT_ID = os.environ.get("GEE_PROJECT_ID", "")
 
 # ---------------------------------------------------------------------------
 # Logging — Structured JSON logging for NFR-O01 observability
