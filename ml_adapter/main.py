@@ -162,3 +162,4 @@ def _serve_mock_fixture() -> JSONResponse:
     geojson["metadata"]["timestamp"] = datetime.now(timezone.utc).isoformat()
 
     return JSONResponse(content=geojson)
+

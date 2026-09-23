@@ -1,0 +1,377 @@
+import os
+
+gemini_md_path = "/Users/earlpadron/Desktop/Spring 2026 Courses/CMPE 295A/CMPE295A-Project/GEMINI.md"
+adr_md_path = "/Users/earlpadron/Desktop/Spring 2026 Courses/CMPE 295A/CMPE295A-Project/docs/architecture-decision-record.md"
+design_doc_path = "/Users/earlpadron/Desktop/Spring 2026 Courses/CMPE 295A/CMPE295A-Project/docs/design-doc.md"
+
+gemini_content = """# Fight Fire With AI (CMPE 295A Project)
+
+## Project Overview
+Fight Fire With AI is a Wildfire Prediction and Dynamic Routing system scoped to the San Francisco Bay Area. It is designed to predict fire spread using deep learning and calculate safe evacuation routes in real-time.
+
+### System Architecture
+The project utilizes a Modular Monolith architecture combined with a separate AI Inference Engine:
+*   **Backend (Core Monolith):** Python, Django, Django REST Framework, Celery (Task Scheduling).
+*   **Database:** PostgreSQL with `PostGIS` (for spatial queries/routing) and `pgvector` (for RAG chatbot vector storage).
+*   **Caching & Broker:** Redis.
+*   **AI/Inference Engine:** Python, FastAPI, ML Adapter (U-Net + PINN (TBD) in TensorFlow/Keras).
+*   **Frontend (UI/UX):** React.js (Vite), Mapbox GL JS, Deck.gl, Tailwind CSS.
+
+### Key Features
+*   Day-ahead fire risk prediction using U-Net model.
+*   Fire risk zone mapping using U-Net (TensorFlow/Keras); PINN integration TBD.
+*   Dynamic A* evacuation routing avoiding predicted danger zones.
+*   RAG-backed context-aware chatbot for emergency information.
+
+## Current Development Focus
+Month 1: Building backend infrastructure (Django/PostGIS models, Celery harvester template, FastAPI ML Adapter in mock mode, A* routing, RAG chatbot). ML inference layer is a black box — integrates via GeoJSON FeatureCollection output contract. Mock mode (`MOCK_INFERENCE=true`) enables full development without a trained model.
+
+## Building and Running (Frontend MVP)
+The frontend is a React application built with Vite.
+
+1. Navigate to the `frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+*(Note: Backend/AI deployment scripts are currently managed via Docker/Docker-compose as per the design document, but specific commands are not yet detailed in the root level).*
+
+## Development Conventions
+*   **Frontend:** React 19, Vite, Tailwind CSS v4. Linting is enforced via ESLint (`npm run lint`).
+*   **Backend:** Python parity across backend and AI teams.
+*   **CI/CD:** Automated testing (pytest for backend, React Testing Library/Cypress for frontend) and deployment via GitHub Actions to AWS (ECS, RDS, S3/CloudFront).
+"""
+
+with open(gemini_md_path, "w") as f:
+    f.write(gemini_content)
+
+adr_additions = """
+## ADR-002: Treat ML Inference as a Plug-and-Play Black Box
+
+**Status:** Accepted
+**Date:** 2026-09-09
+
+**Context:** The AI/ML team's model development timeline extends 1–2 months into the project. The backend and frontend must be developed in parallel without blocking on a trained model. The ML team has agreed on a standard GeoJSON FeatureCollection output contract.
+
+**Decision:** The ML Inference Engine (U-Net + PINN) is treated as a black box that integrates with the backend exclusively via a GeoJSON FeatureCollection output contract:
+- `fire_probability` (float, 0.0–1.0)
+- `risk_label` (HIGH_RISK | MEDIUM_RISK | LOW_RISK)
+- `geometry` (Polygon, WGS84)
+- `timestamp` (ISO-8601 UTC)
+
+A `MOCK_INFERENCE=true` environment flag enables the FastAPI ML Adapter to return a static fixture, enabling full end-to-end development and CI/CD without a trained model.
+
+**Consequences:**
+- Backend and frontend development can proceed immediately without ML team dependencies
+- The FastAPI ML Adapter is designed for zero-rework model swapping: replace the mock fixture with `model.predict()` when the model is ready
+- The input contract (feature tensor shape and data sources) remains PENDING and will be documented in `docs/ml-model-spec.md` once the ML team confirms
+
+## ADR-003: Daily Celery Cron for Inference Cadence
+
+**Status:** Accepted  
+**Date:** 2026-09-09
+
+**Context:** The ML team has not yet confirmed whether inference should run on a fixed schedule or on-demand. The U-Net model outputs daily (next-day) fire risk predictions, making a sub-hourly schedule unnecessary.
+
+**Decision:** ML inference is triggered by a **daily Celery beat cron job**. The cadence is configurable via environment variable (`INFERENCE_CRON_SCHEDULE`). The frontend reads pre-computed results from Redis cache, resulting in sub-100ms read latency regardless of model inference time.
+
+**Consequences:**
+- Removes the sub-5-second synchronous inference SLA (NFR-P01 revised to async background task)
+- Celery beat schedule is easily adjusted to hourly or on-demand without architectural changes
+- On-demand inference can be added as a separate Celery task in a future iteration
+"""
+
+with open(adr_md_path, "a") as f:
+    f.write(adr_additions)
+
+design_doc_content = """# 📄 Fight Fire With AI: Master System Design Document (Bay Area Scope MVP)
+
+## Introduction 
+This document describes the design and implementation of the Master System Architecture and Frontend Minimum Viable Product (MVP) for **Fight Fire With AI**. Designed specifically for the San Francisco Bay Area, Fight Fire With AI is a day-ahead fire risk planning and routing platform that synthesizes crucial environmental factors like weather and air quality. The system is engineered to provide advanced fire detection and predictive risk mapping (Day 0 / Day +1). 
+
+Furthermore, the platform allows users to create personalized accounts, enabling them to customize their notifications and input specific health conditions that may make them vulnerable to smoke and fire hazards. Unlike other tools, this project integrates a RAG-enabled chatbot that leverages this personalized health profile to offer hyper-local safety intelligence and guidance. The frontend prototype serves as an interactive showcase of these capabilities, enabling users to visualize day-ahead fire risk zones, receive dynamic A* routing that avoids compromised roads, and interact seamlessly with the context-aware chatbot.
+
+## 1. System Architecture: The Python & Django Monolith + Python Inference Engine
+
+The system utilizes a Modular Monolith architecture to minimize deployment overhead while maintaining strict separation of concerns. To guarantee the 2.0-second routing SLA, the system is strictly scoped to the 9-county **San Francisco Bay Area** bounding box.
+
+**Revised Data Flow:**
+[Data Sources (Category A: backend-owned)] → (Celery daily cron) → [Django Harvester] → HTTP POST → [FastAPI ML Adapter] → model.predict() → GeoJSON FeatureCollection → [Django Database Engine] → PostGIS + Redis → [Django REST API / A* Routing] → WebSocket push (Django Channels) → [React Frontend]
+
+---
+
+## 1.1 Component Specifications & Responsibilities
+
+### The Django Monolith (Web & Orchestration)
+
+**Module 1 (The Harvester)**
+The Harvester is redesigned as a **pluggable template** with the following structure:
+- A Celery beat **daily cron schedule** (cadence is daily; configurable in the future)
+- A `trigger_inference()` Celery task — fully implemented — that orchestrates the pipeline and POSTs to the FastAPI ML Adapter
+- A `store_geojson_result()` function that writes returned GeoJSON to PostGIS and Redis
+- Data source integration tasks (`fetch_weather_data()`, `fetch_fire_perimeter_update()`) are clearly labeled **PLACEHOLDER stubs** — their implementation is deferred until the ML team confirms required input features
+
+*Note: The specific data sources fed into the ML pipeline are deferred pending the ML team's confirmation of model input features. The Celery task plumbing, scheduling, and PostGIS ingestion are fully implemented in Month 1.*
+
+**Module 2 (Database Engine)**
+The Database Engine module manages all persistent and transient spatial data storage for the platform. This module utilizes the GeoDjango framework to receive incoming predictive GeoJSON outputs generated by the external ML Inference Engine. Upon reception, the engine executes spatial database inserts into a PostgreSQL database augmented with the PostGIS extension, establishing a historical archive for longitudinal fire tracking and model auditing. Simultaneously, to ensure low-latency data retrieval for the frontend application, the module overwrites the active `current_risk_map` key within an in-memory Redis cache. Furthermore, the Database Engine holds responsibility for querying and serving static, mission-critical geospatial coordinates, such as the Federal Emergency Management Agency (FEMA) and California Governor's Office of Emergency Services (CalOES) designated emergency shelter locations directly from the PostGIS instance.
+
+The Django model for the GeoJSON output contract is defined as follows:
+- `timestamp` (DateTimeField, indexed)
+- `source_model` (CharField: "unet", "pinn", "mock")
+- `danger_zone` (PolygonField, SRID=4326)
+- `fire_probability` (FloatField, 0.0–1.0)
+- `risk_label` (CharField: HIGH_RISK | MEDIUM_RISK | LOW_RISK)
+- `grid_id` (IntegerField, nullable)
+
+**Module 3 (API/Routing)**
+The API and Routing module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval and user authentication. For dynamic evacuation routing, the module accepts user Global Positioning System (GPS) coordinates and executes complex spatial queries against the PostGIS database. Leveraging GeoDjango, the system computes optimal evacuation paths across the Bay Area road graph using the A* pathfinding algorithm, actively calculating routes that bypass ML Inference Engine output polygons (A* routing queries PostGIS `danger_zone` polygons — works identically regardless of which ML model produced them). Furthermore, this module integrates Django Channels to manage asynchronous, bidirectional communication. It broadcasts critical `FIRE_UPDATE` WebSocket messages directly to the React frontend, ensuring the user interface reflects the most current environmental telemetry and risk maps without requiring manual browser refreshes.
+
+### The FastAPI ML Adapter
+
+The FastAPI ML Adapter serves as a single-endpoint service that receives a trigger/payload from Django and returns a standard GeoJSON FeatureCollection.
+- **Endpoint:** `POST /predict`
+- **Month 1 behavior:** Returns a static GeoJSON fixture when `MOCK_INFERENCE=true`
+- **Month 2 behavior:** Loads the trained `.keras` model and runs `model.predict()` on the feature payload
+- Always returns the standard GeoJSON FeatureCollection output contract
+
+**RAG Chatbot:** Exposes the LLM interface. Takes the natural language query, embeds it, queries PostgreSQL (`pgvector`), and streams the contextually aware response **(enriched with live PM2.5 and Red Flag status)** back through the Django backend (using LangChain/LlamaIndex).
+
+---
+
+## 2. Tech Stack Breakdown
+
+This stack ensures total Python parity between the AI developers and the backend developers, optimizing geospatial capabilities and eliminating I/O bottlenecks.
+
+- **Frontend (UI/UX):** React.j, Mapbox GL JS (via `react-map-gl` for rendering complex GeoJSON polygons), Deck.gl (WebGL overlay for dynamic animated wind particles).
+- **Backend (Core Monolith):** Python, Django, Django REST Framework, Celery (Task Scheduling).
+- **Database:** PostgreSQL.
+  - _Extension 1:_ `PostGIS` (Managed via **GeoDjango**. Contains only the Northern California/Bay Area `.osm.pbf` extract to ensure A* pathfinding executes under 2.0 seconds).
+  - _Extension 2:_ `pgvector` (For native vector storage and semantic similarity searches).
+- **Caching & Live State:** Redis (Serves triple-duty as the Celery task broker, the Django Channels WebSocket backing store, and the high-speed GeoJSON cache).
+- **AI/Inference Engine:** Python, FastAPI, TensorFlow/Keras (U-Net + PINN (TBD)), LangChain/LlamaIndex.
+
+---
+
+## 3. External Data Sources
+
+### Category A — Backend-Owned Sources (implement now):
+- **OpenWeather / GRIDMET:** Wind speed/direction for Deck.gl wind particles and Telemetry HUD
+- **OpenAQ / PurpleAir:** Live PM2.5 for chatbot health context
+- **NWS Alerts API:** Red Flag Warnings for map overlay
+- **FEMA/CalOES shelter data:** Static POIs in PostGIS
+- **511 SF Bay Open Data:** Road incidents/closures for dynamic A* routing inputs
+
+### Category B — ML Pipeline Sources (deferred, pending ML team input):
+- **NASA FIRMS / VIIRS active fire**
+- **NOAA GOES-18 ABI**
+- **NOAA HRRR short-range weather**
+- **Historical weather sources**
+- **LANDFIRE fuel models**
+- **NASA HLS NDVI vegetation**
+- **Others from the ML team's ADR data source table**
+*Note: These sources are deferred to the ML team's decision on model input features.*
+
+---
+
+## 4. RAG Knowledge Base (Vector Database Sources)
+
+To ensure the chatbot provides authoritative, verifiable, and locally relevant advice, the `pgvector` database will be pre-indexed with:
+
+- **Regional Guidelines:** Bay Area Air Quality Management District (BAAQMD) PM2.5 guidelines and CalOES evacuation terminology.
+- **State Safety Rules:** CalFire Defensible Space Guidelines (Zone 0, 1, and 2 rules).
+- **Medical Literature:** PubMed/PMC abstracts covering "wildfire smoke respiratory impact" and "asthma exacerbation."
+
+_Note on Implementation:_ The prompt sent to the LLM will always inject the user's _current live data_ (e.g., local Bay Area AQI, distance to fire, vulnerability score) to make the retrieved documents contextually relevant.
+
+---
+
+## 5. Functional Requirements (FR)
+
+### A. Essential Features (MVP Core)
+
+- **FR-E01 [Prediction Visualization]:** Visualize current fire perimeters and ML-generated next-day fire risk zones on the interactive map. The time scrubber allows switching between Day 0 and Day +1.
+- **FR-E02 [Dynamic Routing]:** Calculate optimal evacuation routes avoiding roads that intersect with predicted fire danger polygons.
+- **FR-E03 [Confidence Metrics]:** Display the ML model's `fire_probability` (float 0.0–1.0) and `risk_label` (HIGH_RISK/MEDIUM_RISK/LOW_RISK) from the GeoJSON contract for forecasted danger zones.
+- **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (AQI, Wind Speed/Direction), compute vulnerability scoring, render Deck.gl animated wind particle arrays reflecting live vectors, and overlay NWS Red Flag Warning polygons when active.
+- **FR-E05 [Emergency POIs]:** Display static Points of Interest using custom HTML markers (e.g., FEMA Evacuation Shelters with Lucide-react icons) anchored securely to the map. Utilizes downloaded, open-source FEMA/CalOES datasets loaded into PostGIS.
+- **FR-E07 [Context-Aware Chat]:** Provide a simulated RAG-backed chatbot interface answering queries with contextual health data (e.g., asthma risks, AQI, shelter routing) and explicit citations (e.g., NWS, CalOES, BAAQMD).
+- **FR-E08 [Source Citation]:** The chatbot must explicitly cite the source document (e.g., CalFire, PubMed) retrieved from the vector database.
+- **FR-E09 [Mock Mode]:** The system must support a `MOCK_INFERENCE=true` environment flag that bypasses the FastAPI ML Adapter and serves a pre-loaded Bay Area GeoJSON fixture. Required for Month 1 development and CI/CD testing without a trained model.
+
+### B. Desired Features (Value-Add & Personalization)
+
+- **FR-D01 [Extended Forecast]:** *DEFERRED* — depends on ML team's forecast horizon (7-day predictive fire risk map based on forecasted weather covariates).
+- **FR-D02 [Air Quality Integration]:** Overlay real-time PM2.5 and PM10 IoT data on the map interface.
+- **FR-D03 [Health-Personalized Risk]:** Generate personalized risk labels (e.g., "High Risk for Asthma") based on user-inputted health profiles and local AQI. Consumes `risk_label` from GeoJSON.
+- **FR-D04 [Conversation History]:** Maintain chat session context to allow for seamless follow-up questions.
+- **FR-D05 [Anthropogenic Data Integration]:** *DEFERRED* — ML team to decide (Pull static infrastructure data to feed as an additional spatial channel into the ML model).
+- **FR-E06 [Alert Configuration]:** Allow configuration of SMS/push notifications for approaching thermal anomalies or risk polygons.
+
+### C. Optional Features (Stretch Goals)
+
+- **FR-D06 [Emission Estimation]:** Calculate basic predictive emission yields (CO2/PM2.5) by multiplying the AI-predicted burn area polygons by standard California Chaparral fuel load constants, closing the pipeline between fire detection and environmental impact assessment.
+- **FR-O01 [Climate Simulation]:** Provide a sandbox interface to tweak temperature/humidity parameters and re-run the ML model to visualize simulated probabilities.
+- **FR-O02 [Crowdsourced Reporting]:** Allow users to submit geolocated pins for visible smoke or road blockages.
+- **FR-O03 [First Responder Tracking]:** Map general vicinity of dispatched fire units (dependent on open-source CAD data availability).
+
+---
+
+## 6. Non-Functional Requirements (NFR)
+
+### A. Performance & Latency
+
+- **NFR-P01 [Inference Speed]:** Inference runs as a daily Celery background task. Target completion < 60 seconds. Frontend reads from Redis cache (< 100ms). No synchronous user-facing inference SLA.
+- **NFR-P02 [Routing Speed]:** The GeoDjango routing service shall recalculate an A* path avoiding dynamic fire polygons across the Bay Area road graph in under **2.0 seconds** for distances up to 100 miles.
+- **NFR-P03 [Streaming Latency]:** The Django Channels chat interface must stream the RAG response with a "Time to First Token" (TTFT) not exceeding **2.0 seconds**.
+
+### B. Scalability
+
+- **NFR-S01 [Concurrent Users]:** Django Channels and the Redis broker shall support a minimum of **5,000 concurrent user connections** without exceeding a 95th percentile response time of 500ms.
+- **NFR-S02 [Safety & Guardrails]:** The RAG pipeline must implement a strict system prompt constraint preventing it from diagnosing medical conditions.
+
+### C. Reliability & Fault Tolerance
+
+- **NFR-R01 [Graceful Degradation]:** If external weather APIs fail, the pipeline shall automatically fall back to utilizing the last successfully cached GeoJSON prediction.
+- **NFR-R02 [LLM Fallback]:** If the external LLM API times out, the system shall disable the chat widget and display a "Service Unavailable" badge without disrupting core routing.
+- **NFR-R03 [Availability]:** The core API and mapping services shall maintain **99.9% uptime** during simulated disaster stress-tests. Daily inference is best-effort.
+
+### D. Security & Privacy
+
+- **NFR-SEC01 [Data Protection]:** Health profile data shall be anonymized, encrypted at rest using AES-256 in the database, and never transmitted to third-party APIs.
+- **NFR-SEC02 [Authentication]:** User accounts shall be secured using standard OAuth 2.0 or JWT (JSON Web Token) authentication protocols.
+
+---
+
+## 7. Out of Scope (Explicitly Excluded to Prevent Scope Creep)
+
+Given the timeline and academic constraints, the following features are explicitly excluded:
+- **Live Official Evacuation Orders:** Fragmented across different county systems with no single, free, real-time API. We rely entirely on our AI's predicted risk polygons to trigger evacuation routing.
+- **Prescribed Burns vs. Wildfires:** AI relying purely on infrared pixels has difficulty distinguishing controlled burns from wildfires. For the MVP, all detected thermal anomalies are treated as potential risks.
+- **Live Power Outages:** Utility APIs (e.g., PG&E) are tightly controlled and unreliable to scrape. Detracts from the core machine learning focus.
+- **Sub-hourly fire spread prediction intervals:** Deferred until ML team delivers a short-term model.
+- **Real-time GOES-18 satellite ingestion:** Deferred until ML team confirms as a model input requirement.
+- **On-demand (<5 second) synchronous ML inference triggered by user action**
+
+---
+
+## 8. Competitive Analysis & Defense Pitch (The Fight Fire With AI Advantage)
+
+While existing apps like *Watch Duty* serve as the gold standard for UI/UX and human-verified reporting, Fight Fire With AI differentiates itself fundamentally through its AI-driven, automated architecture:
+
+- **Predictive vs. Reactive:** Human-in-the-loop systems are reactive—they report where a fire is and what officials have already done based on radio scanners. Fight Fire With AI is **predictive**. By providing day-ahead fire risk planning, it offers users a critical head start before official channels issue orders, with the architecture designed to support shorter-interval predictions as the ML pipeline matures.
+- **Dynamic AI Routing:** Existing apps provide a map but leave the user to figure out how to escape. Fight Fire With AI takes the AI's predicted spread polygons, feeds them into PostGIS, and mathematically calculates the fastest A* route out of the danger zone that proactively avoids future compromised roads.
+
+---
+
+## 9. Frontend MVP Prototype Implementation Details
+
+The frontend MVP was developed as a standalone showcase of the system's capabilities, designed specifically for a Master's defense presentation. It simulates the real-time AI and routing behaviors described above without requiring a live connection to the Python/Django backend.
+
+### 9.1 Prototype Stack & Tooling
+- **React 19 & Vite:** Core SPA framework providing fast development and hot-module reloading.
+- **Tailwind CSS v4 & Lucide-React:** For rapid, utility-first UI styling with a "Glassmorphism" aesthetic (translucent, blurred backgrounds) and consistent SVG iconography.
+- **Mapbox GL JS (`react-map-gl/mapbox`):** Renders the core geospatial canvas using the `dark-v11` style and 3D terrain exaggeration (`mapbox-dem`) to highlight topographical features in the Bay Area (e.g., Hayward hills).
+- **Deck.gl:** A WebGL-powered framework used to overlay complex, high-performance animations—specifically, the animated wind particle grids.
+- **Framer Motion:** Powers smooth UI animations, such as the slide-out RAG Chatbot drawer.
+
+### 9.2 Map Layering & Visual Hierarchy (Strict Z-Index)
+To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
+1. **Base Topography:** Mapbox `dark-v11` base map with 1.5x 3D terrain exaggeration.
+2. **Red Flag Warning Zone:** A static NWS environmental danger polygon rendered as a translucent red area.
+3. **Fire Detection (ML Engine):** Solid red circle layers representing initial thermal anomalies.
+4. **Predictive Spread (U-Net):** Semi-transparent orange (Day 0) and yellow (Day +1) polygons representing predicted fire progression.
+5. **Evacuation Routes (A*):** A dynamic blue line layer representing the safe detour, and a dashed red line representing the compromised highway.
+6. **Deck.gl Wind Particles:** An animated WebGL `TextLayer` of Unicode arrows (➔) calculating offset per frame to simulate continuous wind flow over the map.
+7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
+
+### 9.3 HUD (Heads-Up Display) Components
+- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
+- **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
+- **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
+- **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Safe Evacuation Route") to their real-world meanings.
+
+### 9.4 Scenario Orchestration (The "Golden Path" Script)
+To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).
+- **State 1 (NORMAL):** Showcases ambient westerly winds, a low vulnerability score, and a clean map with no routes or warnings.
+- **State 2 (AI_UPDATE):** Simulates an environmental shift. The wind shifts to a fierce 45 mph South-West blow, the Red Flag Warning polygon appears, the ML spread polygons bloom, and the original highway route renders as a compromised dashed red line.
+- **State 3 (REROUTE):** Simulates the A* backend. The compromised route disappears, and a solid blue detour path connects the user's location to the nearest safe shelter (Chabot College).
+
+---
+
+## 10. QA & Testing Strategy
+
+A rigorous Quality Assurance (QA) strategy ensures the reliability and accuracy of Fight Fire With AI, particularly given its safety-critical context. Testing is divided into the following phases:
+
+### 10.1 AI & Data Pipeline Testing
+- **Model Validation:** The U-Net model is validated against historical ground truth data (e.g., NASA FIRMS data from the Dixie and Mosquito fires). Accuracy, Precision, Recall, and Intersection over Union (IoU) metrics will be calculated to ensure predictive reliability.
+- **Mock Mode Testing:** Verify that the system correctly serves a pre-loaded Bay Area GeoJSON fixture when `MOCK_INFERENCE=true` without attempting a real inference.
+- **Data Ingestion Unit Tests:** Automated unit tests (via `pytest`) verify that the Celery harvester successfully orchestrates the pipeline.
+
+### 10.2 Backend & Routing Testing
+- **PostGIS Spatial Queries:** Unit tests validate the GeoDjango A* routing algorithm, ensuring it accurately calculates the shortest path while strictly avoiding dynamically inserted GeoJSON "danger" polygons.
+- **WebSocket Broadcasting:** Integration tests verify that Django Channels correctly broadcasts `FIRE_UPDATE` events to connected clients with low latency.
+
+### 10.3 Frontend Validation
+- **Component Rendering:** React Testing Library is used to ensure HUD components (e.g., TelemetryCard) render correctly and react dynamically to state changes (e.g., AQI shifts, Red Flag Warnings).
+- **"Golden Path" E2E Testing:** End-to-end tests (via Cypress or Playwright) simulate user interactions, verifying the seamless transition between `NORMAL`, `AI_UPDATE`, and `REROUTE` states on the Mapbox GL JS canvas, including the proper rendering of Deck.gl wind particles and custom HTML markers.
+
+---
+
+## 11. Performance Evaluation
+
+Given the strict SLAs defined in the Non-Functional Requirements, performance is continuously evaluated across the stack:
+
+### 11.1 AI Inference Profiling
+- **Target:** Inference runs as a daily Celery background task (< 60 seconds).
+- **Methodology:** TensorFlow Profiler is used to benchmark the inference time of the U-Net model when processing matrices. Inference runs are logged and monitored to ensure they meet the target execution time for daily background tasks.
+
+### 11.2 Routing Engine Benchmarking
+- **Target:** Sub-2.0 seconds for distances up to 100 miles.
+- **Methodology:** `pgBench` and automated load scripts test the PostGIS A* extension under various load conditions, ensuring spatial queries execute swiftly even when the road graph is fragmented by multiple fire polygons.
+
+### 11.3 Web & Frontend Performance
+- **Target:** WebSocket TTFT (Time to First Token) sub-2.0 seconds; 5,000 concurrent users.
+- **Methodology:** Locust or JMeter is utilized to simulate high-concurrency WebSocket connections to the Django Channels server. On the frontend, Chrome DevTools and React Profiler are used to monitor framerates, ensuring the Deck.gl WebGL canvas and Mapbox GL JS layers maintain 60 FPS during complex animations.
+
+---
+
+## 12. Deployment Plan
+
+The deployment strategy for the Fight Fire With AI MVP leverages containerization and cloud infrastructure to ensure scalability and ease of deployment.
+
+### 12.1 Infrastructure Architecture
+- **Containerization:** All modules (Django Backend, FastAPI AI Engine, React Frontend, Celery Workers) are containerized using **Docker** and managed via `docker-compose` for local development and parity.
+- **Cloud Provider:** Deployed on **AWS (Amazon Web Services)**.
+  - **Backend/AI:** Hosted on Amazon EC2 instances or ECS (Elastic Container Service) with GPU support for TensorFlow inference.
+  - **Database:** Amazon RDS for PostgreSQL with PostGIS and pgvector extensions installed.
+  - **Cache/Broker:** Amazon ElastiCache (Redis) for Celery task queuing and Django Channels WebSocket backing.
+  - **Frontend:** Compiled React static assets hosted on Amazon S3 and distributed via Amazon CloudFront (CDN).
+
+### 12.2 CI/CD Pipeline
+- **Continuous Integration (CI):** GitHub Actions automatically trigger on every Pull Request to run `eslint`, `pytest`, and build verifications.
+- **Continuous Deployment (CD):** Upon merging to the `main` branch, the CI/CD pipeline builds new Docker images, pushes them to Amazon ECR (Elastic Container Registry), and triggers a rolling update on the ECS cluster to ensure zero-downtime deployments.
+
+---
+
+## 13. ML Integration Contract
+
+- **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box.
+- **Output Contract (ML Engine → Django Backend):** The exact GeoJSON FeatureCollection format including all field types (`fire_probability`, `risk_label`, `geometry`, `timestamp`).
+- **Input Contract (Django → ML Engine):** PENDING — to be documented in `docs/ml-model-spec.md` once the ML team confirms required feature tensors and data sources.
+- **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
+- **Inference Cadence:** Daily Celery cron job (configurable via Django admin or environment variable in future).
+"""
+
+with open(design_doc_path, "w") as f:
+    f.write(design_doc_content)
+
+print("Files updated successfully!")

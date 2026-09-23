@@ -1,0 +1,245 @@
+# Research Paper Summaries: Wildfire Detection, Prediction, and Public Health
+
+## Paper 1: Application of Deep Learning in Forest Fire Prediction: A Systematic Review
+
+### I. Introduction
+Forests represent a critical global ecological resource, providing habitat for wildlife, regulating climate, filtering air and water, and supplying various raw materials. Forest fires (FFs) threaten these ecosystems significantly. Approximately 67,000 FFs occur annually worldwide, destroying approximately 2.83 million hectares of land. These fires release large quantities of carbon dioxide, cause soil erosion, reduce soil fertility, and increase sedimentation in nearby rivers and streams. The increasing global occurrence and severity of FFs necessitate effective prediction and management strategies.
+
+Traditional FF prediction methods rely on meteorological data and human expertise. These methods present limitations in accuracy and scalability. The evolving complexity of fire behavior requires more robust predictive frameworks. Deep learning (DL) techniques process large datasets and recognize complex patterns, providing a mechanism to enhance prediction accuracy. Effective FF prediction minimizes environmental damage, preserves biodiversity, reduces economic losses, and safeguards human lives.
+
+### II. Background
+Artificial Intelligence (AI) simulates human intelligence processes using machines. Early AI applications in fire prediction utilized expert systems based on rules regarding weather conditions, vegetation types, and topography to estimate fire spread and intensity. The field advanced with the implementation of decision trees and support vector machines (SVMs) to classify fire-prone areas based on observable patterns. Feedforward neural networks subsequently emerged to model non-linear relationships in fire-related data, capturing interactions between features such as temperature, humidity, and vegetation type.
+
+Machine learning (ML) enables systems to learn from data. ML algorithms perform classification, regression, clustering, and anomaly detection tasks. In the context of FF prediction, ML models analyze meteorological and environmental data to predict fire risk and behavior. DL, a subset of ML, handles large, unstructured datasets such as satellite images and video feeds. DL models predict the likelihood of fire ignition and progression by analyzing data from previous fires. Convolutional Neural Networks (CNNs), Recurrent Neural Networks (RNNs), and Generative Adversarial Networks (GANs) process large datasets to recognize complex patterns for fire risk prediction.
+
+### III. DL for FF Prediction Techniques
+The prediction and detection of FFs utilize three main technological approaches. Imagery-based detection uses fixed cameras, satellites, and drones to capture aerial images. This approach effectively monitors large areas and remote locations. However, imagery-based methods face limitations from adverse weather conditions and delayed data processing.
+
+Sensor-based detection deploys environmental sensors throughout forests to measure data such as temperature, humidity, and smoke levels. This method provides real-time data and enables quick detection. The primary constraint of sensor-based detection is the requirement for an extensive sensor network and regular maintenance, making it difficult to deploy across vast geographic regions.
+
+Internet of Things (IoT)-based prediction represents an integrated approach that combines imagery and sensor-based methods with IoT technology. This approach collects data from multiple sources and analyzes it using advanced algorithms and DL models for real-time monitoring, predictive analysis, and automated response. While offering comprehensive insights, the IoT approach presents challenges related to system complexity, high deployment costs, data security vulnerabilities, and a strict reliance on stable internet connectivity.
+
+### IV. Methodology
+Researchers conducted a systematic review of literature published between January 2017 and July 2024. The selected period captures significant advancements in DL, satellite imaging, and mobile computing. The study retrieved data from databases including the Association for Computing Machinery (ACM) Digital Library, ScienceDirect, IEEE Xplore, Wiley Online Library, Springer Link, Scopus, Emerald, Google Scholar, and Sage Publishing. The search strategy combined keywords related to DL, forest fires, prediction applications, and implementation case studies. The search incorporated interdisciplinary terms from environmental science and remote sensing.
+
+The selection process followed the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) framework. The initial search yielded 656 articles. Researchers applied inclusion criteria requiring studies to be published in peer-reviewed journals, books, or conferences. Studies needed to address DL techniques in FF prediction, use real-world datasets, and be written in English. Two independent reviewers evaluated the quality of the selected studies to resolve discrepancies. The final synthesis included 55 papers for detailed analysis.
+
+### V. Results
+Thematic analysis of the selected papers identified highly interconnected keywords such as deep learning, machine learning, artificial intelligence, neural networks, and remote sensing. The global landscape of DL research for FF prediction concentrates heavily in the United States, China, France, Italy, India, Portugal, Greece, and Canada. Developing regions, particularly in Africa, exhibit a significant disparity in research output due to limited technological infrastructure, a scarcity of localized datasets, and gaps in AI expertise. Publication trends showed minimal activity between 2017 and 2018, followed by a surge between 2021 and 2023, and a subsequent decline in 2024.
+
+Analysis of model types revealed that classification models appeared in 56% of the studies, indicating their primary role in categorizing data into predefined classes. Regression models appeared in 24% of the studies, forecasting continuous outcomes such as fire size and spread rate. Object detection models were less common but vital for identifying fire locations in satellite imagery. The study found that 68% of the research utilized simulation-based validation, compared to 32% utilizing real-world experimental validation. 
+
+CNNs represented the most frequently used DL models (48.78%), excelling in processing spatial data and satellite imagery. Long Short-Term Memory (LSTM) networks accounted for 12.20%, proving effective for analyzing time-series data and historical fire patterns. The studies utilized imagery data heavily, integrating meteorological features such as temperature, humidity, and wind speed. Researchers found that 71% of the datasets were publicly available. Landsat represented the most frequently used satellite platform (25%), followed by Moderate Resolution Imaging Spectroradiometer (MODIS) and Sentinel satellites (13% each). Common evaluation metrics included accuracy, precision, recall, F1 score, and Area Under the Receiver Operating Characteristic Curve (AUC-ROC).
+
+### VI. Discussion
+The thematic analysis confirms the interdisciplinary nature of FF prediction, converging AI, environmental science, and remote sensing. The heavy concentration of research in developed nations necessitates increased investments in technological infrastructure and data collection in developing regions. The decline in publications in 2024 highlights unresolved challenges, particularly data heterogeneity, which complicates the development of accurate prediction models.
+
+The reliance on traditional classification and regression models suggests a gap in leveraging hybrid modeling approaches. The high percentage of simulation-based studies raises concerns regarding the generalizability of findings. Models trained in simulated environments may perform poorly when applied to real-world data due to unmodeled variables and complex environmental interplays.
+
+CNNs and LSTMs dominate the field due to their capability to process spatial and temporal data. The integration of comprehensive climate and weather data is frequent, but a significant gap remains in the inclusion of human activity data. Factors such as proximity to roads, human settlements, and agricultural activities are systematically underrepresented, leading to an incomplete understanding of fire risk in anthropogenically influenced regions. Furthermore, standard evaluation metrics may not fully capture the complexities of FF prediction in varying geographic regions, particularly in rare-event scenarios. DL models also face ongoing challenges related to data imbalance, generalization, and a lack of interpretability due to their "black box" nature.
+
+### VII. Conclusion
+DL demonstrates significant potential in FF prediction, offering capabilities beyond traditional meteorological models. CNNs and LSTMs serve as the predominant models, effectively capturing spatial and temporal dependencies. Meteorological variables and satellite-derived indices remain critical for model reliability. The underrepresentation of human activity data severely limits the holistic applicability of these models in regions where human factors drive fire dynamics.
+
+Global disparities in research output highlight the need for targeted investments and collaborative data sharing. The field relies heavily on simulations over real-world experiments, and standard evaluation metrics often fail to capture complex fire behaviors. Future research must prioritize the development of datasets incorporating human activity metrics, the establishment of standardized data protocols, and robust real-world validation through field testing. Advancing techniques to improve the interpretability of DL models will also be essential for fostering trust and practical adoption in fire management systems.
+
+---
+
+## Paper 2: Development of an Autonomous Unmanned Ground Vehicle System for Forest Fire Detection and Exploration with Multi-Sensor Fusion and Web-Based Control
+
+### I. Introduction
+Forest fires pose a growing global concern due to their devastating impact on ecosystems, human lives, and property. Traditional fire detection and assessment methods rely on human intervention, which presents risks and inefficiencies in hazardous environments. Advancements in robotics and sensor technologies enable the development of Unmanned Ground Vehicles (UGVs) capable of autonomous navigation in complex terrains. The paper presents a UGV control system designed for forest fire exploration, utilizing the Raspberry Pi 4B as the central processing unit. The system integrates ultrasonic sensors, infrared sensors, a CSI camera, MG995 servos, and TB6612FNG motor drivers to achieve safe navigation, accurate fire detection, and real-time data transmission.
+
+### II. Purpose
+The primary objective of the system is to validate the effectiveness of a Raspberry Pi 4B-based UGV control system in forest fire exploration. The system aims to achieve four specific goals. First, it utilizes ultrasonic and infrared sensors to detect and avoid obstacles in real-time. Second, it employs a CSI camera and machine learning algorithms to identify fire sources and assess the scale of the fire. Third, it provides operators with remote control capabilities to override autonomous navigation. Fourth, it enables real-time data transmission of critical fire conditions to a remote server for analysis. These objectives collectively aim to minimize human risk while providing accurate, timely information on fire size and location.
+
+### III. Mathematical Foundations
+The UGV control system relies on geometric, kinematic, and computational algorithms. Obstacle detection utilizes real-time distance measurements from ultrasonic and infrared sensors. The system employs the Euclidean distance formula to calculate the distance between the UGV and obstacles. If the distance falls below predefined thresholds (e.g., 50 cm for ultrasonic sensors and 30 cm for infrared sensors), the avoidance algorithm activates.
+
+For fire recognition, the CSI camera captures images processed using OpenCV and machine learning algorithms. The algorithm analyzes the color spectrum and temperature distribution to identify fire sources. The kinematic model of the UGV updates its position recursively based on current position, velocity, and time step. The system models the UGV as a point mass, abstracting collision risk through a safety volume representing the minimum allowable distance between the vehicle and obstacles.
+
+### IV. Algorithm and Modeling
+The UGV control algorithm operates in a cyclical loop. The sequence includes obstacle detection, avoidance triggering, path planning, fire recognition, remote control readiness, and path recovery. The system utilizes dynamic thresholds and hysteresis to prevent oscillations between navigation states.
+
+The UGV transitions between normal navigation mode and avoidance mode. The MG995 servo controls steering, and the TB6612FNG motor driver regulates speed and direction. Path recovery leverages geometric projections to ensure continuity between the avoidance path and the original exploration plan. The web-based programming framework utilizes Flask for main functions, defining relationships between steering gear rotation and duty cycle, and managing real-time video transmission via a Transmission Control Protocol (TCP) service-based scheme without performance loss.
+
+### V. Experimental Results and Analysis
+Experimental evaluations demonstrated the UGV's capability to navigate forest environments, avoid obstacles, and detect fire hazards. The ultrasonic sensors achieved a 95% success rate in detecting obstacles within 50 cm, with a response time of 0.2 seconds. The infrared sensors achieved a 90% success rate within 30 cm, responding in 0.15 seconds. The UGV successfully avoided obstacles in 92% of test cases. Path recovery occurred within an average of 2 seconds after clearing obstacles.
+
+The fire recognition system achieved an 88% accuracy rate in detecting fire sources and an 85% accuracy rate in assessing fire scale. The detection algorithm performed optimally (92% accuracy) under overcast conditions. False positives occurred in 5% of cases due to sunlight and reflections. Remote control operations maintained a latency below 0.5 seconds in strong network conditions. Real-time data transmission achieved a latency of 1 second without data loss.
+
+### VI. Limitations and Future Directions
+The system exhibits specific limitations. Environmental factors, such as sunlight and reflections, reduce the accuracy of fire recognition and infrared obstacle detection. The path recovery algorithm requires optimization to minimize deviations in dense environments.
+
+Future research directions include integrating gas sensors for smoke detection and thermal cameras for improved fire assessment. Enhancements to the system involve implementing 3D mapping and advanced path-planning algorithms for complex terrains. The authors also suggest incorporating reinforcement learning to optimize obstacle avoidance and fire recognition algorithms.
+
+### VII. Conclusion
+The experimental results validate the feasibility of employing Raspberry Pi 4B-based UGVs for forest fire exploration. The integration of multi-sensor data fusion, intelligent control algorithms, and a web-based interface provides a robust framework for autonomous navigation in hazardous environments. The system presents a viable foundation for deploying unmanned ground vehicles in disaster response and environmental monitoring applications.
+
+---
+
+## Paper 3: Downscale GOES Measurements for Fire Detection
+
+### I. Abstract
+Accurate wildfire detection via satellite sensors faces limitations regarding spatio-temporal resolution. The Geostationary Operational Environmental Satellite (GOES)-R series provides frequent observations but possesses poor spatial resolution. Low Earth Orbit (LEO) satellites, such as the Visible Infrared Imaging Radiometer Suite (VIIRS), offer high spatial resolution but lack temporal frequency. Researchers propose a deep learning framework to downscale GOES observations to a 500-meter spatial resolution utilizing a Generative Adversarial Network (GAN). VIIRS high-resolution images function as target labels during the training phase. Experimental results demonstrate that the framework achieves a 500m spatial resolution while maintaining the high temporal resolution of GOES.
+
+### II. Introduction
+Wildfires pose a significant threat to human safety and local environments, a threat exacerbated by climate change and rising temperatures. Ground-based detection technologies, such as fire towers and aerial vehicles, provide accurate localized observations but remain resource-intensive and offer limited coverage. Satellite-based systems offer broader coverage but require a trade-off between spatial and temporal resolution. GEO satellites (GOES) offer high temporal resolution but lack the spatial detail required for precise hotspot identification, whereas LEO sensors (MODIS, VIIRS) provide high spatial resolution but possess longer revisit times.
+
+A previous study designed a GAN to downscale GOES images to meet VIIRS spatial resolution. The current research refines this methodology by incorporating the Active Fire Index (AFI), calculated from brightness temperature (BT). The study leverages a dataset spanning 2022 to 2024, focused on Maui, Hawaii. The objective is to develop a deep learning-based framework utilizing FireGAN to downscale GOES Advanced Baseline Imager (ABI) measurements. This downscaling bridges the spatial gap between GOES and VIIRS data, facilitating more accurate and timely wildfire detection.
+
+### III. Dataset and Methodology
+The GOES-18 satellite ABI features 16 spectral bands. The study utilizes band 7 (shortwave infrared, SWIR) for detecting hotspots and band 14 (longwave infrared, LWIR) for detecting smoke. The GOES-18 data provides a 2km spatial resolution at 10-minute intervals. The study utilizes VIIRS data, specifically I04 (SWIR) and I05 (LWIR), which provide a 375m spatial resolution at 16-day intervals. Researchers converted GOES-18 radiance data to BT values to ensure physical unit compatibility with VIIRS data. Researchers resampled the VIIRS data to 500m to align with the GOES-18 2km spatial resolution. 
+
+The methodology utilizes the Active Fire Index (AFI), which calculates a normalized difference between SWIR and LWIR pixel values. AFI leverages the sensitivity of SWIR to heat while mitigating the influence of smoke on LWIR. Researchers processed images to files containing SWIR, LWIR, and AFI for VIIRS and GOES at identical coordinates. The methodology applies max-min normalization to scale BT values between 0 and 1 for the FireGAN model. 
+
+The FireGAN framework estimates high-resolution BT images from low-resolution GOES inputs via adversarial training. The generator, based on Enhanced Super-Resolution Generative Adversarial Networks (ESRGAN), includes convolutional layers, residual-in-residual dense blocks (RRDBs), and upsampling via sub-pixel convolution to upscale GOES images from 30x40 to 120x160. The discriminator utilizes a PatchGAN architecture to evaluate realism at the patch level, mitigating mode collapse and instability. The model utilizes pixel loss computed via Mean Squared Error (MSE) to evaluate pixel-level similarity between generated and target images. During testing, pre-processed data feeds into the FireGAN models, and the generated image undergoes denormalization to restore BT values.
+
+### IV. Experimental Results and Discussion
+Researchers generated 88 paired samples of GOES and VIIRS images from 2022 to 2024 for training and testing. Experimental results from the Maui wildfires on August 9, 2023, demonstrate a significant improvement in spatial resolution. The GAN model enhanced the original GOES ABI images from a 2km resolution to a 500m resolution. This enhanced resolution facilitates the identification of subtle features, such as smaller-scale thermal anomalies and sharper fire boundaries.
+
+The enhanced images exhibit a closer resemblance to the higher-resolution VIIRS observations, validating the capability of the model to bridge the resolution gap. Researchers applied a VIIRS fire detection algorithm to the downscaled GOES BTs to obtain fire detection results. The FireGAN fire product identified fire hotspots similar to the VIIRS Fire Product, providing an alternative approach to fire detection and highlighting performance differences among detection products.
+
+### V. Conclusion
+The FireGAN effectively enhances GOES-18 ABI observations from 2km to 500m. This approach accurately identifies wildfire locations based on downscaled results. The methodology significantly improves the temporal resolution of high-spatial-detail data from 16-day intervals to 10-minute intervals. This capability enables near real-time monitoring of wildfire events. Future improvements require refining the framework to achieve a 250m resolution and optimizing the FireGAN Fire Product to increase fire pixel recall.
+
+---
+
+## Paper 4: Early Detection of Wildfires with GOES-R Time-Series and Deep GRU Network
+
+### I. Introduction
+Wildfires pose severe hazards to public safety and the environment. Agile detection enables the suppression of wildfires in their early stages. Satellite-based monitoring provides near real-time fire information. The Visible Infrared Imaging Radiometer Suite (VIIRS) offers high spatial resolution (375 meters) and accurate burned area mapping, but its low temporal resolution (12-hour revisit time) remains inadequate for early detection of fast-spreading fires. 
+
+Geostationary Operational Environmental Satellites (GOES-R) acquire images every 15 minutes. This high temporal resolution provides potential for near real-time monitoring. However, standard GOES-R fire products exhibit high false alarm rates (60% to 80%) due to low spatial resolution (0.5km to 2km). Researchers propose a time-series-based deep learning framework utilizing Gated Recurrent Units (GRU) to detect active fire pixels directly from coarse GOES-R imagery.
+
+### II. Methodology
+The methodology employs a Deep GRU network to segment active fire pixels. The approach utilizes simultaneous acquisitions from the VIIRS sensor to establish reference time-frames. Researchers utilize the Google Earth Engine platform to preprocess GOES-R imagery. The process extracts Band 7 (thermal) to detect brightness and heat, and Band 14 to reduce day/night illumination variance. Researchers calculate an active fire index utilizing a normalized difference between Band 7 and Band 14. Band 15 establishes a cloud mask via thresholding to remove cloud and smoke interference.
+
+The study generates ground truth data from the Fire Information for Resource Management System (FIRMS) VIIRS active fire product. Researchers select GOES-R images from the three hours preceding the ground truth acquisition time. Pre-training steps involve linearly resampling the GOES-R images to match the ground truth resolution. The algorithm patches surrounding pixels in an 11x11 window and flattens the patch into a vector. The time series of these vectors functions as the input to the network.
+
+The network utilizes the GRU, a recurrent neural network architecture that combines current input with output from the previous timestamp. The Deep GRU Network features a 6-level architecture containing 5 GRU layers with a many-to-many structure and one dense layer. Hyperbolic tangent (tanh) functions provide activation. The network takes a sequence of 20 vectors representing 20 different timestamps. The loss function utilizes Mean Squared Error (MSE) to minimize the difference between the fire pixel's brightness temperature label and the network output. A postprocessing stage binarizes the regression output via mean-value thresholding to detect anomaly pixels.
+
+### III. Study Areas and Data
+Researchers selected four historical 2020 California wildfires (August Complex, SCU Lighting Complex, CZU Lighting Complex, LNU Lighting Complex) for the training dataset. The model utilizes 60,000 training samples. The validation dataset incorporates two wildfires: the Creek Fire (California, USA) and the Doctor Creek Fire (British Columbia, Canada). The validation images consist of the maximum aggregation of acquisitions within every hour.
+
+### IV. Results and Discussion
+Validation assesses two criteria: earliest detection time and burned area accuracy. The Deep GRU Network detected wildfires approximately two hours earlier than the FIRMS VIIRS product across both validation areas. 
+
+Burned area accuracy utilizes the Difference Normalized Burn Ratio (dNBR) derived from 30m resolution Sentinel-2 images as the reference map. The Deep GRU network achieved lower omission errors compared to the VIIRS active fire product. However, it overestimated burned areas, resulting in higher commission errors due to the inherent low spatial resolution of GOES-R data. Compared to the standard GOES-R active fire product, the Deep GRU method reduced both omission and commission errors. Performance degraded slightly on the Doctor Creek Fire due to the high slant angle of geostationary satellites over high-latitude regions.
+
+### V. Conclusion
+The proposed Deep GRU network successfully detects active fire pixels from GOES-R time series during early wildfire stages. Resampling techniques and 375m spatial resolution ground truth data enable the network to outpace state-of-the-art VIIRS fire products in detection speed. The network produces adequate accuracy for burned area mapping and outperforms standard NASA GOES-R fire products.
+
+---
+
+## Paper 5: Emerging Trends in Wildfire Detection Through the Lens of Computer Vision and Wildfire Emission Quantification: A Comprehensive Survey
+
+### I. Introduction
+Wildfires represent an increasing environmental hazard affecting ecosystems, air quality, and human health. Climate change, global warming, and varying precipitation patterns elevate the risk of fire occurrences. Wildfires emit significant quantities of greenhouse gases and particulate matter, exacerbating global climate change. Accurate forecasting of fire behavior and emission quantification requires high-resolution data.
+
+Conventional tracking methods involve on-site information gathering, manual reports, and meteorological data. These practices present constraints regarding data scope and timeliness, frequently causing detection delays. Recent advancements in computational intelligence and computer vision automate monitoring processes, enhancing detection speed and accuracy. Deep learning models, particularly Convolutional Neural Networks (CNNs), process satellite and aerial images to detect fire hotspots, smoke, and burn areas more efficiently than conventional techniques. 
+
+### II. Study Selection Methodology
+Researchers employed a three-stage systematic procedure to select 27 wildfire detection articles and 16 emissions articles published between 2021 and 2024. The literature search utilized databases including IEEE Xplore, Scopus, Web of Science, and MDPI, employing Boolean expressions targeting wildfire, computer vision, deep learning, and emissions. The initial search yielded approximately 450 distinct records.
+
+Following duplicate elimination, researchers screened titles and abstracts. Exclusion criteria filtered out non-vision-based studies, emission studies lacking quantitative carbon or particulate outputs, and non-peer-reviewed reports. The screening process narrowed the pool to 132 candidate papers. Full-text eligibility required detection studies to present a quantitative computer vision model for wildfire/smoke detection, and emission studies to provide quantitative estimates using remote-sensing or observational inputs. 
+
+### III. Systematic Processing Pipeline
+The survey organizes the heterogeneous body of computer vision wildfire detection and emissions monitoring work into a six-stage processing pipeline. The workflow begins with multi-sensor data acquisition (RGB, thermal, satellite, UAV). Preprocessing and harmonization follow, rectifying sensor distortions and aligning images via geometric registration and radiometric calibration.
+
+The pipeline proceeds to feature extraction and fusion. Modern detection systems utilize deep CNNs and YOLO-style detectors, often augmented with transformer-inspired attention mechanisms to capture contextual cues. Cross-modal fusion leverages complementary information, utilizing thermal signatures to disambiguate smoke and optical textures to delineate burn scars. Subsequent stages involve training, validation, and benchmarking utilizing standardized datasets (e.g., FLAME, BowFire). Edge deployment transitions models from laboratory settings to real-world operational systems. The final stage encompasses emissions quantification, converting detection data into estimated quantities of emitted gases and particulates using systems like the Global Fire Assimilation System (GFAS).
+
+### IV. Computer Vision Tasks for Wildfire Detection
+Object detection algorithms identify and locate objects within video or image frames. These algorithms utilize deep learning models (CNNs, R-CNNs, YOLO, Faster R-CNN) for real-time detection and localization. YOLO architectures provide high detection speed and accuracy. Optimized YOLO models deployed on edge devices balance accuracy and processing speed. Image segmentation breaks an image into separate parts, labeling each pixel according to object type (semantic segmentation) or differentiating individual instances (instance segmentation). Segmentation architectures, including Fully Convolutional Networks (FCNs), U-Net, and Swin Transformers, isolate fire and smoke within complex backgrounds. 
+
+### V. Types of Imagery in Wildfire Detection
+Wildfire detection relies on various imagery types, each possessing specific benefits and applicability constraints. RGB images capture visible light and facilitate color differentiation, object detection, and image segmentation. Deep learning models extract reliable features from RGB imagery based on color and spatial characteristics. Thermal infrared (IR) imaging captures radiation emitted by objects, enabling temperature-based scene interpretation. Thermal IR sensors detect heat signatures in low-visibility or nighttime conditions, detecting active fires and hotspots invisible to RGB sensors.
+
+Light Detection and Ranging (LiDAR) generates highly accurate 3D point clouds mapping terrain features and vegetation structures. LiDAR facilitates the determination of high-risk regions by creating elevation models and canopy height measurements. Satellite imagery monitors large geographic areas continuously. Geostationary satellites (GOES) provide high temporal resolution, while low Earth orbit satellites (MODIS, Sentinel-2) offer multispectral data for burn severity assessment. Aerial images from UAVs provide high-resolution localized monitoring, functioning effectively in remote or low-visibility zones.
+
+### VI. Widely Utilized Wildfire Datasets in Research
+High-quality, diverse datasets provide the foundation for developing and tuning detection algorithms. The FLAME (Fire Luminosity Airborne-based Machine learning Evaluation) dataset contains 39,375 labeled frames and 2,003 frames with pixel-wise segmentation masks. FLAME provides high spatial and temporal detail, combining UAV-based RGB and thermal imagery captured during controlled burns. The BowFire (Best of Both Worlds Fire Detection) dataset contains 226 images representing diverse emergency events, including wildfires, burning buildings, and industrial fires. Researchers also utilize custom datasets assembled from online sources and synthetic datasets generated via software like Unreal Engine 5.
+
+### VII. Computer Vision Techniques for Wildfire Detection
+Researchers classify computer vision methodologies into four perspectives. High Detection and Segmentation Accuracy approaches utilize transfer learning with deep CNNs (InceptionV3, DenseNet121) to achieve accuracies up to 99.32%. Handling Complex Scenes involves optimizing YOLO-based architectures and self-adaptive frameworks to enhance adaptability across diverse environments, reducing false positives in heavily wooded areas. Real-Time Detection of Fire and Smoke requires lightweight models (e.g., EdgeFireSmoke, Light-YOLOv4) optimized for deployment on edge devices, maintaining high accuracy while reducing computational load. Dependence on Multimodal Data approaches combine spatial, temporal, and multispectral information to enhance detection accuracy, utilizing models like Attention-based CNNs combined with Bidirectional LSTMs.
+
+### VIII. Study of Wildfires Emissions Quantification
+Wildfire emissions represent a primary source of atmospheric pollutants, contributing to climate change. The Copernicus Atmosphere Monitoring Service (CAMS) tracks global wildfire emissions utilizing satellite data. Recent studies link the intensification of fire regimes to rising temperatures and extended drought periods. Researchers utilize satellite-based inverse modeling and remote sensing to quantify emissions. Detection outputs (burned area, fire radiative power) function as foundational inputs for emission quantification systems. Uncertainties in detection and segmentation propagate directly into emission calculations, highlighting the necessity for integrated detection-emission frameworks. 
+
+### IX. Discussion
+The integration of computer vision and remote sensing advances wildfire monitoring. CNN-based models provide high effectiveness across diverse data sources. However, the field faces challenges regarding scalability, environmental variability, and data fusion. Implementing high-resolution models in resource-limited environments requires lightweight, edge-deployable architectures. Models must maintain robustness under varying environmental conditions, including dense smoke and low light. Fusing data from heterogeneous sensors demands advanced algorithms capable of real-time processing with minimal latency.
+
+Limitations of deep learning-based detection include data dependency, environmental robustness, computational costs, domain shift, and interpretability. Models require large, well-annotated datasets and may fail to generalize to new regions or sensor types. High computational demands restrict deployment on edge devices. The "black-box" nature of deep networks complicates failure mode analysis and operator trust.
+
+### X. Conclusion
+Computer vision and remote sensing technologies transform wildfire detection and emissions monitoring. Deep learning models enhance detection accuracy and speed. Future research must address computational efficiency by developing lightweight models suitable for edge devices. Integrating multiple data sources via multi-modal approaches will improve system robustness and reliability. Future studies must combine UAV and ground-based computer vision data to enhance satellite-based fire and emissions models. Developing integrated frameworks that optimize detection and emission estimation while incorporating uncertainty propagation remains a critical area for future work.
+
+---
+
+## Paper 6: Wildfires and Public Health: A Comprehensive Review of Human-Centric Studies
+
+### I. Introduction
+Wildfires represent a growing global concern due to their widespread occurrence, intensification, and profound influence on environmental and public health. Climate change and altered fire regimes exacerbate this challenge. Beyond immediate destructive impacts on ecosystems and property, wildfires significantly affect human health. The health impacts encompass physical, psychological, and social dimensions. The interactions between combustion, particulate matter diffusion, and restricted geographic access present multi-faceted challenges. 
+
+Existing systematic literature reviews focus heavily on specific physical health impacts, such as respiratory and cardiovascular issues, and immediate psychiatric implications like post-traumatic stress disorder (PTSD), anxiety, and depression. A notable gap exists in understanding the comprehensive health effects of wildfire exposure across diverse populations. Existing reviews frequently focus on single vulnerable populations instead of the general population. The health consequences of wildfires lack broader societal and economic context. This review synthesizes findings from diverse studies to provide a comprehensive overview of health consequences linked to wildfires.
+
+### II. Methodology
+Researchers systematically reviewed 139 peer-reviewed studies published between 1997 and 2023, retrieved from Web of Science. The review categorizes wildfire exposure metrics into three primary types: burned area or proximity-based measures, air quality and smoke-related indicators (e.g., PM2.5 concentrations), and satellite-detected fire events. The selection criteria focused on public health, human-centric studies, and specific wildfire events, excluding studies focused on animals, botanical landscapes, chemical materials, or emergency workers.
+
+The methodology classifies each study into specific epidemiologic designs: retrospective cohort, prospective cohort, case-crossover, time-series, cross-sectional, or ecological. The search strategy employed keywords related to wildfires, health, and human-centric studies. The screening process adhered to the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines. Data extraction captured dimensions including study design, data collection methods, wildfire location, health impacts, and population demographics.
+
+### III. Results
+Scholarly publications on the health impacts of wildfires increased significantly from the mid-2010s onwards, peaking in 2021 and 2022. The United States leads the distribution of publications, followed closely by Australia and Canada. This trend likely reflects higher incidences of wildfires in these regions or more substantial research funding. 
+
+Analysis of physical health impacts reveals respiratory diseases as the most prominent category. Intense bushfire smoke exposure results in acute and persistent symptoms, particularly among individuals with severe asthma and pregnant women. Wildfire-specific PM2.5 associates with increased hospital admissions for respiratory and cardiovascular conditions. Cardiovascular admissions correlate strongly with same-day PM exposure, increasing out-of-hospital cardiac arrests and ischemic heart disease. Wildfire-related PM2.5 associates with increased mortality from various cancers.
+
+Mental health impacts represent a significant concern. Mood disorders, particularly depression, present a persistent challenge following wildfire exposure. Anxiety disorders and trauma-related symptoms, notably PTSD, are prevalent among affected populations. Symptoms can persist long after the disaster. Substance use disorders also exhibit notable increases following wildfire events. 
+
+### IV. Discussion
+The distribution of burned areas and research output exhibits significant global disparities. Regions with robust monitoring systems and established research institutions generate more wildfire-health studies. Conversely, low- and middle-income countries experiencing large-scale burning often lack the technical capacity or public health surveillance systems required for wildfire epidemiology. 
+
+Mental health research remains an underexplored terrain in the wake of wildfires. Exposure to wildfire events associates strongly with acute psychological distress, including PTSD, anxiety, and acute stress responses. Long-term impacts include chronic depression and prolonged psychological distress. Research dedicated to exploring this domain remains limited, with vulnerable populations (children, the elderly, Indigenous communities) particularly understudied.
+
+Methodological observations highlight the diversity in conceptualizing and measuring wildfire exposure. Burned area serves as a proxy for severity but does not correspond directly to human exposure levels. Smoke exposure links more directly to population-level health impacts. Fire occurrence captures exposure timing but offers limited detail on intensity. The accessibility and resolution of exposure data significantly shape research design. Demographic-specific research remains crucial, as the health impacts of wildfires vary significantly across socioeconomic and cultural backgrounds. 
+
+### V. Conclusion
+The comprehensive review underscores the intricate relationship between wildfires and public health. Wildfires produce significant physical, psychological, and social health consequences. Respiratory and cardiovascular issues, prolonged exposure to poor air quality, population displacement, and psychological trauma represent critical health outcomes. 
+
+The review identifies an uneven distribution of research focus across different populations and study designs. Vulnerable groups remain underrepresented in the literature. The predominance of observational study designs highlights the need for innovative methodologies, such as machine learning, to enhance analytical precision. Future research efforts must prioritize comprehensive and inclusive approaches that capture the full spectrum of health impacts, enabling the development of targeted public health policies and interventions.
+
+---
+
+## Paper 7: Physics-informed neural networks for parameter learning of wildfire spreading
+
+### I. Introduction
+Wildland fires represent aggressive fire expansions with profound impacts on biotic ecosystems, social structures, and economic stability. The climate crisis, global warming, and human interventions necessitate reliable simulation software to predict fire spread. Empirical models provide prompt information regarding the rate of spread (ROS) and firefront direction but fail under extreme-danger operating conditions. Physics-based formulations integrate fundamental aspects of fluid mechanics, heat transport, and reaction kinetics to interpret fire spread physics. However, prediction fidelity relies on examining inherent randomness and managing data misinformation.
+
+Computational fluid dynamics (CFD) simulations encompass spatial and temporal scales, capturing complex interactions between fuel, fire, and atmosphere, but require extensive memory and computing power. Effective wildfire management requires advanced predictive resources within a physics-constrained and data-driven simulation framework. Parameter learning enhances model accuracy by incorporating synthetic and real data to identify critical model parameters. Conventional calibration methods minimize least-squares objective functions but struggle with noisy data and dimensionality constraints.
+
+Physics-informed neural networks (PiNNs) integrate artificial neural network (ANN) theory with the physical constraints of real-world systems. PiNNs restrict the spectrum of feasible model predictions, enhancing parameter learning for unknown model parameters. The methodology utilizes synthetic and empirical fire event data (Troy Fire, California, 2002) to train the PiNN. The modeling formulation relies on mass and energy conservation principles, incorporating temperature and fuel measurements during the training phase.
+
+### II. Wildfire Spreading Modeling
+The interpretable physics-based wildfire model simulates wildfire expansion using a streamlined configuration. Reaction kinetics utilize first-order Arrhenius expressions for water dehydration and wood combustion. Heat transfer incorporates radiation, convection, and dispersion. Topographical features influence turbulent diffusion generated by buoyant forces, affecting flame movements.
+
+The model defines burning fuel as a solid material composed of water and combustibles (volatiles and charcoal). The combustion process initiates with endothermic water evaporation, progresses through volatilization, and terminates with exothermic oxidation reactions. The mathematical formulation separates thermal energy from fluid mechanics, delivering insights into temperature dynamics and fuel composition effects. The model utilizes a computationally inexpensive system of differential equations governed by a finite set of key parameters.
+
+Crucial model parameters for learning include the dispersion coefficient ($D$), mean gaseous velocity ($u$), and overall heat transfer coefficient ($U$). The dispersion coefficient integrates the effects of radiation, buoyant instabilities, and turbulent streamwise vortices, influencing fireline geometry and spread rate. Mean gaseous velocity dictates the ROS and overall propagation dynamics. The overall heat transfer coefficient signifies heat release to the surroundings, combining natural convection and radiation effects. The case studies simplify topography and wind flow to demonstrate PiNN capabilities in approximating physical coefficients without explicit topological knowledge.
+
+### III. Physics-Informed Neural Networks for Inverse Optimization
+Artificial neural networks function as surrogate models parameterized by weights and biases. ANNs utilize labeled input-output data to minimize discrepancies between predicted and target outputs via a loss function. The Universal Approximation Theorem states that an ANN with a sufficient number of hidden layers can approximate piecewise continuous functions.
+
+PiNNs integrate partial differential equations (PDEs) and ordinary differential equations (ODEs) for regularization, enforcing physical laws during the learning process. The training process utilizes a loss function comprising three components: a supervised data-driven cost criterion comparing measurements and predictions, an unsupervised loss function for the residual PDEs, and an unsupervised loss function for boundary and initial conditions.
+
+The architecture connects a physics-uninformed predictor (the ANN) with physics-informed residual constraints. The objective is to learn the best-fit values for unknown model parameters and network weights/biases by minimizing the total loss function. Gradient-based optimizers (e.g., Adam, L-BFGS) solve the non-linear optimization problem.
+
+### IV. Application and Results
+Researchers evaluated the PiNN framework across five case studies. Case Study 1 demonstrated parameter learning for a one-dimensional (1D) firefront using synthetic data without noise. The PiNN successfully identified three unknown physical quantities ($D, u, U$), accurately replicating the target dataset. Case Study 2 introduced synthetic noisy data to the 1D model. The PiNN demonstrated robustness, converging to nominal parameter values and absorbing substantial fluctuations in the training dataset.
+
+Case Studies 3 and 4 evaluated parameter learning for a two-dimensional (2D) firefront. The 2D formulation required identifying five model parameters (including $x$ and $y$ components for dispersion and velocity). Using synthetic data, the PiNN achieved rapid convergence to nominal values. The introduction of synthetic noisy data in Case Study 4 required a surrogate training dataset. The PiNN accurately identified parameters despite noisy input data.
+
+Case Study 5 applied the methodology to empirical data from the 2002 Troy Fire. Researchers utilized thermal imagery to extract temperature distributions. Due to the lack of comprehensive spatiotemporal data, researchers employed an inverse approximation strategy, generating a surrogate training dataset based on extracted optimal parameter values. The PiNN successfully learned the unknown parameters, demonstrating its capacity to model complex physical systems using real-world, noisy data.
+
+### V. Discussion and Conclusions
+Wildfire modeling involves complex physical processes and dynamically evolving atmospheric conditions. PiNNs provide a powerful framework for estimating critical, difficult-to-measure parameters by restricting the learning process to obey physical constraints. The framework serves as an offline tool for proactive wildfire simulation and risk mapping.
+
+The case studies confirm the utility of PiNNs in identifying nominal values from synthetic and empirical data. The approach proved functional when dealing with simulated noisy data and temperature measurements from thermal images. However, empirical data often contains significant noise, and simplistic training datasets or architectures may struggle to scale to larger events. Future research will focus on quantifying inherent uncertainties and integrating convolutional neural networks to process satellite imagery alongside PiNNs for broader wildfire management.

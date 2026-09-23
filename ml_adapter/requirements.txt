@@ -10,3 +10,4 @@ httpx==0.27.2          # Used for testing (TestClient) and future Vertex AI call
 # Month 2 additions (uncomment when integrating Vertex AI):
 # google-cloud-aiplatform==1.60.0
 # tensorflow==2.17.0
+
