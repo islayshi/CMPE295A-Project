@@ -167,14 +167,16 @@ def test_trigger_daily_inference_happy_path():
     assert result.result["predictions_written"] == 2
 
 @pytest.mark.django_db
-def test_fetch_goes18_imagery_mock_bypass(settings):
+def test_gee_fetch_tasks_mock_bypass(settings):
     """
-    Verifies that fetch_goes18_imagery() correctly builds the GEE logic
-    but BYPASSES the final export.start() call when MOCK_INFERENCE=True.
+    Verifies that both fetch_goes18_imagery() and fetch_viirs_hotspots()
+    correctly use the DRY _get_gee_bounding_box() helper, build the GEE logic,
+    and BYPASS the final export.start() call when MOCK_INFERENCE=True.
     """
     from django.contrib.gis.geos import Polygon, Point
     from grid.models import BayAreaGrid
-    from harvester.tasks import fetch_goes18_imagery
+    from harvester.tasks import fetch_goes18_imagery, fetch_viirs_hotspots
+    from unittest.mock import patch, MagicMock
 
     settings.GEE_PROJECT_ID = "test-project"
     settings.MOCK_INFERENCE = True
@@ -187,9 +189,11 @@ def test_fetch_goes18_imagery_mock_bypass(settings):
         row=0, col=0
     )
 
+    # Patch sys.modules["ee"] since it is imported locally inside the tasks
     with patch.dict("sys.modules", {"ee": MagicMock()}) as mock_modules:
         mock_ee = mock_modules["ee"]
-        # Configure the mock to return a size > 0 so it doesn't exit early
+        
+        # Configure the mock collection so it doesn't exit early on .size() == 0
         mock_collection = MagicMock()
         mock_collection.filterBounds.return_value = mock_collection
         mock_collection.filterDate.return_value = mock_collection
@@ -199,14 +203,21 @@ def test_fetch_goes18_imagery_mock_bypass(settings):
         mock_task = MagicMock()
         mock_ee.batch.Export.image.toCloudStorage.return_value = mock_task
 
-        # Run task
+        # --- Test GOES-18 ---
         fetch_goes18_imagery.apply()
-
         # Assert GEE was initialized with ADC project ID
-        mock_ee.Initialize.assert_called_once_with(project="test-project")
-        
+        mock_ee.Initialize.assert_called_with(project="test-project")
         # Assert the export task was BUILT
-        mock_ee.batch.Export.image.toCloudStorage.assert_called_once()
+        mock_ee.batch.Export.image.toCloudStorage.assert_called()
+        # Assert the export task was NOT STARTED
+        mock_task.start.assert_not_called()
         
-        # Assert the export task was NOT STARTED (Mock bypass)
+        # Reset mocks for next run
+        mock_ee.reset_mock()
+        mock_task.reset_mock()
+        
+        # --- Test VIIRS ---
+        fetch_viirs_hotspots.apply()
+        mock_ee.Initialize.assert_called_with(project="test-project")
+        mock_ee.batch.Export.image.toCloudStorage.assert_called()
         mock_task.start.assert_not_called()

@@ -229,30 +229,20 @@ def store_geojson_result(geojson: dict) -> int:
 # INDIVIDUAL HARVESTER TASKS (Stubs — fully implemented in Week 2)
 # ===========================================================================
 
-@shared_task(name="harvester.tasks.fetch_goes18_imagery", bind=True, max_retries=3, default_retry_delay=60)
-def fetch_goes18_imagery(self):
+def _get_gee_bounding_box():
     """
-    Fetches the daily GOES-18 fire detection composite from GEE:
-      GEE Collection: NOAA/GOES/18/FDCC (Fire Detection)
-      GEE Collection: NOAA/GOES/18/MCMIPC (Cloud & Moisture Imagery)
-
-    Crops the imagery to the exact BayAreaGrid extent calculated dynamically
-    from PostGIS, and exports it to GCS:
-      gs://{GCS_BUCKET_NAME}/daily/{date}/goes18_fire.tif
-
-    MOCK MODE: When settings.MOCK_INFERENCE is True, the GEE logic is
-    built but the final export.start() command is bypassed to save costs.
+    Initializes Google Earth Engine via ADC and returns the ee.Geometry.Rectangle
+    bounding box for the current BayAreaGrid in PostGIS.
+    
+    Returns None if GEE_PROJECT_ID is missing, the grid is empty, or init fails.
     """
     import ee
     from django.contrib.gis.db.models import Extent
     from grid.models import BayAreaGrid
 
-    run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    logger.info('{"event": "fetch_goes18_start", "date": "%s"}', run_date)
-
     if not settings.GEE_PROJECT_ID:
-        logger.warning('{"event": "fetch_goes18_skip", "reason": "GEE_PROJECT_ID not set"}')
-        return
+        logger.warning('{"event": "gee_init_skip", "reason": "GEE_PROJECT_ID not set"}')
+        return None
 
     try:
         # Initialize GEE using Application Default Credentials (ADC)
@@ -261,14 +251,30 @@ def fetch_goes18_imagery(self):
         # Dynamically calculate the bounding box from the PostGIS grid
         extent = BayAreaGrid.objects.aggregate(ext=Extent('geometry'))['ext']
         if not extent:
-            logger.error('{"event": "fetch_goes18_error", "error": "BayAreaGrid is empty"}')
-            return
+            logger.error('{"event": "gee_init_error", "error": "BayAreaGrid is empty"}')
+            return None
         
         # extent format: (xmin, ymin, xmax, ymax)
-        roi = ee.Geometry.Rectangle([extent[0], extent[1], extent[2], extent[3]])
+        return ee.Geometry.Rectangle([extent[0], extent[1], extent[2], extent[3]])
+    except Exception as exc:
+        logger.error('{"event": "gee_init_error", "error": "%s"}', str(exc))
+        return None
 
-        # Query GOES-18 Fire Detection for the last 24 hours
-        # (Using a hardcoded recent date range for predictable daily extraction)
+
+@shared_task(name="harvester.tasks.fetch_goes18_imagery", bind=True, max_retries=3, default_retry_delay=60)
+def fetch_goes18_imagery(self):
+    """
+    Fetches the daily GOES-18 fire detection composite from GEE.
+    """
+    import ee
+    run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    logger.info('{"event": "fetch_goes18_start", "date": "%s"}', run_date)
+
+    roi = _get_gee_bounding_box()
+    if not roi:
+        return
+
+    try:
         start_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = datetime.now(timezone.utc)
 
@@ -276,22 +282,19 @@ def fetch_goes18_imagery(self):
             .filterBounds(roi) \
             .filterDate(start_time.isoformat(), end_time.isoformat())
         
-        # If no imagery is found yet today, log and exit gracefully
         if fdcc.size().getInfo() == 0:
-            logger.warning('{"event": "fetch_goes18_empty", "reason": "No imagery found for date range"}')
+            logger.warning('{"event": "fetch_goes18_empty", "reason": "No imagery found"}')
             return
 
-        # Take the maximum fire temperature / area over the daily window
         daily_composite = fdcc.select(['Area', 'Temp']).max().clip(roi)
 
-        # Build the export task
         export_path = f"daily/{run_date}/goes18_fire"
         task = ee.batch.Export.image.toCloudStorage(
             image=daily_composite,
             description=f'GOES18_Export_{run_date}',
             bucket=settings.GCS_BUCKET_NAME,
             fileNamePrefix=export_path,
-            scale=2000, # GOES-18 FDCC native resolution is roughly 2km
+            scale=2000,
             region=roi,
             fileFormat='GeoTIFF'
         )
@@ -307,18 +310,59 @@ def fetch_goes18_imagery(self):
         raise self.retry(exc=exc)
 
 
-@shared_task(name="harvester.tasks.fetch_viirs_hotspots")
-def fetch_viirs_hotspots():
+@shared_task(name="harvester.tasks.fetch_viirs_hotspots", bind=True, max_retries=3, default_retry_delay=60)
+def fetch_viirs_hotspots(self):
     """
-    PLACEHOLDER — Week 2 Implementation.
-
-    Fetches VIIRS active fire hotspots from GEE:
-      GEE Collection: NASA/VIIRS/002/VNP09GA
-
-    Exports to GCS for ML team access.
-    Paired with GOES-18 for super-resolution training (advisor suggestion).
+    Fetches VIIRS active fire hotspots from GEE.
+      GEE Collection: NOAA/VIIRS/001/VNP14A1 (Thermal Anomalies/Fire)
+      
+    Crops the imagery to the exact BayAreaGrid extent and exports to GCS.
+    MOCK MODE: bypasses task.start() when MOCK_INFERENCE=True.
     """
-    logger.info('{"event": "fetch_viirs", "status": "STUB — not yet implemented"}')
+    import ee
+    run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    logger.info('{"event": "fetch_viirs_start", "date": "%s"}', run_date)
+
+    roi = _get_gee_bounding_box()
+    if not roi:
+        return
+
+    try:
+        # VNP14A1 is daily, we fetch the most recent available day
+        start_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = datetime.now(timezone.utc)
+
+        viirs = ee.ImageCollection('NOAA/VIIRS/001/VNP14A1') \
+            .filterBounds(roi) \
+            .filterDate(start_time.isoformat(), end_time.isoformat())
+            
+        if viirs.size().getInfo() == 0:
+            logger.warning('{"event": "fetch_viirs_empty", "reason": "No imagery found"}')
+            return
+
+        # MaxFRP = Fire Radiative Power (standard measure for fire intensity)
+        daily_composite = viirs.select(['MaxFRP']).max().clip(roi)
+
+        export_path = f"daily/{run_date}/viirs_fire"
+        task = ee.batch.Export.image.toCloudStorage(
+            image=daily_composite,
+            description=f'VIIRS_Export_{run_date}',
+            bucket=settings.GCS_BUCKET_NAME,
+            fileNamePrefix=export_path,
+            scale=1000, # VIIRS thermal native resolution is 1km
+            region=roi,
+            fileFormat='GeoTIFF'
+        )
+
+        if settings.MOCK_INFERENCE:
+            logger.info('{"event": "fetch_viirs_mock_bypass", "action": "skipped export.start()"}')
+        else:
+            task.start()
+            logger.info('{"event": "fetch_viirs_export_started", "path": "%s"}', export_path)
+            
+    except Exception as exc:
+        logger.error('{"event": "fetch_viirs_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)
 
 
 @shared_task(name="harvester.tasks.fetch_vegetation_indices")
