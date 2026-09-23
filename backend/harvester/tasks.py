@@ -31,6 +31,7 @@ import requests
 from celery import shared_task
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -210,10 +211,14 @@ def store_geojson_result(geojson: dict) -> int:
             risk_label=risk_label,
         ))
 
-    # Bulk insert for performance
-    FireRiskPrediction.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
+    # Atomic bulk insert — ffwai-django-celery skill: wrap PostGIS writes in
+    # transaction.atomic() so partial data is never exposed to the A* routing
+    # engine if the insert crashes mid-way. Redis write is intentionally outside
+    # the transaction since Redis does not participate in PostgreSQL transactions.
+    with transaction.atomic():
+        FireRiskPrediction.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
 
-    # Update Redis cache with the full GeoJSON (REST polling reads this)
+    # Update Redis cache with the full GeoJSON (REST polling reads this — NFR-P01)
     cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(geojson), timeout=60 * 60 * 48)  # 48h — NFR-R04
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
 
