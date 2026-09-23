@@ -1,0 +1,194 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "timestamp": "2026-09-23T06:00:00Z",
+    "source_model": "mock",
+    "mock": true,
+    "description": "CZU Lightning Complex fire area — Santa Cruz Mountains (August 2020). Used for Month 1 development and CI/CD testing when MOCK_INFERENCE=true. Replace with Vertex AI response in Month 2.",
+    "grid_resolution_km": 1,
+    "region": "San Francisco Bay Area, CA",
+    "total_cells": 10
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.22, 37.05], [-122.21, 37.05],
+          [-122.21, 37.06], [-122.22, 37.06],
+          [-122.22, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1001,
+        "fire_probability": 0.91,
+        "risk_label": "HIGH_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.21, 37.05], [-122.20, 37.05],
+          [-122.20, 37.06], [-122.21, 37.06],
+          [-122.21, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1002,
+        "fire_probability": 0.87,
+        "risk_label": "HIGH_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.20, 37.05], [-122.19, 37.05],
+          [-122.19, 37.06], [-122.20, 37.06],
+          [-122.20, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1003,
+        "fire_probability": 0.82,
+        "risk_label": "HIGH_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.22, 37.06], [-122.21, 37.06],
+          [-122.21, 37.07], [-122.22, 37.07],
+          [-122.22, 37.06]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1004,
+        "fire_probability": 0.75,
+        "risk_label": "HIGH_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.21, 37.06], [-122.20, 37.06],
+          [-122.20, 37.07], [-122.21, 37.07],
+          [-122.21, 37.06]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1005,
+        "fire_probability": 0.68,
+        "risk_label": "HIGH_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.23, 37.05], [-122.22, 37.05],
+          [-122.22, 37.06], [-122.23, 37.06],
+          [-122.23, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1006,
+        "fire_probability": 0.54,
+        "risk_label": "MEDIUM_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.20, 37.06], [-122.19, 37.06],
+          [-122.19, 37.07], [-122.20, 37.07],
+          [-122.20, 37.06]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1007,
+        "fire_probability": 0.48,
+        "risk_label": "MEDIUM_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.23, 37.06], [-122.22, 37.06],
+          [-122.22, 37.07], [-122.23, 37.07],
+          [-122.23, 37.06]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1008,
+        "fire_probability": 0.35,
+        "risk_label": "MEDIUM_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.24, 37.05], [-122.23, 37.05],
+          [-122.23, 37.06], [-122.24, 37.06],
+          [-122.24, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1009,
+        "fire_probability": 0.18,
+        "risk_label": "LOW_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.19, 37.05], [-122.18, 37.05],
+          [-122.18, 37.06], [-122.19, 37.06],
+          [-122.19, 37.05]
+        ]]
+      },
+      "properties": {
+        "grid_id": 1010,
+        "fire_probability": 0.09,
+        "risk_label": "LOW_RISK",
+        "source_model": "mock",
+        "timestamp": "2026-09-23T06:00:00Z"
+      }
+    }
+  ]
+}
