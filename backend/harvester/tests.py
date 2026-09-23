@@ -175,7 +175,7 @@ def test_gee_fetch_tasks_mock_bypass(settings):
     """
     from django.contrib.gis.geos import Polygon, Point
     from grid.models import BayAreaGrid
-    from harvester.tasks import fetch_goes18_imagery, fetch_viirs_hotspots
+    from harvester.tasks import fetch_goes18_imagery, fetch_viirs_hotspots, fetch_vegetation_indices
     from unittest.mock import patch, MagicMock
 
     settings.GEE_PROJECT_ID = "test-project"
@@ -212,6 +212,11 @@ def test_gee_fetch_tasks_mock_bypass(settings):
         # Assert the export task was NOT STARTED
         mock_task.start.assert_not_called()
         
+        # --- Test Vegetation Indices ---
+        fetch_vegetation_indices.apply()
+        mock_ee.Initialize.assert_called_with(project="test-project")
+        # Vegetation doesn't export to GCS, it calculates NDVI and bypasses
+        
         # Reset mocks for next run
         mock_ee.reset_mock()
         mock_task.reset_mock()
@@ -221,3 +226,8 @@ def test_gee_fetch_tasks_mock_bypass(settings):
         mock_ee.Initialize.assert_called_with(project="test-project")
         mock_ee.batch.Export.image.toCloudStorage.assert_called()
         mock_task.start.assert_not_called()
+        
+        # --- Test Vegetation Indices ---
+        fetch_vegetation_indices.apply()
+        mock_ee.Initialize.assert_called_with(project="test-project")
+        # Vegetation doesn't export to GCS, it calculates NDVI and bypasses
