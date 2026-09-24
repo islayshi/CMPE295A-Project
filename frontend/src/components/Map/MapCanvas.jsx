@@ -5,27 +5,28 @@ import { TextLayer } from '@deck.gl/layers';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { getMapData } from '../../mockData/geojsonStates';
 import { ShieldPlus, Activity } from 'lucide-react';
-import { fetchLiveAqiGeoJSON } from './AQIGrid';
+import { fetchLiveAqiCoverage } from './AQIGrid';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
 
 export default function MapCanvas({ scenarioState, timeScrub }) {
   const mapRef = useRef();
   const data = getMapData(scenarioState, timeScrub);
-  
-  // AQI Layer toggle state
+
   const [isAqiVisible, setIsAqiVisible] = useState(true);
 
-  // State for AQI data
-  const [aqiGridData, setAqiGridData] = useState({ type: 'FeatureCollection', features: [] });
+  const [aqiCoverage, setAqiCoverage] = useState({
+    radiusCircle: { type: 'FeatureCollection', features: [] },
+    gridGrid: { type: 'FeatureCollection', features: [] }
+  });
 
-  // ADD THIS EFFECT HERE TO TRIGGER THE FETCH:
   useEffect(() => {
-    async function loadAqiData() {
-      const data = await fetchLiveAqiGeoJSON();
-      setAqiGridData(data);
+    async function loadData() {
+      // const data = await fetchLiveAqiCoverage(37.6688, -122.0828, 45);
+      const data = await fetchLiveAqiCoverage(39.9042, 116.4074, 45);
+      setAqiCoverage(data);
     }
-    loadAqiData();
+    loadData();
   }, []);
 
   // Legend categories definition
@@ -112,8 +113,10 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
 
       <DeckGL
         initialViewState={{
-          longitude: -122.0828,
-          latitude: 37.6688,
+          //longitude: -122.0828,
+          //latitude: 37.6688,
+          longitude: 116.4074,
+          latitude: 39.9042,
           zoom: 11,
           pitch: 60,
           bearing: 15
@@ -136,32 +139,47 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
             maxzoom={14}
           />
 
-          {/* Layer 1: Real-World AQI Live Sensors */}
-          {isAqiVisible && aqiGridData.features.length > 0 && (
-            <Source id="aqi-grid-source" type="geojson" data={aqiGridData}>
-              {/* Outer glow for heat impact */}
-              <Layer
-                id="aqi-sensor-glow"
-                type="circle"
-                paint={{
-                  'circle-color': ['get', 'color'],
-                  'circle-radius': 28,
-                  'circle-blur': 0.8,
-                  'circle-opacity': 0.4
-                }}
-              />
-              {/* Sharp sensor center point */}
-              <Layer
-                id="aqi-sensor-point"
-                type="circle"
-                paint={{
-                  'circle-color': ['get', 'color'],
-                  'circle-radius': 8,
-                  'circle-stroke-width': 2,
-                  'circle-stroke-color': '#ffffff'
-                }}
-              />
-            </Source>
+          {/* Layer 1: 45-Mile AQI Radius Coverage & Grid Layer */}
+          {/* 45-Mile AQI Radius & Heatmap Layer */}
+          {isAqiVisible && aqiCoverage?.radiusCircle?.features?.length > 0 && (
+            <>
+              {/* Radius Outer Ring */}
+              <Source id="aqi-radius-source" type="geojson" data={aqiCoverage.radiusCircle}>
+                <Layer
+                  id="aqi-radius-outline"
+                  type="line"
+                  paint={{
+                    'line-color': '#38bdf8',
+                    'line-width': 2,
+                    'line-dasharray': [4, 2],
+                    'line-opacity': 0.8
+                  }}
+                />
+              </Source>
+
+              {/* Interpolated Grid */}
+              {aqiCoverage?.gridGrid?.features?.length > 0 && (
+                <Source id="aqi-grid-source" type="geojson" data={aqiCoverage.gridGrid}>
+                  <Layer
+                    id="aqi-grid-fill"
+                    type="fill"
+                    paint={{
+                      'fill-color': ['get', 'color'],
+                      'fill-opacity': 0.35
+                    }}
+                  />
+                  <Layer
+                    id="aqi-grid-lines"
+                    type="line"
+                    paint={{
+                      'line-color': '#ffffff',
+                      'line-opacity': 0.08,
+                      'line-width': 0.5
+                    }}
+                  />
+                </Source>
+              )}
+            </>
           )}
 
           {/* Layer 1.5: Red Flag Warning (Renders below fire pixels due to React DOM ordering) */}
