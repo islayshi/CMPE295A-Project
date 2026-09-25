@@ -1,30 +1,73 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
 import MapCanvas from '../components/Map/MapCanvas';
 import TelemetryCard from '../components/HUD/TelemetryCard';
 import Legend from '../components/HUD/Legend';
 import TimeScrubber from '../components/HUD/TimeScrubber';
 import ChatDrawer from '../components/HUD/ChatDrawer';
-import ScenarioController from '../components/DevTools/ScenarioController';
 import WeatherForecast from '../components/WeatherForecast';
 
+import { fetchCurrentPredictions } from '../api/predictions';
+import { fetchShelters, fetchWindData, fetchAlerts } from '../api/telemetry';
+import { requestEvacuationRoute } from '../api/routing';
+
 export default function Dashboard() {
-  const [scenarioState, setScenarioState] = useState('NORMAL');
   const [timeScrub, setTimeScrub] = useState(0);
   const [isWeatherOpen, setIsWeatherOpen] = useState(false);
+  const [userLocation] = useState({ lat: 37.6688, lon: -122.0828 }); // hardcoded user origin for now
+  
+  // React Query - Poll predictions every 5 minutes (300,000 ms)
+  const { data: predictions } = useQuery({
+    queryKey: ['predictions', 'current'],
+    queryFn: fetchCurrentPredictions,
+    refetchInterval: 300000, 
+  });
+
+  const { data: shelters } = useQuery({
+    queryKey: ['telemetry', 'shelters'],
+    queryFn: fetchShelters,
+  });
+
+  const { data: windData } = useQuery({
+    queryKey: ['telemetry', 'wind'],
+    queryFn: fetchWindData,
+  });
+
+  const { data: alerts } = useQuery({
+    queryKey: ['telemetry', 'alerts'],
+    queryFn: fetchAlerts,
+  });
+
+  // Calculate A* route based on the current user location and fire predictions
+  // We use the predictions data timestamp/metadata to invalidate the route cache if fire changes
+  const { data: routeData } = useQuery({
+    queryKey: ['routing', 'evacuate', userLocation.lat, userLocation.lon, predictions?.metadata?.timestamp],
+    queryFn: () => requestEvacuationRoute(userLocation.lat, userLocation.lon),
+    enabled: !!predictions && !!userLocation,
+    retry: false // Don't retry if route fails (e.g., 404 trapped)
+  });
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans">
       <Navbar />
       
-      <MapCanvas scenarioState={scenarioState} timeScrub={timeScrub} />
+      <MapCanvas 
+        predictions={predictions}
+        shelters={shelters}
+        windData={windData}
+        alerts={alerts}
+        routeData={routeData}
+        userLocation={userLocation}
+        timeScrub={timeScrub}
+      />
       
-      {/* HUD Overlays - Added pt-24 so HUD sits below the Navbar */}
+      {/* HUD Overlays */}
       <div className="absolute inset-0 pointer-events-none p-6 pt-24 flex flex-col justify-between">
         <div className="flex justify-between items-start">
           <Legend />
           <div className="flex flex-col items-end gap-4 pointer-events-auto">
-            <TelemetryCard scenarioState={scenarioState} />
+            <TelemetryCard predictions={predictions} windData={windData} alerts={alerts} routeData={routeData} />
             <button 
               onClick={() => setIsWeatherOpen(true)}
               className="bg-slate-900/60 backdrop-blur-md border border-slate-700 text-white px-4 py-2 rounded-xl shadow-lg hover:bg-slate-800/80 transition-colors flex items-center gap-2 text-sm font-bold"
@@ -40,8 +83,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ChatDrawer scenarioState={scenarioState} />
-      <ScenarioController scenarioState={scenarioState} setScenarioState={setScenarioState} />
+      <ChatDrawer />
 
       {/* Weather Modal Overlay */}
       {isWeatherOpen && (

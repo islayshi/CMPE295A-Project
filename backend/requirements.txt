@@ -64,3 +64,4 @@ pytest>=8.0,<9.0
 pytest-django>=4.9,<5.0
 earthengine-api==0.1.411
 earthengine-api==1.7.45
+django-cors-headers==4.6.0

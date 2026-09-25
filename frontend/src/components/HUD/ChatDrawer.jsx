@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MessageSquare, X, Send, User, Bot } from 'lucide-react';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ChatDrawer() {

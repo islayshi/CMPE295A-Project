@@ -3,14 +3,12 @@ import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import DeckGL from '@deck.gl/react';
 import { TextLayer } from '@deck.gl/layers';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { getMapData } from '../../mockData/geojsonStates';
 import { ShieldPlus } from 'lucide-react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGV2IiwiYSI6ImNrbXZ6bHcyZDBhMTEydm8wc3Nqd3o1ZWUifQ.mock';
 
-export default function MapCanvas({ scenarioState, timeScrub }) {
+export default function MapCanvas({ predictions, shelters, windData, alerts, routeData, userLocation }) {
   const mapRef = useRef();
-  const data = getMapData(scenarioState, timeScrub);
   
   // Animation state for the Deck.gl wind particles
   const [time, setTime] = useState(0);
@@ -26,29 +24,27 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
   }, []);
 
   // Deck.gl WebGL layer for rendering animated wind particles
+  // Backend returns windData as array of { position: [lon, lat], u, v }
   const windLayer = new TextLayer({
     id: 'wind-particles',
-    data: data.envState.activeWindGrid,
+    data: windData || [],
     pickable: false,
     characterSet: ['➔'],
-    getText: d => '➔', // Standard arrow character for particle
-    getSize: 12, // Reduced size for visual clarity
-    getColor: [150, 200, 255, 120], // Light blue with heavy transparency so it doesn't block the map
-    getAngle: d => Math.atan2(d.v, d.u) * (180 / Math.PI), // Fixed: Removed negative sign to rotate Counter-Clockwise to North-East
+    getText: () => '➔', 
+    getSize: 12, 
+    getColor: [150, 200, 255, 120], 
+    getAngle: d => Math.atan2(d.v, d.u) * (180 / Math.PI),
     getPosition: d => {
       const speed = Math.sqrt(d.u * d.u + d.v * d.v);
-      // Drastically slowed down modifier to create a gentle, ambient flow
       const elapsed = time * 0.000002 * speed; 
       
-      // Calculate offset so arrows "flow" continuously across their grid bounds
-      // using modulo. Math.sign handles negative vectors smoothly.
       const offsetX = Math.sign(d.u) * (Math.abs((d.u / speed) * elapsed) % 0.04);
       const offsetY = Math.sign(d.v) * (Math.abs((d.v / speed) * elapsed) % 0.04);
       
       return [d.position[0] + offsetX, d.position[1] + offsetY];
     },
     updateTriggers: {
-      getPosition: [time, data.envState.activeWindGrid]
+      getPosition: [time, windData]
     }
   });
 
@@ -62,7 +58,7 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
         bearing: 15
       }}
       controller={true}
-      layers={[windLayer]} // Overlay Deck.gl layer on top of Mapbox
+      layers={[windLayer]}
     >
       <Map
         ref={mapRef}
@@ -79,9 +75,9 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
           maxzoom={14}
         />
 
-        {/* Layer 1.5: Red Flag Warning (Renders below fire pixels due to React DOM ordering) */}
-        {data.envState.redFlagActive && (
-          <Source id="red-flag" type="geojson" data={data.redFlagWarning}>
+        {/* Layer 1.5: Red Flag Warning */}
+        {alerts && alerts.features?.length > 0 && (
+          <Source id="red-flag" type="geojson" data={alerts}>
             <Layer
               id="red-flag-fill"
               type="fill"
@@ -102,69 +98,48 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
           </Source>
         )}
 
-        <Source id="fire-pixels" type="geojson" data={data.firePixels}>
-          <Layer
-            id="fire-pixels-layer"
-            type="circle"
-            paint={{
-              'circle-color': '#dc2626',
-              'circle-radius': 8,
-              'circle-blur': 0.5,
-              'circle-opacity': 0.8
-            }}
-          />
-        </Source>
+        {/* Predictions Heatmap Layer */}
+        {predictions && (
+          <Source id="predictions-heatmap" type="geojson" data={predictions}>
+            <Layer
+              id="predictions-fill"
+              type="fill"
+              paint={{
+                // Color scale based on fire_probability
+                'fill-color': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', 'fire_probability'],
+                  0.0, '#3f3f46',    // Low risk: gray
+                  0.4, '#eab308',    // Med risk: yellow
+                  0.7, '#ea580c',    // High risk: orange
+                  0.9, '#dc2626'     // Critical: red
+                ],
+                'fill-opacity': 0.4
+              }}
+            />
+          </Source>
+        )}
 
-        <Source id="spread-3hr" type="geojson" data={data.spread3Hr}>
-          <Layer
-            id="spread-3hr-layer"
-            type="fill"
-            paint={{
-              'fill-color': '#eab308',
-              'fill-opacity': 0.3
-            }}
-          />
-        </Source>
+        {/* Safe Evacuation Route from A* */}
+        {routeData && (
+          <Source id="route-safe" type="geojson" data={routeData}>
+            <Layer
+              id="route-safe-layer"
+              type="line"
+              paint={{
+                'line-color': '#3b82f6',
+                'line-width': 6,
+                'line-blur': 1
+              }}
+            />
+          </Source>
+        )}
 
-        <Source id="spread-1hr" type="geojson" data={data.spread1Hr}>
-          <Layer
-            id="spread-1hr-layer"
-            type="fill"
-            paint={{
-              'fill-color': '#ea580c',
-              'fill-opacity': 0.4
-            }}
-          />
-        </Source>
-
-        <Source id="route-safe" type="geojson" data={data.routeSafe}>
-          <Layer
-            id="route-safe-layer"
-            type="line"
-            paint={{
-              'line-color': '#3b82f6',
-              'line-width': 6,
-              'line-blur': 1
-            }}
-          />
-        </Source>
-
-        <Source id="route-compromised" type="geojson" data={data.routeCompromised}>
-          <Layer
-            id="route-compromised-layer"
-            type="line"
-            paint={{
-              'line-color': '#ef4444',
-              'line-width': 4,
-              'line-dasharray': [2, 2]
-            }}
-          />
-        </Source>
-
-        {/* Layer 5: Evacuation Shelters (Custom HTML Markers) */}
-        {data.shelters.features.map((shelter, index) => (
+        {/* Layer 5: Evacuation Shelters */}
+        {shelters?.features?.map((shelter) => (
           <Marker
-            key={`shelter-${index}`}
+            key={`shelter-${shelter.properties.id}`}
             longitude={shelter.geometry.coordinates[0]}
             latitude={shelter.geometry.coordinates[1]}
             anchor="bottom"
@@ -180,13 +155,13 @@ export default function MapCanvas({ scenarioState, timeScrub }) {
           </Marker>
         ))}
 
-        {/* Layer 6: User Location (Native Mapbox Marker) */}
-        {data.userLocation.features[0] && (
+        {/* Layer 6: User Location */}
+        {userLocation && (
           <Marker 
-            longitude={data.userLocation.features[0].geometry.coordinates[0]} 
-            latitude={data.userLocation.features[0].geometry.coordinates[1]} 
+            longitude={userLocation.lon} 
+            latitude={userLocation.lat} 
             anchor="bottom"
-            color="#3b82f6" // Nice vibrant blue to match the route
+            color="#3b82f6" 
           />
         )}
       </Map>
