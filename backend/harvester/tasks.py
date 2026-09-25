@@ -449,20 +449,86 @@ def fetch_nws_alerts():
         logger.error('{"event": "fetch_nws_alerts_error", "error": "%s"}', str(exc))
 
 
-@shared_task(name="harvester.tasks.fetch_wind_data")
-def fetch_wind_data():
-    """
-    PLACEHOLDER — Week 2 Implementation.
+import math
 
-    Fetches current wind speed and direction from NOAA/OpenWeather.
-    Writes structured JSON to Redis cache.
-
-    Served by: GET /api/telemetry/wind/
-    FR-E04: Wind data for Deck.gl animated particle vectors.
+@shared_task(name="harvester.tasks.fetch_wind_data", bind=True, max_retries=3, default_retry_delay=300)
+def fetch_wind_data(self):
     """
-    logger.info('{"event": "fetch_wind", "status": "STUB — not yet implemented"}')
-    # TODO Week 2:
-    # api_key = settings.OPENWEATHER_API_KEY
-    # response = requests.get(
-    #     f"https://api.openweathermap.org/data/2.5/weather?..."
-    # )
+    FR-E04: Wind data for animated particle vectors.
+    Queries 9 coordinates across the Bay Area from Open-Meteo and uses
+    Inverse Distance Weighting (IDW) interpolation to generate a true
+    continuous atmospheric vector field.
+    
+    Formats the output strictly to the GFS JSON standard required by
+    WebGL turn-key wind libraries.
+    """
+    try:
+        import time
+        # 3x3 Grid covering BayAreaGrid (38.3 to 36.9 lat, -122.9 to -121.5 lon)
+        lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+        lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+        
+        samples = []
+        for lat in lats:
+            for lon in lons:
+                url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
+                res = requests.get(url, timeout=10)
+                if res.status_code == 200:
+                    data = res.json()
+                    speed_mph = data.get("current", {}).get("wind_speed_10m", 0)
+                    dir_deg = data.get("current", {}).get("wind_direction_10m", 0)
+                    
+                    rad = dir_deg * (math.pi / 180.0)
+                    samples.append({
+                        "lat": lat, "lon": lon,
+                        "u": -speed_mph * math.sin(rad),
+                        "v": -speed_mph * math.cos(rad)
+                    })
+                time.sleep(0.1) # Rate limit protection
+                
+        if not samples:
+            raise Exception("Open-Meteo returned no data for all 25 points")
+
+        # 40x40 IDW Interpolation
+        nx, ny = 40, 40
+        la1, lo1 = 38.3, -122.9
+        la2, lo2 = 36.9, -121.5
+        dx, dy = (lo2 - lo1) / (nx - 1), (la2 - la1) / (ny - 1)
+        
+        u_data, v_data = [], []
+        
+        for j in range(ny):
+            lat = la1 + j * dy
+            for i in range(nx):
+                lon = lo1 + i * dx
+                
+                num_u, num_v, den = 0, 0, 0
+                for s in samples:
+                    dist_sq = (s['lon'] - lon)**2 + (s['lat'] - lat)**2
+                    weight = 1e6 if dist_sq < 1e-6 else 1.0 / dist_sq
+                    num_u += s['u'] * weight
+                    num_v += s['v'] * weight
+                    den += weight
+                    
+                u_data.append(round(num_u / den, 3))
+                v_data.append(round(num_v / den, 3))
+                
+        # Export as GFS Wind JSON standard format
+        gfs_payload = [
+            {
+                "header": { "parameterCategory": 2, "parameterNumber": 2, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
+                "data": u_data
+            },
+            {
+                "header": { "parameterCategory": 2, "parameterNumber": 3, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
+                "data": v_data
+            }
+        ]
+        
+        cache.set(WIND_CACHE_KEY, json.dumps(gfs_payload), timeout=60 * 60 * 24)
+        logger.info('{"event": "fetch_wind_success", "grid_points": %d}', nx * ny)
+        return {"status": "success", "grid_points": nx * ny}
+
+    except Exception as exc:
+        logger.error('{"event": "fetch_wind_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)

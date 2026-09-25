@@ -22,28 +22,15 @@ def wind_telemetry(request):
     """
     GET /api/telemetry/wind/
 
-    Returns the wind vector field for Deck.gl rendering.
+    Returns the live wind vector field for Deck.gl rendering.
+    Data is sourced from Redis, populated continuously by the Celery harvester.
     """
     cached = cache.get(WIND_CACHE_KEY)
     if cached:
         return Response(json.loads(cached))
 
-    # Mock wind grid generation (until harvester populates Redis)
-    logger.warning("wind_telemetry: Redis cache miss — generating mock wind grid")
-    
-    # 45 mph SW wind vector
-    u, v = -20, -20 
-    grid = []
-    # Bay area bounding box
-    lon = -122.20
-    while lon <= -121.90:
-        lat = 37.55
-        while lat <= 37.80:
-            grid.append({"position": [lon, lat], "u": u, "v": v})
-            lat += 0.02
-        lon += 0.02
-
-    return Response(grid)
+    logger.warning("wind_telemetry: Redis cache miss — harvester has not populated live wind data.")
+    return Response([])
 
 
 @api_view(["GET"])

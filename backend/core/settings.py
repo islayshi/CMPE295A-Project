@@ -158,6 +158,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "harvester.tasks.trigger_daily_inference",
         "schedule": 86400,  # 24 hours in seconds
     },
+    "fetch-wind-data-hourly": {
+        "task": "harvester.tasks.fetch_wind_data",
+        "schedule": 3600,  # 1 hour in seconds
+    },
 }
 
 # ---------------------------------------------------------------------------

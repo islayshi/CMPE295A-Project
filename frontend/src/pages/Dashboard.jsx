@@ -63,7 +63,7 @@ export default function Dashboard() {
       />
       
       {/* HUD Overlays */}
-      <div className="absolute inset-0 pointer-events-none p-6 pt-24 flex flex-col justify-between">
+      <div className="absolute inset-0 z-40 pointer-events-none p-6 pt-24 flex flex-col justify-between">
         <div className="flex justify-between items-start">
           <Legend />
           <div className="flex flex-col items-end gap-4 pointer-events-auto">

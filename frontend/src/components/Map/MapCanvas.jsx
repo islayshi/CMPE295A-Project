@@ -1,8 +1,7 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef } from 'react';
 import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox';
-import DeckGL from '@deck.gl/react';
-import { TextLayer } from '@deck.gl/layers';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import WindOverlay from './WindOverlay';
 import { ShieldPlus } from 'lucide-react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGV2IiwiYSI6ImNrbXZ6bHcyZDBhMTEydm8wc3Nqd3o1ZWUifQ.mock';
@@ -11,62 +10,32 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
   const mapRef = useRef();
   
   // Animation state for the Deck.gl wind particles
-  const [time, setTime] = useState(0);
-
-  useEffect(() => {
-    let animationFrame;
-    const animate = (timestamp) => {
-      setTime(timestamp); // Use high-res timestamp natively provided by rAF
-      animationFrame = requestAnimationFrame(animate);
-    };
-    animationFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationFrame);
-  }, []);
+  
 
   // Deck.gl WebGL layer for rendering animated wind particles
   // Backend returns windData as array of { position: [lon, lat], u, v }
-  const windLayer = new TextLayer({
-    id: 'wind-particles',
-    data: windData || [],
-    pickable: false,
-    characterSet: ['➔'],
-    getText: () => '➔', 
-    getSize: 12, 
-    getColor: [150, 200, 255, 120], 
-    getAngle: d => Math.atan2(d.v, d.u) * (180 / Math.PI),
-    getPosition: d => {
-      const speed = Math.sqrt(d.u * d.u + d.v * d.v);
-      const elapsed = time * 0.000002 * speed; 
-      
-      const offsetX = Math.sign(d.u) * (Math.abs((d.u / speed) * elapsed) % 0.04);
-      const offsetY = Math.sign(d.v) * (Math.abs((d.v / speed) * elapsed) % 0.04);
-      
-      return [d.position[0] + offsetX, d.position[1] + offsetY];
-    },
-    updateTriggers: {
-      getPosition: [time, windData]
-    }
-  });
+  
 
   return (
-    <DeckGL
-      initialViewState={{
-        longitude: -122.0828,
-        latitude: 37.6688,
-        zoom: 11,
-        pitch: 60,
-        bearing: 15
-      }}
-      controller={true}
-      layers={[windLayer]}
-    >
-      <Map
+    <Map
+        initialViewState={{
+          longitude: -122.0828,
+          latitude: 37.6688,
+          zoom: 11,
+          pitch: 60,
+          bearing: 15
+        }}
         ref={mapRef}
         reuseMaps
         mapStyle="mapbox://styles/mapbox/dark-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
         terrain={{ source: 'mapbox-dem', exaggeration: 1.5 }}
+        maxBounds={[
+          [-122.90, 36.90], // Southwest coordinates (lng, lat) (Aligned with BayAreaGrid)
+          [-121.50, 38.30]  // Northeast coordinates (lng, lat) (Aligned with BayAreaGrid)
+        ]}
       >
+        {windData && <WindOverlay data={windData} />}
         <Source
           id="mapbox-dem"
           type="raster-dem"
@@ -74,6 +43,8 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
           tileSize={512}
           maxzoom={14}
         />
+
+
 
         {/* Layer 1.5: Red Flag Warning */}
         {alerts && alerts.features?.length > 0 && (
@@ -165,6 +136,6 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
           />
         )}
       </Map>
-    </DeckGL>
+    
   );
 }

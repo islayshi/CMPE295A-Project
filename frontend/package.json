@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "@deck.gl/core": "^9.2.11",
+    "@deck.gl/geo-layers": "^9.2.11",
     "@deck.gl/layers": "^9.2.11",
+    "@deck.gl/mapbox": "^9.2.11",
     "@deck.gl/react": "^9.2.11",
+    "@sakitam-gis/mapbox-wind": "^2.0.4",
     "@tanstack/react-query": "^5.103.2",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
