@@ -22,27 +22,19 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
           longitude: -122.0828,
           latitude: 37.6688,
           zoom: 11,
-          pitch: 60,
+          pitch: 0,
           bearing: 15
         }}
         ref={mapRef}
         reuseMaps
         mapStyle="mapbox://styles/mapbox/dark-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
-        terrain={{ source: 'mapbox-dem', exaggeration: 1.5 }}
         maxBounds={[
           [-122.90, 36.90], // Southwest coordinates (lng, lat) (Aligned with BayAreaGrid)
           [-121.50, 38.30]  // Northeast coordinates (lng, lat) (Aligned with BayAreaGrid)
         ]}
       >
         {windData && <WindOverlay data={windData} />}
-        <Source
-          id="mapbox-dem"
-          type="raster-dem"
-          url="mapbox://mapbox.mapbox-terrain-dem-v1"
-          tileSize={512}
-          maxzoom={14}
-        />
 
 
 
