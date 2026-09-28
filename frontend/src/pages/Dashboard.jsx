@@ -10,7 +10,6 @@ import WeatherForecast from '../components/WeatherForecast';
 
 import { fetchCurrentPredictions } from '../api/predictions';
 import { fetchShelters, fetchWindData, fetchAlerts } from '../api/telemetry';
-import { requestEvacuationRoute } from '../api/routing';
 
 export default function Dashboard() {
   const [timeScrub, setTimeScrub] = useState(0);
@@ -69,15 +68,6 @@ export default function Dashboard() {
     queryFn: fetchAlerts,
   });
 
-  // Calculate A* route based on the current user location and fire predictions
-  // We use the predictions data timestamp/metadata to invalidate the route cache if fire changes
-  const { data: routeData } = useQuery({
-    queryKey: ['routing', 'evacuate', userLocation.lat, userLocation.lon, predictions?.metadata?.timestamp],
-    queryFn: () => requestEvacuationRoute(userLocation.lat, userLocation.lon),
-    enabled: !!predictions && !!userLocation,
-    retry: false // Don't retry if route fails (e.g., 404 trapped)
-  });
-
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans">
       <Navbar />
@@ -87,7 +77,6 @@ export default function Dashboard() {
         shelters={shelters}
         windData={windData}
         alerts={alerts}
-        routeData={routeData}
         userLocation={userLocation}
         timeScrub={timeScrub}
       />
@@ -97,7 +86,7 @@ export default function Dashboard() {
         <div className="flex justify-between items-start">
           <Legend />
           <div className="flex flex-col items-end gap-4 pointer-events-auto">
-            <TelemetryCard predictions={predictions} windData={windData} alerts={alerts} routeData={routeData} userLocation={userLocation} cityName={cityName} />
+            <TelemetryCard predictions={predictions} windData={windData} alerts={alerts} userLocation={userLocation} cityName={cityName} />
             <button 
               onClick={() => setIsWeatherOpen(true)}
               className="bg-slate-900/60 backdrop-blur-md border border-slate-700 text-white px-4 py-2 rounded-xl shadow-lg hover:bg-slate-800/80 transition-colors flex items-center gap-2 text-sm font-bold"

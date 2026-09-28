@@ -24,7 +24,7 @@ export default function ChatDrawer() {
       setTimeout(() => {
         setMessages(prev => [...prev, {
           role: 'bot',
-          content: 'Based on the active NWS Red Flag Warning and your predicted fire intersection, you should follow the blue route to the Chabot College Evacuation Center. The current AQI outside is 150 (Unhealthy), so keep your windows rolled up. <span class="inline-block text-xs bg-blue-900 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-800 ml-1">[NWS]</span> <span class="inline-block text-xs bg-blue-900 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-800 ml-1">[CalOES]</span>'
+          content: 'Based on the active NWS Red Flag Warning and your predicted fire intersection, you should prepare to evacuate to the nearest official shelter. The current AQI outside is 150 (Unhealthy), so keep your windows rolled up. <span class="inline-block text-xs bg-blue-900 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-800 ml-1">[NWS]</span> <span class="inline-block text-xs bg-blue-900 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-800 ml-1">[CalOES]</span>'
         }]);
       }, 1000);
     } else {

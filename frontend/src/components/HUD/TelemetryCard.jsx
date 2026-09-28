@@ -1,4 +1,4 @@
-import { AlertTriangle, Wind, Activity, Route } from 'lucide-react';
+import { AlertTriangle, Wind, Activity } from 'lucide-react';
 
 
 // Helper to bilinearly interpolate vector field at specific lat/lon
@@ -25,7 +25,7 @@ function getCompassDirection(u, v) {
   return directions[index];
 }
 
-export default function TelemetryCard({ predictions, windData, alerts, routeData, userLocation, cityName }) {
+export default function TelemetryCard({ predictions, windData, alerts, userLocation, cityName }) {
   // Determine if there is a red flag warning
   const redFlagActive = alerts && alerts.features && alerts.features.length > 0;
   
@@ -107,20 +107,6 @@ export default function TelemetryCard({ predictions, windData, alerts, routeData
           <span className="text-slate-300">Vulnerability Score:</span>
           <span className={`font-bold ${vulnerability === 'High' ? 'text-red-500' : (vulnerability === 'Medium' ? 'text-orange-500' : 'text-green-500')}`}>{vulnerability}</span>
         </div>
-
-        {routeData && routeData.properties && (
-          <div className="mt-2 pt-2 border-t border-slate-700/50">
-            <h4 className="text-xs text-blue-400 font-bold mb-1 flex items-center gap-1"><Route size={12}/> EVACUATION PLAN</h4>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">Destination:</span>
-              <span className="text-right truncate ml-2 max-w-[140px]" title={routeData.properties.destination_shelter}>{routeData.properties.destination_shelter}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs mt-1">
-              <span className="text-slate-400">ETA / Distance:</span>
-              <span>{routeData.properties.estimated_duration_minutes} min / {routeData.properties.distance_km} km</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { ShieldPlus } from 'lucide-react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGV2IiwiYSI6ImNrbXZ6bHcyZDBhMTEydm8wc3Nqd3o1ZWUifQ.mock';
 
-export default function MapCanvas({ predictions, shelters, windData, alerts, routeData, userLocation }) {
+export default function MapCanvas({ predictions, shelters, windData, alerts, userLocation }) {
   const mapRef = useRef();
   
   // Animation state for the Deck.gl wind particles
@@ -108,21 +108,6 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
                   1.0,  'rgba(220,38,38,0.7)'
                 ],
                 'line-width': 0.5
-              }}
-            />
-          </Source>
-        )}
-
-        {/* Safe Evacuation Route from A* */}
-        {routeData && (
-          <Source id="route-safe" type="geojson" data={routeData}>
-            <Layer
-              id="route-safe-layer"
-              type="line"
-              paint={{
-                'line-color': '#3b82f6',
-                'line-width': 6,
-                'line-blur': 1
               }}
             />
           </Source>

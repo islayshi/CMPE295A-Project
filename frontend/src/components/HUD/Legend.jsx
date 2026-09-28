@@ -21,19 +21,11 @@ export default function Legend() {
         </li>
         <li className="flex items-center gap-3">
           <div className="w-3 h-3 bg-orange-500/40 border border-orange-500"></div>
-          <span>+1 Hour Spread Risk</span>
+          <span>+12 Hour Spread Risk</span>
         </li>
         <li className="flex items-center gap-3">
           <div className="w-3 h-3 bg-yellow-500/30 border border-yellow-500"></div>
-          <span>+3 Hour Spread Risk</span>
-        </li>
-        <li className="flex items-center gap-3">
-          <div className="w-4 h-1 bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.8)]"></div>
-          <span>Safe Evacuation Route</span>
-        </li>
-        <li className="flex items-center gap-3">
-          <div className="w-4 h-1 border-t-2 border-dashed border-red-500"></div>
-          <span>Compromised Road</span>
+          <span>+24 Hour Spread Risk</span>
         </li>
       </ul>
     </div>
