@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Navbar from '../components/Navbar';
 import MapCanvas from '../components/Map/MapCanvas';
@@ -15,7 +15,37 @@ import { requestEvacuationRoute } from '../api/routing';
 export default function Dashboard() {
   const [timeScrub, setTimeScrub] = useState(0);
   const [isWeatherOpen, setIsWeatherOpen] = useState(false);
-  const [userLocation] = useState({ lat: 37.6688, lon: -122.0828 }); // hardcoded user origin for now
+    const [userLocation, setUserLocation] = useState({ lat: 37.6688, lon: -122.0828 });
+  const [cityName, setCityName] = useState("Hayward, CA");
+
+  useEffect(() => {
+    // 1. Get exact GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          setUserLocation({ lat, lon });
+          
+          // 2. Reverse Geocode via Mapbox
+          try {
+            const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGV2IiwiYSI6ImNrbXZ6bHcyZDBhMTEydm8wc3Nqd3o1ZWUifQ.mock';
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${token}&types=place`);
+            const data = await res.json();
+            if (data.features && data.features.length > 0) {
+              setCityName(data.features[0].place_name.split(',').slice(0, 2).join(',')); // e.g. "San Jose, California"
+            }
+          } catch (e) {
+            console.error("Geocoding failed", e);
+          }
+        },
+        (error) => {
+          console.warn("Geolocation denied or failed. Using fallback.", error);
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
   
   // React Query - Poll predictions every 5 minutes (300,000 ms)
   const { data: predictions } = useQuery({
@@ -67,7 +97,7 @@ export default function Dashboard() {
         <div className="flex justify-between items-start">
           <Legend />
           <div className="flex flex-col items-end gap-4 pointer-events-auto">
-            <TelemetryCard predictions={predictions} windData={windData} alerts={alerts} routeData={routeData} />
+            <TelemetryCard predictions={predictions} windData={windData} alerts={alerts} routeData={routeData} userLocation={userLocation} cityName={cityName} />
             <button 
               onClick={() => setIsWeatherOpen(true)}
               className="bg-slate-900/60 backdrop-blur-md border border-slate-700 text-white px-4 py-2 rounded-xl shadow-lg hover:bg-slate-800/80 transition-colors flex items-center gap-2 text-sm font-bold"

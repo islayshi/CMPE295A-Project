@@ -1,32 +1,57 @@
 import { AlertTriangle, Wind, Activity, Route } from 'lucide-react';
 
-export default function TelemetryCard({ predictions, windData, alerts, routeData }) {
+
+// Helper to bilinearly interpolate vector field at specific lat/lon
+function getVector(x, y, header, uData, vData) {
+  const { nx, ny, lo1, la1, dx, dy } = header;
+  const i = (x - lo1) / dx;
+  const j = (y - la1) / dy;
+  if (i < 0 || i >= nx - 1 || j < 0 || j >= ny - 1) return [0, 0];
+  const i0 = Math.floor(i), i1 = i0 + 1, j0 = Math.floor(j), j1 = j0 + 1;
+  const u = i - i0, v = j - j0;
+  const idx00 = j0 * nx + i0, idx10 = j0 * nx + i1, idx01 = j1 * nx + i0, idx11 = j1 * nx + i1;
+  const u_interp = uData[idx00] * (1 - u) * (1 - v) + uData[idx10] * u * (1 - v) + uData[idx01] * (1 - u) * v + uData[idx11] * u * v;
+  const v_interp = vData[idx00] * (1 - u) * (1 - v) + vData[idx10] * u * (1 - v) + vData[idx01] * (1 - u) * v + vData[idx11] * u * v;
+  return [u_interp, v_interp];
+}
+
+// Convert U/V components to compass direction (e.g. N, NE, S)
+function getCompassDirection(u, v) {
+  if (u === 0 && v === 0) return "CALM";
+  // Wind direction is WHERE it blows FROM (meteorological standard), but let's just use angle
+  const angle = (Math.atan2(v, u) * 180 / Math.PI + 360) % 360;
+  const directions = ['E', 'ENE', 'NE', 'NNE', 'N', 'NNW', 'NW', 'WNW', 'W', 'WSW', 'SW', 'SSW', 'S', 'SSE', 'SE', 'ESE'];
+  const index = Math.round(angle / 22.5) % 16;
+  return directions[index];
+}
+
+export default function TelemetryCard({ predictions, windData, alerts, routeData, userLocation, cityName }) {
   // Determine if there is a red flag warning
   const redFlagActive = alerts && alerts.features && alerts.features.length > 0;
   
   // Compute wind speed and direction from the first vector (assuming uniform grid for now)
   let windText = "Loading...";
-  let windRotation = "rotate-0";
-  if (windData && windData.length > 0) {
-    const { u, v } = windData[0];
+  let windAngle = 0;
+  
+  if (windData && windData.length >= 2 && userLocation) {
+    const h = windData[0].header;
+    const [u, v] = getVector(userLocation.lon, userLocation.lat, h, windData[0].data, windData[1].data);
+    
+    // Wind is returned directly in MPH by our backend IDW interpolator
     const speed = Math.sqrt(u * u + v * v);
+    const dir = getCompassDirection(u, v);
     
-    // Simple compass direction logic (rudimentary)
-    let dir = "";
-    if (u < -10 && v < -10) dir = "SW";
-    else if (u < 0 && v === 0) dir = "W";
-    else if (u > 0 && v === 0) dir = "E";
-    else dir = "VAR"; // variable
-    
-    windText = `${Math.round(speed)} mph ${dir}`;
-    
-    // Calculate rotation angle for the arrow icon based on u,v
-    // Using simple mapping for now
-    if (dir === "SW") windRotation = "rotate-[135deg]";
-    else if (dir === "W") windRotation = "rotate-180";
+    if (speed === 0) {
+      windText = "Calm";
+    } else {
+      windText = `${Math.round(speed)} mph ${dir}`;
+      // Calculate rotation for the icon (0 deg is pointing UP)
+      // Math.atan2(y, x) where x=u, y=v. 
+      const angleDeg = Math.atan2(v, u) * 180 / Math.PI;
+      windAngle = Math.round(90 - angleDeg);
+    }
   }
 
-  // Calculate vulnerability based on max fire probability in predictions
   let maxProbability = 0;
   if (predictions && predictions.features) {
     predictions.features.forEach(f => {
@@ -58,7 +83,7 @@ export default function TelemetryCard({ predictions, windData, alerts, routeData
       <div className="space-y-2 text-sm">
         <div className="flex justify-between items-center">
           <span className="text-slate-300">Location:</span>
-          <span className="font-semibold">Bay Area, CA</span>
+          <span className="font-semibold">{cityName || "Bay Area, CA"}</span>
         </div>
         
         <div className="flex justify-between items-center">
@@ -72,7 +97,7 @@ export default function TelemetryCard({ predictions, windData, alerts, routeData
           <span className="text-slate-300 flex items-center gap-1"><Wind size={14}/> Wind:</span>
           <div className={`font-semibold flex items-center gap-1 ${redFlagActive ? 'text-red-400' : 'text-blue-400'}`}>
             <span>{windText}</span>
-            <svg className={`w-3 h-3 ${windRotation} transition-transform duration-500`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 transition-transform duration-500" style={{ transform: `rotate(${windAngle}deg)` }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </div>

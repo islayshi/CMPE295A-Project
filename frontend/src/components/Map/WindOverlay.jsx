@@ -87,7 +87,6 @@ export default function WindOverlay({ data }) {
           if (trueMph >= 13) return [50, 220, 100];     // 13-18 mph (Moderate breeze): Green
           return [100, 200, 255];                       // 1-12 mph (Calm/Gentle): Light Blue
         },
-        opacity: 0.8,
         widthMinPixels: 2,
         trailLength: 12,
         opacity: 0.6,

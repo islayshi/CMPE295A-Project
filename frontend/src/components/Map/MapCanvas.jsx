@@ -69,24 +69,53 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, rou
           </Source>
         )}
 
-        {/* Predictions Heatmap Layer */}
+        {/* Predictions Heatmap Layer — color AND opacity scale with fire_probability */}
         {predictions && (
           <Source id="predictions-heatmap" type="geojson" data={predictions}>
             <Layer
               id="predictions-fill"
               type="fill"
               paint={{
-                // Color scale based on fire_probability
+                // Red-orange-yellow gradient: higher probability = deeper red
                 'fill-color': [
                   'interpolate',
                   ['linear'],
                   ['get', 'fire_probability'],
-                  0.0, '#3f3f46',    // Low risk: gray
-                  0.4, '#eab308',    // Med risk: yellow
-                  0.7, '#ea580c',    // High risk: orange
-                  0.9, '#dc2626'     // Critical: red
+                  0.0,  '#3f3f46',  // Very low:  dark gray (nearly invisible)
+                  0.05, '#713f12',  // Low:       dark brown-orange
+                  0.35, '#eab308',  // Medium:    yellow
+                  0.60, '#ea580c',  // High:      orange
+                  0.80, '#dc2626',  // Critical:  red
+                  1.0,  '#7f1d1d'   // Extreme:   deep red
                 ],
-                'fill-opacity': 0.4
+                // Opacity also scales so high-risk cells stand out
+                'fill-opacity': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', 'fire_probability'],
+                  0.0,  0.0,   // Zero probability: fully transparent
+                  0.05, 0.15,  // Low:  barely visible
+                  0.35, 0.45,  // Med:  clearly visible
+                  0.70, 0.70,  // High: prominent
+                  1.0,  0.85   // Extreme: near-solid
+                ]
+              }}
+            />
+            {/* Subtle stroke so 1x1 km cell borders are discernible at zoom 11 */}
+            <Layer
+              id="predictions-outline"
+              type="line"
+              paint={{
+                'line-color': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', 'fire_probability'],
+                  0.0,  'rgba(0,0,0,0)',
+                  0.05, 'rgba(234,179,8,0.3)',
+                  0.60, 'rgba(234,88,12,0.5)',
+                  1.0,  'rgba(220,38,38,0.7)'
+                ],
+                'line-width': 0.5
               }}
             />
           </Source>
