@@ -50,6 +50,9 @@ every change follows **failing test first -> implement -> verify**:
 3. Run the suite + typecheck and confirm green. 
 
 ## Verify before claiming "done"
- Never report something as working without running it. "Done" means: relevant tests green, typecheck clean, and - for user-facing workflows - exercised end-to-end (e.g. Playwright for web flows). If tests fail or a step was skipped, say so plainly with the output. 
+ - Never report something as working without running it. "Done" means: relevant tests green, typecheck clean, and - for user-facing workflows - exercised end-to-end (e.g. Playwright for web flows). If tests fail or a step was skipped, say so plainly with the output. 
 
- 
+## After completing a task or updating requirements/specification update "design-doc.md"
+ - Since this is a massive project that is constantly updated on a regular-basis as we continue implementation, ensure design-dc.md reflects our decisions and changes. 
+
+

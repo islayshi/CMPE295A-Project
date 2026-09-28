@@ -9,7 +9,7 @@ The frontend prototype serves as an interactive showcase of these capabilities, 
 
 ## 1. System Architecture: The Python & Django Monolith + Python Inference Engine
 
-The system utilizes a Modular Monolith architecture to minimize deployment overhead while maintaining strict separation of concerns. To guarantee the 2.0-second routing SLA, the system is strictly scoped to the 9-county **San Francisco Bay Area** bounding box. The system is deployed on **Google Cloud Platform (GCP)** to leverage native Google Earth Engine integration and Vertex AI for ML model hosting.
+The system utilizes a Modular Monolith architecture to minimize deployment overhead while maintaining strict separation of concerns. The system is strictly scoped to the 9-county **San Francisco Bay Area** bounding box. The system is deployed on **Google Cloud Platform (GCP)** to leverage native Google Earth Engine integration and Vertex AI for ML model hosting.
 
 **Revised Data Flow:**
 [Data Sources (GEE, NOAA, NWS, USGS)] → (Celery daily cron) → [Django Harvester] → HTTP POST → [FastAPI ML Adapter (Cloud Run)] → Vertex AI model endpoints (U-Net / PINN / RL) → GeoJSON FeatureCollection → [Django Database Engine] → PostGIS (Cloud SQL) + Redis (Memorystore) → [Django REST API / A* Routing (Cloud Run)] → REST Polling (every 5 min) → [React Frontend (Cloud CDN)]
@@ -40,8 +40,8 @@ The Django model for the GeoJSON output contract is defined as follows:
 - `risk_label` (CharField: HIGH_RISK | MEDIUM_RISK | LOW_RISK)
 - `grid_id` (IntegerField, nullable)
 
-**Module 3 (API/Routing)**
-The API and Routing module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. For dynamic evacuation routing, the module accepts user Global Positioning System (GPS) coordinates and executes complex spatial queries against the PostGIS database. Leveraging GeoDjango, the system computes optimal evacuation paths across the Bay Area road graph using the A* pathfinding algorithm, actively calculating routes that bypass ML Inference Engine output polygons (A* routing queries PostGIS `danger_zone` polygons — works identically regardless of which ML model produced them). The frontend polls the REST API every 5 minutes to check for updated predictions; no WebSocket connection is required for the MVP. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
+**Module 3 (API & Alerts)**
+The API module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. Dynamic turn-by-turn routing is currently out-of-scope; instead, the system focuses on alternative alerting methods such as Safe Shelter Handoff and Zone-Based Warnings. The frontend polls the REST API every 5 minutes to check for updated predictions and active zone warnings; no WebSocket connection is required for the MVP. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
 
 ### The FastAPI ML Adapter (Cloud Run)
 
@@ -117,7 +117,7 @@ The RAG-backed chatbot (FR-E07, FR-E08) and its supporting vector database (`pgv
 ### A. 🔴 Essential Features (Build First — Month 1)
 
 - **FR-E01 [Prediction Visualization]:** Visualize ML-generated next-day fire risk zones on the interactive map as a 1×1 km grid-based Deck.gl heatmap. Each cell displays `fire_probability` with color intensity. Extends the grid-based visualization from all three advisor papers.
-- **FR-E02 [Dynamic A* Routing]:** Calculate optimal evacuation routes avoiding roads that intersect with predicted fire danger polygons in PostGIS. Novel contribution — not present in any advisor paper.
+- **FR-E02 [Alerts & Zone Warnings]:** Trigger alternative alerting methods (e.g., Safe Shelter Handoff or Zone-Based Warnings) instead of turn-by-turn routing when risk zones intersect populated areas.
 - **FR-E03 [Confidence Metrics]:** Display the ML model's `fire_probability` (float 0.0–1.0) and `risk_label` (HIGH_RISK / MEDIUM_RISK / LOW_RISK) from the GeoJSON contract for each grid cell.
 - **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (Wind Speed/Direction), render Deck.gl animated wind particle arrays reflecting live weather vectors, and overlay NWS Red Flag Warning polygons when active.
 - **FR-E05 [Emergency POIs]:** Display static Points of Interest using custom HTML markers (e.g., FEMA Evacuation Shelters with Lucide-react icons) anchored to the map. Utilizes FEMA/CalOES datasets loaded into PostGIS.
@@ -154,7 +154,6 @@ The RAG-backed chatbot (FR-E07, FR-E08) and its supporting vector database (`pgv
 ### A. Performance & Latency
 
 - **NFR-P01 [Inference Speed]:** Inference runs as a daily Celery background task. Target completion < 60 seconds. Frontend reads from Redis cache (< 100ms). No synchronous user-facing inference SLA.
-- **NFR-P02 [Routing Speed]:** The GeoDjango routing service shall recalculate an A* path avoiding dynamic fire polygons across the Bay Area road graph in under **2.0 seconds** for distances up to 100 miles.
 
 ### B. Scalability
 
@@ -220,7 +219,6 @@ Given the timeline and academic constraints, the following features are explicit
 |---|---|---|---|
 | `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache) | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
 | `GET` | `/api/predictions/history/` | Historical predictions with date range filter | Paginated GeoJSON FeatureCollection list |
-| `POST` | `/api/routing/evacuate/` | A* evacuation route avoiding danger zones | Route GeoJSON (LineString) with distance/duration |
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
 | `GET` | `/api/telemetry/alerts/` | Active NWS Red Flag Warnings | GeoJSON FeatureCollection (Polygons) |
@@ -257,7 +255,7 @@ Given the timeline and academic constraints, the following features are explicit
 While existing apps like *Watch Duty* serve as the gold standard for UI/UX and human-verified reporting, Fight Fire With AI differentiates itself fundamentally through its AI-driven, automated architecture:
 
 - **Predictive vs. Reactive:** Human-in-the-loop systems are reactive—they report where a fire is and what officials have already done based on radio scanners. Fight Fire With AI is **predictive**. By providing day-ahead fire risk planning, it offers users a critical head start before official channels issue orders, with the architecture designed to support shorter-interval predictions as the ML pipeline matures.
-- **Dynamic AI Routing:** Existing apps provide a map but leave the user to figure out how to escape. Fight Fire With AI takes the AI's predicted spread polygons, feeds them into PostGIS, and mathematically calculates the fastest A* route out of the danger zone that proactively avoids future compromised roads.
+- **Proactive Zone Alerts:** Existing apps provide a map but leave the user to monitor changes. Fight Fire With AI proactively provides Safe Shelter Handoffs and Zone-Based Warnings based on predicted danger zones.
 
 ---
 

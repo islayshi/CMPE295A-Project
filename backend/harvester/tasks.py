@@ -470,9 +470,15 @@ def fetch_wind_data(self):
         
         samples = []
         for lat in lats:
+            import time
             for lon in lons:
                 url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
-                res = requests.get(url, timeout=10)
+                try:
+                    res = requests.get(url, timeout=20)
+                except Exception:
+                    time.sleep(1)
+                    res = requests.get(url, timeout=20)
+                time.sleep(0.2) # Avoid Open-Meteo throttling
                 if res.status_code == 200:
                     data = res.json()
                     speed_mph = data.get("current", {}).get("wind_speed_10m", 0)

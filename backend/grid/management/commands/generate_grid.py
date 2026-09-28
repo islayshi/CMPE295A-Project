@@ -59,7 +59,7 @@ BAY_AREA_LON_MAX = -121.5
 # We use a fixed longitude step computed at the grid center latitude
 # for a uniform rectilinear grid (matches advisor's paper methodology).
 BAY_CENTER_LAT = 37.6
-CELL_SIZE_KM = 1.0
+CELL_SIZE_KM = 0.5
 CELL_SIZE_LAT_DEG = CELL_SIZE_KM / 111.32                          # ≈ 0.008983°
 CELL_SIZE_LON_DEG = CELL_SIZE_KM / (111.32 * math.cos(math.radians(BAY_CENTER_LAT)))  # ≈ 0.01134°
 
