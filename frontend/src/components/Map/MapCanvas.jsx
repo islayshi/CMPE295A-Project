@@ -1,23 +1,77 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import WindOverlay from './WindOverlay';
-import { ShieldPlus } from 'lucide-react';
+import { ShieldPlus, Activity } from 'lucide-react';
+import { fetchLiveAqiCoverage } from './AQIGrid';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZGV2IiwiYSI6ImNrbXZ6bHcyZDBhMTEydm8wc3Nqd3o1ZWUifQ.mock';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
 
 export default function MapCanvas({ predictions, shelters, windData, alerts, userLocation }) {
   const mapRef = useRef();
-  
-  // Animation state for the Deck.gl wind particles
-  
 
-  // Deck.gl WebGL layer for rendering animated wind particles
-  // Backend returns windData as array of { position: [lon, lat], u, v }
-  
+  const [isAqiVisible, setIsAqiVisible] = useState(true);
+
+  const [aqiCoverage, setAqiCoverage] = useState({
+    radiusCircle: { type: 'FeatureCollection', features: [] },
+    gridGrid: { type: 'FeatureCollection', features: [] }
+  });
+
+  useEffect(() => {
+    async function loadData() {
+      // Using Bay Area coordinates for AQI
+      const data = await fetchLiveAqiCoverage(37.6688, -122.0828, 45);
+      setAqiCoverage(data);
+    }
+    loadData();
+  }, []);
+
+  // Legend categories definition
+  const aqiLegend = [
+    { label: 'Good (0–50)', color: '#22c55e' },
+    { label: 'Moderate (51–100)', color: '#eab308' },
+    { label: 'Unhealthy (Sensitive) (101–150)', color: '#f97316' },
+    { label: 'Unhealthy (151–200)', color: '#ef4444' },
+    { label: 'Very Unhealthy (201–300)', color: '#a855f7' },
+  ];
 
   return (
-    <Map
+    <div className="relative w-full h-full">
+      {/* AQI Toggle UI Overlay */}
+      <div className="absolute top-130 left-4 z-50 pointer-events-auto bg-slate-900/95 text-white px-5 py-3.5 rounded-xl border border-slate-700 shadow-2xl backdrop-blur-md">
+        <button
+          onClick={() => setIsAqiVisible(!isAqiVisible)}
+          className="flex items-center gap-3 select-none cursor-pointer hover:opacity-90 transition-opacity"
+        >
+          <Activity size={22} className={isAqiVisible ? 'text-emerald-400' : 'text-slate-400'} />
+          <span className="text-base font-bold tracking-wide">AQI Grid Layer</span>
+          <span className={`ml-2 text-xs font-extrabold px-3 py-1 rounded-md ${isAqiVisible ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+            {isAqiVisible ? 'ON' : 'OFF'}
+          </span>
+        </button>
+      </div>
+
+      {/* Bottom-Left: AQI Color Legend */}
+      {isAqiVisible && (
+        <div className="absolute bottom-6 left-4 z-20 bg-slate-950/90 text-white p-3 rounded-lg border border-slate-800 shadow-2xl backdrop-blur-md w-60">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2 border-b border-slate-800 pb-1">
+            Air Quality Index (AQI)
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {aqiLegend.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span
+                  className="w-3.5 h-3.5 rounded-sm border border-black/20 shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-[11px] text-slate-200 font-medium">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Map
         initialViewState={{
           longitude: -122.0828,
           latitude: 37.6688,
@@ -30,13 +84,51 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, use
         mapStyle="mapbox://styles/mapbox/dark-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
         maxBounds={[
-          [-122.90, 36.90], // Southwest coordinates (lng, lat) (Aligned with BayAreaGrid)
-          [-121.50, 38.30]  // Northeast coordinates (lng, lat) (Aligned with BayAreaGrid)
+          [-122.90, 36.90],
+          [-121.50, 38.30]
         ]}
       >
         {windData && <WindOverlay data={windData} />}
 
+        {/* Layer 1: 45-Mile AQI Radius Coverage & Grid Layer */}
+        {isAqiVisible && aqiCoverage?.radiusCircle?.features?.length > 0 && (
+          <>
+            <Source id="aqi-radius-source" type="geojson" data={aqiCoverage.radiusCircle}>
+              <Layer
+                id="aqi-radius-outline"
+                type="line"
+                paint={{
+                  'line-color': '#38bdf8',
+                  'line-width': 2,
+                  'line-dasharray': [4, 2],
+                  'line-opacity': 0.8
+                }}
+              />
+            </Source>
 
+            {aqiCoverage?.gridGrid?.features?.length > 0 && (
+              <Source id="aqi-grid-source" type="geojson" data={aqiCoverage.gridGrid}>
+                <Layer
+                  id="aqi-grid-fill"
+                  type="fill"
+                  paint={{
+                    'fill-color': ['get', 'color'],
+                    'fill-opacity': 0.35
+                  }}
+                />
+                <Layer
+                  id="aqi-grid-lines"
+                  type="line"
+                  paint={{
+                    'line-color': '#ffffff',
+                    'line-opacity': 0.08,
+                    'line-width': 0.5
+                  }}
+                />
+              </Source>
+            )}
+          </>
+        )}
 
         {/* Layer 1.5: Red Flag Warning */}
         {alerts && alerts.features?.length > 0 && (
@@ -61,39 +153,36 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, use
           </Source>
         )}
 
-        {/* Predictions Heatmap Layer — color AND opacity scale with fire_probability */}
+        {/* Predictions Heatmap Layer */}
         {predictions && (
           <Source id="predictions-heatmap" type="geojson" data={predictions}>
             <Layer
               id="predictions-fill"
               type="fill"
               paint={{
-                // Red-orange-yellow gradient: higher probability = deeper red
                 'fill-color': [
                   'interpolate',
                   ['linear'],
                   ['get', 'fire_probability'],
-                  0.0,  '#3f3f46',  // Very low:  dark gray (nearly invisible)
-                  0.05, '#713f12',  // Low:       dark brown-orange
-                  0.35, '#eab308',  // Medium:    yellow
-                  0.60, '#ea580c',  // High:      orange
-                  0.80, '#dc2626',  // Critical:  red
-                  1.0,  '#7f1d1d'   // Extreme:   deep red
+                  0.0,  '#3f3f46',
+                  0.05, '#713f12',
+                  0.35, '#eab308',
+                  0.60, '#ea580c',
+                  0.80, '#dc2626',
+                  1.0,  '#7f1d1d'
                 ],
-                // Opacity also scales so high-risk cells stand out
                 'fill-opacity': [
                   'interpolate',
                   ['linear'],
                   ['get', 'fire_probability'],
-                  0.0,  0.0,   // Zero probability: fully transparent
-                  0.05, 0.15,  // Low:  barely visible
-                  0.35, 0.45,  // Med:  clearly visible
-                  0.70, 0.70,  // High: prominent
-                  1.0,  0.85   // Extreme: near-solid
+                  0.0,  0.0,
+                  0.05, 0.15,
+                  0.35, 0.45,
+                  0.70, 0.70,
+                  1.0,  0.85
                 ]
               }}
             />
-            {/* Subtle stroke so 1x1 km cell borders are discernible at zoom 11 */}
             <Layer
               id="predictions-outline"
               type="line"
@@ -142,6 +231,6 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, use
           />
         )}
       </Map>
-    
+    </div>
   );
 }
