@@ -18,6 +18,9 @@ const Navbar = () => {
       <div className="flex gap-8 text-sm font-medium">
         <Link to="/" className={`transition-colors ${isActive('/')}`}>Home</Link>
         <Link to="/chatbot" className={`transition-colors ${isActive('/chatbot')}`}>Chatbot</Link>
+        <Link to="/progression" className={`transition-colors ${isActive('/progression')}`}>Progression Dashboard</Link>
+        <Link to="/model" className={`transition-colors ${isActive('/model')}`}>Model Dashboard</Link>
+        <Link to="/data" className={`transition-colors ${isActive('/data')}`}>Data Dashboard</Link>
       </div>
       
       <div>
