@@ -62,11 +62,11 @@ The backend is a modular Django monolith (Cloud Run) paired with a separate Fast
 
 ## Features
 
-- **Fire Risk Heatmap:** Day-ahead probability visualization on an 18,000-cell 1x1 km Bay Area grid via Deck.gl color intensity.
-- **Dynamic A* Evacuation Routing:** Computes shortest safe path to the nearest FEMA/CalOES shelter, actively avoiding HIGH_RISK PostGIS polygons.
+- **Fire Risk Heatmap and Progression** Day-ahead probability visualization on an 18,000-cell 1x1 km Bay Area grid via Deck.gl color intensity.
 - **Live Environmental Telemetry:** Animated Deck.gl wind particles, NWS Red Flag Warning overlays.
 - **Plug-and-Play ML Ensemble:** U-Net, PINN, and RL Agent results combined via weighted voting; MOCK_INFERENCE=True enables full development without a trained model.
 - **Model Performance Dashboard:** ROC-AUC, F1, accuracy, and recall metrics surfaced via REST for frontend display.
+- **Data Dashboard:** (Pending) 
 - **Resilient Data Pipeline:** Celery exponential backoff retry (NFR-R05), 48-hour Redis staleness fallback (NFR-R04), AP architecture.
 
 ---
