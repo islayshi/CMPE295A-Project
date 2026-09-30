@@ -22,18 +22,22 @@ const getPath = d => d.path;
 const getTimestamps = d => d.timestamps;
 const getColor = () => [255, 255, 255];
 
+const LOOP_LENGTH = 150;
+
 const generateTrips = (data) => {
 
     if (!data || data.length < 2 || !data[0].header) return [];
     const h = data[0].header;
     const generatedTrips = [];
     
-    for (let p = 0; p < 1200; p++) {
+    for (let p = 0; p < 1800; p++) {
       let lon = h.lo1 + Math.random() * (h.nx * h.dx);
       let lat = h.la1 + Math.random() * (h.ny * h.dy);
       const path = [];
       const timestamps = [];
-      let currentTime = Math.random() * 100;
+      
+      let startTime = Math.random() * LOOP_LENGTH;
+      let currentTime = startTime;
       
       for (let s = 0; s < 20; s++) {
         path.push([lon, lat]);
@@ -44,7 +48,19 @@ const generateTrips = (data) => {
         lat += v * 0.003;
         currentTime += 1;
       }
-      if (path.length > 1) generatedTrips.push({ path, timestamps });
+      if (path.length > 1) {
+        generatedTrips.push({ path, timestamps });
+        
+        // Clone the trip with a negative time shift to ensure continuous seamless
+        // looping when the animation wraps back to 0.
+        // We ONLY need to clone trips whose trail could be visible at t=0.
+        if (startTime + path.length + 4 > LOOP_LENGTH) {
+          generatedTrips.push({ 
+            path: [...path], 
+            timestamps: timestamps.map(t => t - LOOP_LENGTH) 
+          });
+        }
+      }
     }
     return generatedTrips;
   };
@@ -58,7 +74,7 @@ export default function WindOverlay({ data }) {
   useEffect(() => {
     let frame;
     const animate = () => {
-      setTime(t => (t + 0.05) % 150);
+      setTime(t => (t + 0.05) % LOOP_LENGTH);
       frame = window.requestAnimationFrame(animate);
     };
     animate();

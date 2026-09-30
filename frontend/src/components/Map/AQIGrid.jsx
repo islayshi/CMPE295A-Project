@@ -1,33 +1,7 @@
 import React, { useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/mapbox';
 
-/**
- * Calculates official US EPA Air Quality Index (AQI) from raw PM2.5 concentration (µg/m³)
- */
-function pm25ToEPAAQI(pm25Raw) {
-  if (pm25Raw < 0) return 0;
-  // EPA truncates to 1 decimal place for PM2.5 breakpoints
-  const pm25 = Math.floor(pm25Raw * 10) / 10;
-  
-  if (pm25 <= 12.0) return Math.round(((50 - 0) / (12.0 - 0.0)) * (pm25 - 0.0) + 0);
-  if (pm25 <= 35.4) return Math.round(((100 - 51) / (35.4 - 12.1)) * (pm25 - 12.1) + 51);
-  if (pm25 <= 55.4) return Math.round(((150 - 101) / (55.4 - 35.5)) * (pm25 - 35.5) + 101);
-  if (pm25 <= 150.4) return Math.round(((200 - 151) / (150.4 - 55.5)) * (pm25 - 55.5) + 151);
-  if (pm25 <= 250.4) return Math.round(((300 - 201) / (250.4 - 150.5)) * (pm25 - 150.5) + 201);
-  return Math.round(((500 - 301) / (500.4 - 250.5)) * (pm25 - 250.5) + 301);
-}
-
-/**
- * Official EPA Color scale based on calculated AQI index (0 - 500)
- */
-function getAQIColor(aqi) {
-  if (aqi <= 50) return '#22c55e';   // Good (0-50) -> Green
-  if (aqi <= 100) return '#eab308';  // Moderate (51-100) -> Yellow
-  if (aqi <= 150) return '#f97316';  // Sensitive Groups (101-150) -> Orange
-  if (aqi <= 200) return '#ef4444';  // Unhealthy (151-200) -> Red
-  if (aqi <= 300) return '#a855f7';  // Very Unhealthy (201-300) -> Purple
-  return '#7e22ce';                  // Hazardous (301+) -> Maroon
-}
+import { pm25ToEPAAQI, getAQIColor, evaluateIDW } from '../../utils/aqiMath';
 
 /**
  * Generates the 45-mile coverage boundary circle
@@ -85,21 +59,11 @@ export default function AQIGrid({ isAqiVisible, aqiSensors, centerLat = 37.6688,
         );
 
         if (distFromCenter <= radiusMiles) {
-          let weightedSum = 0;
-          let weightTotal = 0;
-
           // IDW evaluates at the center of the grid cell to prevent alignment skew
           const cellCenterLat = lat + stepLat / 2;
           const cellCenterLng = lng + stepLng / 2;
 
-          sensors.forEach((s) => {
-            const d = Math.sqrt(Math.pow((cellCenterLat - s.lat) / milesToLat, 2) + Math.pow((cellCenterLng - s.lng) / milesToLng, 2));
-            const w = 1 / Math.pow(Math.max(d, 0.5), 2);
-            weightedSum += s.pm25 * w;
-            weightTotal += w;
-          });
-
-          const interpolatedPM25 = weightTotal > 0 ? weightedSum / weightTotal : 0;
+          const interpolatedPM25 = evaluateIDW(cellCenterLat, cellCenterLng, sensors, milesToLat, milesToLng);
           const interpolatedAQI = pm25ToEPAAQI(interpolatedPM25);
 
           gridFeatures.push({

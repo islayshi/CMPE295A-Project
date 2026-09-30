@@ -3,6 +3,7 @@ import { Wind, Activity, ChevronRight } from 'lucide-react';
 import WeatherForecast from '../WeatherForecast';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
+import { getLocalizedAQI } from '../../utils/aqiMath';
 
 // Helper to bilinearly interpolate vector field at specific lat/lon
 function getVector(x, y, header, uData, vData) {
@@ -34,8 +35,8 @@ function aqiColorClass(aqi) {
   if (aqi <= 100) return 'bg-yellow-500';
   if (aqi <= 150) return 'bg-orange-500';
   if (aqi <= 200) return 'bg-red-500';
-  if (aqi <= 300) return 'bg-purple-600';
-  return 'bg-red-900';
+  if (aqi <= 300) return 'bg-purple-500';
+  return 'bg-purple-700';
 }
 
 export default function TelemetryWidget({ windData, userLocation, cityName, aqiData }) {
@@ -60,9 +61,25 @@ export default function TelemetryWidget({ windData, userLocation, cityName, aqiD
     }
   }
 
-  // Real AQI from backend (Bug 1 fix — no more probability-derived fake values)
-  const aqi = aqiData?.aqi ?? null;
-  const aqiStatus = aqiData?.status ?? null;
+  // Calculate localized AQI using Inverse Distance Weighting if we have sensors
+  let localAqi = null;
+  if (userLocation && aqiData?.sensors) {
+    localAqi = getLocalizedAQI(userLocation.lat, userLocation.lon, aqiData.sensors);
+  }
+
+  // Fallback to global average if local calculation fails
+  const aqi = localAqi !== null ? localAqi : (aqiData?.aqi ?? null);
+  
+  // Determine status based on dynamic AQI, or fallback to global status
+  let aqiStatus = aqiData?.status ?? null;
+  if (localAqi !== null) {
+    if (aqi <= 50) aqiStatus = 'Good';
+    else if (aqi <= 100) aqiStatus = 'Moderate';
+    else if (aqi <= 150) aqiStatus = 'Sensitive Groups';
+    else if (aqi <= 200) aqiStatus = 'Unhealthy';
+    else if (aqi <= 300) aqiStatus = 'Very Unhealthy';
+    else aqiStatus = 'Hazardous';
+  }
   const aqiColor = aqiColorClass(aqi);
   const aqiDisplay = aqi !== null ? String(aqi) : "Loading...";
   const aqiStatusDisplay = aqiStatus && aqiStatus !== "Unavailable" ? aqiStatus : (aqiStatus === "Unavailable" ? "Unavailable" : "Loading...");

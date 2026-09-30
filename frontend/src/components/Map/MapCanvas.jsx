@@ -21,6 +21,7 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
           pitch: 0,
           bearing: 15
         }}
+        projection="mercator"
         ref={mapRef}
         reuseMaps
         mapStyle="mapbox://styles/mapbox/outdoors-v12"
