@@ -195,7 +195,7 @@ export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
 
 ## Running Locally
 
-Open **three terminal windows**. Ensure you are in the `backend/` directory and your virtual environment is activated (`source ../.venv/bin/activate`) in each terminal.
+Open **four terminal windows**. Ensure you are in the `backend/` directory and your virtual environment is activated (`source ../.venv/bin/activate`) for the Python services.
 
 **Terminal 1 — Django REST API:**
 ```bash
@@ -207,10 +207,16 @@ python manage.py runserver
 **Terminal 2 — Celery Worker:**
 ```bash
 cd backend
-celery -A core worker --loglevel=info
+celery -A core worker -l info --pool=solo
 ```
 
-**Terminal 3 — React Frontend:**
+**Terminal 3 — Celery Beat (Scheduler):**
+```bash
+cd backend
+celery -A core beat -l info
+```
+
+**Terminal 4 — React Frontend:**
 ```bash
 cd frontend
 npm run dev
