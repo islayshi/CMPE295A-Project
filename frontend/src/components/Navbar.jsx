@@ -28,6 +28,9 @@ const Navbar = ({ onChatToggle }) => {
         ) : (
           <Link to="/" className={`transition-colors text-slate-800 hover:text-slate-900`}>Chatbot</Link>
         )}
+        <Link to="/progression" className={`transition-colors ${isActive('/progression')}`}>Progression Dashboard</Link>
+        <Link to="/model" className={`transition-colors ${isActive('/model')}`}>Model Dashboard</Link>
+        <Link to="/data" className={`transition-colors ${isActive('/data')}`}>Data Dashboard</Link>
       </div>
       
       <div>
