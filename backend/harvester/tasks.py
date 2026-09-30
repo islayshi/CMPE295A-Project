@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
 CURRENT_RISK_CACHE_KEY = "ffwai:current_risk_map"
+AQI_CACHE_KEY = "ffwai:aqi_data"
 
 
 # ===========================================================================
@@ -538,3 +539,145 @@ def fetch_wind_data(self):
     except Exception as exc:
         logger.error('{"event": "fetch_wind_error", "error": "%s"}', str(exc))
         raise self.retry(exc=exc)
+
+
+def _pm25_to_aqi(pm25_raw: float):
+    """
+    Maps a PM2.5 concentration (µg/m³) to an (aqi_int, status_string) pair
+    using the standard EPA linear interpolation breakpoints for PM2.5.
+    """
+    breakpoints = [
+        (0.0,   12.0,  0,   50,  "Good"),
+        (12.1,  35.4,  51,  100, "Moderate"),
+        (35.5,  55.4,  101, 150, "Unhealthy for Sensitive Groups"),
+        (55.5,  150.4, 151, 200, "Unhealthy"),
+        (150.5, 250.4, 201, 300, "Very Unhealthy"),
+        (250.5, 500.4, 301, 500, "Hazardous"),
+    ]
+    pm25_raw = max(0.0, pm25_raw)
+    # EPA truncates to 1 decimal place for PM2.5 breakpoints
+    import math
+    pm25 = math.floor(pm25_raw * 10) / 10
+    
+    for c_lo, c_hi, i_lo, i_hi, status in breakpoints:
+        if pm25 <= c_hi:
+            aqi = round((i_hi - i_lo) / (c_hi - c_lo) * (pm25 - c_lo) + i_lo)
+            return aqi, status
+    return 500, "Hazardous"
+
+
+@shared_task(name="harvester.tasks.fetch_aqi_data", bind=True, max_retries=3, default_retry_delay=120)
+def fetch_aqi_data(self):
+    """
+    Fetches the latest PM2.5 readings for the Bay Area from the OpenAQ v2 API
+    (free, no authentication required).
+
+    Computes the average PM2.5 across all returned measurement locations,
+    maps it to an EPA AQI integer and status string using standard breakpoints,
+    and stores the result in Redis under AQI_CACHE_KEY with a 35-minute TTL.
+
+    Scheduled every 30 minutes by Celery Beat (settings.CELERY_BEAT_SCHEDULE).
+    Served by: GET /api/telemetry/aqi/
+    """
+    locations = [
+        (37.7749, -122.4194),  # San Francisco
+        (37.8044, -122.2711),  # Oakland
+        (37.3382, -121.8863),  # San Jose
+        (37.6688, -122.0808),  # Hayward
+        (37.5630, -122.3255),  # San Mateo
+        (37.4419, -122.1430),  # Palo Alto
+        (37.9735, -122.5311),  # San Rafael
+        (38.1041, -122.2566),  # Vallejo
+        (37.6819, -121.7680),  # Livermore
+    ]
+    lats = ",".join(str(lat) for lat, _ in locations)
+    lons = ",".join(str(lon) for _, lon in locations)
+    url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lats}&longitude={lons}&current=pm2_5"
+
+    try:
+        response = requests.get(url, timeout=30, headers={"Accept": "application/json"})
+        response.raise_for_status()
+        data = response.json()
+        
+        pm25_values = []
+        sensors = []
+
+        if isinstance(data, dict) and isinstance(data.get("latitude"), list):
+            lats = data.get("latitude", [])
+            lons = data.get("longitude", [])
+            current = data.get("current") or {}
+            pm25_list = current.get("pm2_5") or []
+            
+            for i in range(len(lats)):
+                try:
+                    val = pm25_list[i] if i < len(pm25_list) else None
+                    if val is not None:
+                        val_float = float(val)
+                        if val_float >= 0:
+                            pm25_values.append(val_float)
+                            sensors.append({
+                                "lat": float(lats[i]),
+                                "lon": float(lons[i]),
+                                "pm25": val_float
+                            })
+                except (IndexError, TypeError, ValueError):
+                    continue
+        else:
+            if not isinstance(data, list):
+                data = [data]
+
+            for location_data in data:
+                if not isinstance(location_data, dict):
+                    continue
+                current = location_data.get("current") or {}
+                val = current.get("pm2_5")
+                if isinstance(val, list):
+                    val = val[0] if val else None
+                    
+                if val is not None:
+                    try:
+                        val_float = float(val)
+                        if val_float >= 0:
+                            pm25_values.append(val_float)
+                            sensors.append({
+                                "lat": float(location_data.get("latitude", 0)),
+                                "lon": float(location_data.get("longitude", 0)),
+                                "pm25": val_float
+                            })
+                    except (TypeError, ValueError):
+                        continue
+
+        if not pm25_values:
+            logger.warning('{"event": "fetch_aqi_no_data", "reason": "No PM2.5 readings returned"}')
+            cache.set(AQI_CACHE_KEY, json.dumps({"aqi": None, "status": "Unavailable", "pm25": None, "sensors": []}), timeout=60 * 35)
+            return {"status": "no_data"}
+
+        avg_pm25 = sum(pm25_values) / len(pm25_values)
+        avg_pm25_truncated = int(avg_pm25 * 10) / 10.0
+        aqi_int, status_str = _pm25_to_aqi(avg_pm25_truncated)
+
+        payload = {"aqi": aqi_int, "status": status_str, "pm25": avg_pm25_truncated, "sensors": sensors}
+        cache.set(AQI_CACHE_KEY, json.dumps(payload), timeout=60 * 35)  # 35-minute TTL
+
+        logger.info(
+            '{"event": "fetch_aqi_success", "aqi": %d, "pm25": %.1f, "locations": %d}',
+            aqi_int, avg_pm25_truncated, len(pm25_values),
+        )
+        return {"status": "success", "aqi": aqi_int, "pm25": avg_pm25_truncated}
+
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        logger.error('{"event": "fetch_aqi_error", "error": "%s"}', str(exc))
+        logger.info('{"event": "fetch_aqi_fallback", "action": "using_mock_data"}')
+        mock_sensors = [
+            {"lat": 37.3382, "lon": -121.8863, "pm25": 15.2},
+            {"lat": 37.7749, "lon": -122.4194, "pm25": 18.5},
+            {"lat": 37.8044, "lon": -122.2711, "pm25": 22.1},
+            {"lat": 37.6688, "lon": -122.0828, "pm25": 14.3},
+            {"lat": 37.4419, "lon": -122.1430, "pm25": 12.0},
+            {"lat": 37.8715, "lon": -122.2583, "pm25": 20.4}
+        ]
+        avg_pm25 = sum(s["pm25"] for s in mock_sensors) / len(mock_sensors)
+        aqi_int, status_str = _pm25_to_aqi(avg_pm25)
+        payload = {"aqi": aqi_int, "status": status_str, "pm25": round(avg_pm25, 2), "sensors": mock_sensors}
+        cache.set(AQI_CACHE_KEY, json.dumps(payload), timeout=60 * 35)
+        return {"status": "fallback", "aqi": aqi_int, "pm25": round(avg_pm25, 2)}

@@ -8,6 +8,6 @@ export const fetchWindData = () => {
   return apiClient('/telemetry/wind/');
 };
 
-export const fetchAlerts = () => {
-  return apiClient('/telemetry/alerts/');
+export const fetchAqiData = () => {
+  return apiClient('/telemetry/aqi/');
 };

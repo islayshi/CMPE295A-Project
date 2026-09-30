@@ -1,75 +1,17 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef } from 'react';
 import Map, { Source, Layer, Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import WindOverlay from './WindOverlay';
-import { ShieldPlus, Activity } from 'lucide-react';
-import { fetchLiveAqiCoverage } from './AQIGrid';
+import { ShieldPlus } from 'lucide-react';
+import AQIGrid from './AQIGrid';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
 
-export default function MapCanvas({ predictions, shelters, windData, alerts, userLocation }) {
+export default function MapCanvas({ predictions, shelters, windData, userLocation, isAqiVisible, aqiData }) {
   const mapRef = useRef();
-
-  const [isAqiVisible, setIsAqiVisible] = useState(true);
-
-  const [aqiCoverage, setAqiCoverage] = useState({
-    radiusCircle: { type: 'FeatureCollection', features: [] },
-    gridGrid: { type: 'FeatureCollection', features: [] }
-  });
-
-  useEffect(() => {
-    async function loadData() {
-      // Using Bay Area coordinates for AQI
-      const data = await fetchLiveAqiCoverage(37.6688, -122.0828, 45);
-      setAqiCoverage(data);
-    }
-    loadData();
-  }, []);
-
-  // Legend categories definition
-  const aqiLegend = [
-    { label: 'Good (0–50)', color: '#22c55e' },
-    { label: 'Moderate (51–100)', color: '#eab308' },
-    { label: 'Unhealthy (Sensitive) (101–150)', color: '#f97316' },
-    { label: 'Unhealthy (151–200)', color: '#ef4444' },
-    { label: 'Very Unhealthy (201–300)', color: '#a855f7' },
-  ];
 
   return (
     <div className="relative w-full h-full">
-      {/* AQI Toggle UI Overlay */}
-      <div className="absolute top-130 left-4 z-50 pointer-events-auto bg-slate-900/95 text-white px-5 py-3.5 rounded-xl border border-slate-700 shadow-2xl backdrop-blur-md">
-        <button
-          onClick={() => setIsAqiVisible(!isAqiVisible)}
-          className="flex items-center gap-3 select-none cursor-pointer hover:opacity-90 transition-opacity"
-        >
-          <Activity size={22} className={isAqiVisible ? 'text-emerald-400' : 'text-slate-400'} />
-          <span className="text-base font-bold tracking-wide">AQI Grid Layer</span>
-          <span className={`ml-2 text-xs font-extrabold px-3 py-1 rounded-md ${isAqiVisible ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-            {isAqiVisible ? 'ON' : 'OFF'}
-          </span>
-        </button>
-      </div>
-
-      {/* Bottom-Left: AQI Color Legend */}
-      {isAqiVisible && (
-        <div className="absolute bottom-6 left-4 z-20 bg-slate-950/90 text-white p-3 rounded-lg border border-slate-800 shadow-2xl backdrop-blur-md w-60">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2 border-b border-slate-800 pb-1">
-            Air Quality Index (AQI)
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {aqiLegend.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span
-                  className="w-3.5 h-3.5 rounded-sm border border-black/20 shrink-0"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-[11px] text-slate-200 font-medium">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <Map
         initialViewState={{
@@ -81,7 +23,7 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, use
         }}
         ref={mapRef}
         reuseMaps
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle="mapbox://styles/mapbox/outdoors-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
         maxBounds={[
           [-122.90, 36.90],
@@ -91,67 +33,10 @@ export default function MapCanvas({ predictions, shelters, windData, alerts, use
         {windData && <WindOverlay data={windData} />}
 
         {/* Layer 1: 45-Mile AQI Radius Coverage & Grid Layer */}
-        {isAqiVisible && aqiCoverage?.radiusCircle?.features?.length > 0 && (
-          <>
-            <Source id="aqi-radius-source" type="geojson" data={aqiCoverage.radiusCircle}>
-              <Layer
-                id="aqi-radius-outline"
-                type="line"
-                paint={{
-                  'line-color': '#38bdf8',
-                  'line-width': 2,
-                  'line-dasharray': [4, 2],
-                  'line-opacity': 0.8
-                }}
-              />
-            </Source>
-
-            {aqiCoverage?.gridGrid?.features?.length > 0 && (
-              <Source id="aqi-grid-source" type="geojson" data={aqiCoverage.gridGrid}>
-                <Layer
-                  id="aqi-grid-fill"
-                  type="fill"
-                  paint={{
-                    'fill-color': ['get', 'color'],
-                    'fill-opacity': 0.35
-                  }}
-                />
-                <Layer
-                  id="aqi-grid-lines"
-                  type="line"
-                  paint={{
-                    'line-color': '#ffffff',
-                    'line-opacity': 0.08,
-                    'line-width': 0.5
-                  }}
-                />
-              </Source>
-            )}
-          </>
-        )}
-
-        {/* Layer 1.5: Red Flag Warning */}
-        {alerts && alerts.features?.length > 0 && (
-          <Source id="red-flag" type="geojson" data={alerts}>
-            <Layer
-              id="red-flag-fill"
-              type="fill"
-              paint={{
-                'fill-color': '#dc2626',
-                'fill-opacity': 0.1
-              }}
-            />
-            <Layer
-              id="red-flag-outline"
-              type="line"
-              paint={{
-                'line-color': '#dc2626',
-                'line-width': 2,
-                'line-dasharray': [2, 2]
-              }}
-            />
-          </Source>
-        )}
+        <AQIGrid 
+          isAqiVisible={isAqiVisible} 
+          aqiSensors={aqiData?.sensors} 
+        />
 
         {/* Predictions Heatmap Layer */}
         {predictions && (

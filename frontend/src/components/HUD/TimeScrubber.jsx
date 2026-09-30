@@ -1,11 +1,16 @@
 export default function TimeScrubber({ timeScrub, setTimeScrub }) {
   return (
-    <div className="pointer-events-auto bg-slate-900/60 backdrop-blur-md border border-slate-700 text-white rounded-xl shadow-lg p-4 w-96 flex flex-col items-center">
-      <div className="flex justify-between w-full text-xs font-semibold text-slate-300 mb-2 px-1">
+    <div className="w-full relative group">
+      {/* Tooltip / Label that appears above the scrubber on hover */}
+      <div className="absolute bottom-full left-0 w-full flex justify-between px-4 pb-2 text-xs font-semibold text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/80 to-transparent pt-6 pointer-events-none">
         <span>Now</span>
-        <span>+12 Hrs</span>
+        <span className="text-red-500 font-bold tracking-wide">
+          Prediction Window: +{timeScrub} Hour{timeScrub !== 1 ? 's' : ''}
+        </span>
         <span>+24 Hrs</span>
       </div>
+      
+      {/* Sleek Scrubber Input */}
       <input 
         type="range" 
         min="0" 
@@ -13,11 +18,9 @@ export default function TimeScrubber({ timeScrub, setTimeScrub }) {
         step="12" 
         value={timeScrub}
         onChange={(e) => setTimeScrub(parseInt(e.target.value))}
-        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 outline-none"
+        className="w-full h-1.5 bg-slate-800/80 appearance-none cursor-pointer accent-red-600 outline-none block hover:h-2.5 transition-all"
+        style={{ margin: 0, padding: 0 }}
       />
-      <div className="mt-2 text-sm font-bold text-blue-400">
-        Prediction Window: +{timeScrub} Hour{timeScrub !== 1 ? 's' : ''}
-      </div>
     </div>
   );
 }

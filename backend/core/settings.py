@@ -162,6 +162,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "harvester.tasks.fetch_wind_data",
         "schedule": 3600,  # 1 hour in seconds
     },
+    "fetch-aqi-data-30min": {
+        "task": "harvester.tasks.fetch_aqi_data",
+        "schedule": 1800,  # 30 minutes in seconds
+    },
 }
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,27 @@ logger = logging.getLogger(__name__)
 
 WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
+AQI_CACHE_KEY = "ffwai:aqi_data"
+
+
+@api_view(["GET"])
+def aqi_data(request):
+    """
+    GET /api/telemetry/aqi/
+
+    Returns the current AQI data for the Bay Area.
+    Data is sourced from Redis, populated every 30 minutes by the Celery
+    fetch_aqi_data harvester task.
+
+    If the cache key does not exist (harvester hasn't run yet), returns a
+    sensible default so the frontend can distinguish "loading" from an error.
+    """
+    cached = cache.get(AQI_CACHE_KEY)
+    if cached:
+        return Response(json.loads(cached))
+
+    logger.warning("aqi_data: Redis cache miss — harvester has not populated AQI data yet.")
+    return Response({"aqi": None, "status": "Unavailable", "pm25": None})
 
 
 @api_view(["GET"])

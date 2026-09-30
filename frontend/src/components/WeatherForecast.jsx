@@ -22,18 +22,6 @@ const WMO_ICON = {
   95: "⛈️", 96: "⛈️", 99: "⛈️",
 };
 
-// ← FILL IN YOUR ZIP CODE HERE
-const HARDCODED_ZIP = "95101";
-
-async function geocodeZip(zip) {
-  const res = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${zip}&count=1&language=en&format=json&countryCode=US`
-  );
-  const data = await res.json();
-  if (!data.results?.length) throw new Error("ZIP code not found");
-  return data.results[0];
-}
-
 async function fetchWeather(lat, lon) {
   const res = await fetch(
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
@@ -54,19 +42,22 @@ function getDayLabel(dateStr, index) {
   });
 }
 
-export default function WeatherForecast() {
+export default function WeatherForecast({ userLocation }) {
   const [weather, setWeather] = useState(null);
-  const [location, setLocation] = useState(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Bay Area fallback if userLocation is not yet available
+  const lat = userLocation?.lat ?? 37.6688;
+  const lon = userLocation?.lon ?? -122.0828;
+
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
-        const loc = await geocodeZip(HARDCODED_ZIP);
-        const data = await fetchWeather(loc.latitude, loc.longitude);
-        setLocation(loc);
+        const data = await fetchWeather(lat, lon);
         setWeather(data);
       } catch (e) {
         setError(e.message);
@@ -74,10 +65,10 @@ export default function WeatherForecast() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [lat, lon]);
 
   if (loading) return <LoadingSkeleton />;
-  if (error) return <div style={styles.error}>Error: {error}</div>;
+  if (error) return <div className="text-red-500 p-4 font-mono">Error: {error}</div>;
   if (!weather) return null;
 
   const day = selectedDay;
@@ -90,7 +81,9 @@ export default function WeatherForecast() {
   const feelsLike = Math.round(weather.hourly.apparent_temperature[hourNow] ?? weather.hourly.apparent_temperature[0]);
   const humidity = Math.round(weather.hourly.relativehumidity_2m[hourNow] ?? weather.hourly.relativehumidity_2m[0]);
 
-  const locName = [location.name, location.admin1].filter(Boolean).join(", ");
+  // Since we use coordinates directly (no ZIP geocoding), display a generic label.
+  // The cityName from Dashboard's reverse geocoder could be passed as a prop in the future.
+  const locName = "Your Location";
 
   const detailMetrics = [
     { label: "High", value: `${Math.round(d.temperature_2m_max[day])}°F` },
@@ -103,79 +96,79 @@ export default function WeatherForecast() {
   ];
 
   return (
-    <div style={styles.container}>
+    <div className="max-w-[860px] mx-auto py-6 px-4 font-sans text-slate-800">
       {/* Header */}
-      <div style={styles.header}>
-        <span style={styles.headerLabel}>7-Day Forecast</span>
-        <span style={styles.headerLocation}>{locName}</span>
+      <div className="flex flex-col gap-1 mb-5">
+        <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-800">7-Day Forecast</span>
+        <span className="text-2xl font-bold text-slate-800">{locName}</span>
       </div>
 
       {/* Today card */}
-      <div style={styles.todayCard}>
-        <div style={styles.todayLeft}>
-          <span style={styles.todayIcon}>{WMO_ICON[currentCode] ?? "🌡️"}</span>
+      <div className="border border-slate-200 rounded-xl bg-white px-6 py-5 mb-4 flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <span className="text-5xl leading-none">{WMO_ICON[currentCode] ?? "🌡️"}</span>
           <div>
-            <div style={styles.todayTemp}>{currentTemp}°F</div>
-            <div style={styles.todayDesc}>{WMO_CODES[currentCode] ?? "Unknown"}</div>
+            <div className="text-5xl font-bold leading-none text-slate-800 font-mono">{currentTemp}°F</div>
+            <div className="text-[15px] text-slate-800 mt-1 font-medium">{WMO_CODES[currentCode] ?? "Unknown"}</div>
           </div>
         </div>
-        <div style={styles.todayStats}>
+        <div className="flex gap-6 flex-wrap">
           {[
             ["Feels like", `${feelsLike}°F`],
             ["Humidity", `${humidity}%`],
             ["Wind", `${currentWind} mph`],
             ["UV Index", Math.round(d.uv_index_max[0])],
           ].map(([label, value]) => (
-            <div key={label} style={styles.statItem}>
-              <div style={styles.statLabel}>{label}</div>
-              <div style={styles.statValue}>{value}</div>
+            <div key={label} className="text-right">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-slate-800 font-medium">{label}</div>
+              <div className="text-[15px] font-bold font-mono text-slate-800 mt-0.5">{value}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* 7-day strip */}
-      <div style={styles.weekGrid}>
+      <div className="overflow-x-auto flex gap-2 mb-4 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {d.time.map((date, i) => {
           const code = d.weathercode[i];
           const precip = Math.round(d.precipitation_probability_max[i] ?? 0);
           return (
             <div
               key={date}
-              style={{
-                ...styles.dayCard,
-                ...(i === selectedDay ? styles.dayCardActive : {}),
-              }}
+              className={`border rounded-xl px-2 py-3 flex flex-col items-center gap-1.5 cursor-pointer transition-colors min-w-[80px] shrink-0 ${
+                i === selectedDay
+                  ? "border-orange-600 bg-orange-50"
+                  : "border-slate-200 bg-white hover:bg-slate-50"
+              }`}
               onClick={() => setSelectedDay(i)}
             >
-              <div style={{
-                ...styles.dayName,
-                ...(i === selectedDay ? styles.dayNameActive : {}),
-              }}>
+              <div className={`text-[11px] font-medium uppercase tracking-[0.08em] ${
+                i === selectedDay ? "text-orange-600" : "text-slate-800"
+              }`}>
                 {getDayLabel(date, i)}
               </div>
-              <div style={styles.dayIcon}>{WMO_ICON[code] ?? "🌡️"}</div>
-              <div style={styles.dayHi}>{Math.round(d.temperature_2m_max[i])}°</div>
-              <div style={styles.dayLo}>{Math.round(d.temperature_2m_min[i])}°</div>
-              <div style={styles.precipBarWrap}>
-                <div style={{ ...styles.precipBar, width: `${precip}%` }} />
+              <div className="text-2xl leading-none">{WMO_ICON[code] ?? "🌡️"}</div>
+              <div className="text-sm font-bold font-mono text-slate-800">{Math.round(d.temperature_2m_max[i])}°</div>
+              <div className="text-xs font-mono text-slate-400">{Math.round(d.temperature_2m_min[i])}°</div>
+              <div className="w-full h-[3px] bg-slate-100 rounded-sm overflow-hidden">
+                <div className="h-full rounded-sm bg-orange-400 transition-all duration-300" style={{ width: `${precip}%` }} />
               </div>
-              <div style={styles.precipLabel}>{precip}%</div>
+              <div className="text-[10px] text-slate-400 font-mono">{precip}%</div>
             </div>
           );
         })}
       </div>
 
       {/* Detail panel */}
-      <div style={styles.detailPanel}>
-        <div style={styles.detailDayLabel}>
+      <div className="border border-slate-200 rounded-xl bg-white px-5 py-4">
+        <div className="text-[13px] font-medium text-slate-800 mb-3">
           {day === 0 ? "Today's details" : `${getDayLabel(d.time[day], day)} — ${d.time[day]}`}
         </div>
-        <div style={styles.detailGrid}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-3">
           {detailMetrics.map(({ label, value }) => (
-            <div key={label} style={styles.detailMetric}>
-              <div style={styles.detailMetricLabel}>{label}</div>
-              <div style={styles.detailMetricValue}>{value}</div>
+            <div key={label} className="bg-slate-50 rounded-lg py-2.5 px-3 border border-slate-100">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-slate-800 font-medium mb-1">{label}</div>
+              <div className="text-lg font-bold font-mono text-slate-800">{value}</div>
             </div>
           ))}
         </div>
@@ -186,100 +179,10 @@ export default function WeatherForecast() {
 
 function LoadingSkeleton() {
   return (
-    <div style={styles.container}>
+    <div className="max-w-[860px] mx-auto py-6 px-4">
       {[120, 100, 80, 80, 80, 80, 80, 80, 80].map((h, i) => (
-        <div key={i} style={{ ...styles.skeleton, height: h, marginBottom: 8 }} />
+        <div key={i} className="bg-slate-100 rounded-lg animate-pulse mb-2" style={{ height: h }} />
       ))}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    fontFamily: "'Syne', 'Segoe UI', sans-serif",
-    maxWidth: 860,
-    margin: "0 auto",
-    padding: "1.5rem 1rem 2rem",
-  },
-  header: {
-    marginBottom: "1.25rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  headerLabel: {
-    fontSize: 12,
-    fontWeight: 500,
-    textTransform: "uppercase",
-    letterSpacing: "0.1em",
-    color: "#888",
-  },
-  headerLocation: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: "#111",
-  },
-  todayCard: {
-    border: "0.5px solid #e0e0e0",
-    borderRadius: 12,
-    background: "#fff",
-    padding: "1.25rem 1.5rem",
-    marginBottom: "1rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: "1rem",
-  },
-  todayLeft: { display: "flex", alignItems: "center", gap: "1rem" },
-  todayIcon: { fontSize: 48, lineHeight: 1 },
-  todayTemp: { fontSize: 48, fontWeight: 700, lineHeight: 1, color: "#111", fontFamily: "monospace" },
-  todayDesc: { fontSize: 15, color: "#666", marginTop: 4, fontWeight: 500 },
-  todayStats: { display: "flex", gap: "1.5rem", flexWrap: "wrap" },
-  statItem: { textAlign: "right" },
-  statLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999", fontWeight: 500 },
-  statValue: { fontSize: 15, fontWeight: 700, fontFamily: "monospace", color: "#111", marginTop: 2 },
-  weekGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-    gap: 8,
-    marginBottom: "1rem",
-  },
-  dayCard: {
-    border: "0.5px solid #e0e0e0",
-    borderRadius: 12,
-    background: "#fff",
-    padding: "12px 8px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6,
-    cursor: "pointer",
-    transition: "border-color 0.15s, background 0.15s",
-  },
-  dayCardActive: {
-    borderColor: "#7F77DD",
-    background: "#f5f5ff",
-  },
-  dayName: { fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" },
-  dayNameActive: { color: "#7F77DD" },
-  dayIcon: { fontSize: 22, lineHeight: 1 },
-  dayHi: { fontSize: 14, fontWeight: 700, fontFamily: "monospace", color: "#111" },
-  dayLo: { fontSize: 12, fontFamily: "monospace", color: "#bbb" },
-  precipBarWrap: { width: "100%", height: 3, background: "#eee", borderRadius: 2, overflow: "hidden" },
-  precipBar: { height: "100%", borderRadius: 2, background: "#378ADD", transition: "width 0.4s ease" },
-  precipLabel: { fontSize: 10, color: "#bbb", fontFamily: "monospace" },
-  detailPanel: {
-    border: "0.5px solid #e0e0e0",
-    borderRadius: 12,
-    background: "#fff",
-    padding: "1rem 1.25rem",
-  },
-  detailDayLabel: { fontSize: 13, fontWeight: 500, color: "#666", marginBottom: 12 },
-  detailGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12 },
-  detailMetric: { background: "#f7f7f7", borderRadius: 8, padding: "10px 12px" },
-  detailMetricLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999", fontWeight: 500, marginBottom: 4 },
-  detailMetricValue: { fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "#111" },
-  skeleton: { background: "#f0f0f0", borderRadius: 8, animation: "pulse 1.2s ease-in-out infinite" },
-  error: { color: "red", padding: "1rem", fontFamily: "monospace" },
-};

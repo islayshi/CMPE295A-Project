@@ -18,11 +18,12 @@ function getVector(x, y, header, uData, vData) {
   return [u_interp, v_interp];
 }
 
-export default function WindOverlay({ data }) {
-  const [time, setTime] = useState(0);
+const getPath = d => d.path;
+const getTimestamps = d => d.timestamps;
+const getColor = () => [255, 255, 255];
 
-  const generateTrips = (data) => {
-/* eslint-disable react-hooks/purity */
+const generateTrips = (data) => {
+
     if (!data || data.length < 2 || !data[0].header) return [];
     const h = data[0].header;
     const generatedTrips = [];
@@ -34,7 +35,7 @@ export default function WindOverlay({ data }) {
       const timestamps = [];
       let currentTime = Math.random() * 100;
       
-      for (let s = 0; s < 50; s++) {
+      for (let s = 0; s < 20; s++) {
         path.push([lon, lat]);
         timestamps.push(currentTime);
         const [u, v] = getVector(lon, lat, h, data[0].data, data[1].data);
@@ -47,14 +48,17 @@ export default function WindOverlay({ data }) {
     }
     return generatedTrips;
   };
-/* eslint-enable react-hooks/purity */
+
+export default function WindOverlay({ data }) {
+  const [time, setTime] = useState(0);
+
 
   const trips = useMemo(() => generateTrips(data), [data]);
 
   useEffect(() => {
     let frame;
     const animate = () => {
-      setTime(t => (t + 0.2) % 150);
+      setTime(t => (t + 0.05) % 150);
       frame = window.requestAnimationFrame(animate);
     };
     animate();
@@ -63,33 +67,19 @@ export default function WindOverlay({ data }) {
 
 
 
-  const overlay = useControl(() => new MapboxOverlay({ layers: [] }));
+  const overlay = useControl(() => new MapboxOverlay({ interleaved: true, layers: [] }));
   
   useEffect(() => {
     if (trips.length > 0) {
       const layer = new TripsLayer({
         id: 'wind-trips',
         data: trips,
-        getPath: d => d.path,
-        getTimestamps: d => d.timestamps,
-        getColor: d => {
-          if (d.path.length < 2) return [100, 200, 255];
-          const dx = d.path[1][0] - d.path[0][0];
-          const dy = d.path[1][1] - d.path[0][1];
-          const speed = Math.sqrt(dx*dx + dy*dy);
-          
-          // Step size is 0.003. True MPH = speed / 0.003.
-          const trueMph = speed / 0.003;
-          
-          if (trueMph >= 32) return [220, 20, 20];      // 32+ mph (High wind): Deep Red
-          if (trueMph >= 25) return [255, 120, 20];     // 25-31 mph (Strong breeze): Orange
-          if (trueMph >= 19) return [255, 220, 50];     // 19-24 mph (Fresh breeze): Yellow
-          if (trueMph >= 13) return [50, 220, 100];     // 13-18 mph (Moderate breeze): Green
-          return [100, 200, 255];                       // 1-12 mph (Calm/Gentle): Light Blue
-        },
-        widthMinPixels: 2,
-        trailLength: 12,
-        opacity: 0.6,
+        getPath,
+        getTimestamps,
+        getColor,
+        widthMinPixels: 3,
+        trailLength: 4,
+        opacity: 0.85,
         currentTime: time
       });
       overlay.setProps({ layers: [layer] });
