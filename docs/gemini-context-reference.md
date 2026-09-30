@@ -48,12 +48,12 @@ We built a floating `ScenarioController.jsx` to manually step through three pred
 
 ### State 1: `NORMAL`
 *   **Visuals:** Clean map. No fire, no routes, no warnings. Gentle westerly wind particles flowing east.
-*   **Telemetry:** AQI 45 (Good). Wind 10 mph W. Vulnerability: Low. 
+*   **Telemetry:** AQI 45 (Good). Wind 10 mph W. 
 *   **Design Decision:** We explicitly removed the fire pixels and evacuation routes from this state to establish a calm baseline before the disaster strikes.
 
 ### State 2: `AI_UPDATE`
 *   **Visuals:** The wind violently shifts SW. The Red Flag Warning polygon activates (anchored at the fire origin in Fairview and blanketing downwind Hayward). Fire pixels and ConvLSTM predictive spread polygons bloom. A **dashed red line** appears on the highway.
-*   **Telemetry:** AQI 150 (Unhealthy). Wind 45 mph SW. Vulnerability: High. Red Flag banner pulses.
+*   **Telemetry:** AQI 150 (Unhealthy). Wind 45 mph SW. Red Flag banner pulses.
 *   **Design Decision:** The dashed red line proves that the AI detected the standard highway route is now compromised by the predicted fire spread.
 
 ### State 3: `REROUTE`

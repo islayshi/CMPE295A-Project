@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 
 import requests
 from celery import shared_task
+from celery.signals import worker_ready
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -681,3 +682,19 @@ def fetch_aqi_data(self):
         payload = {"aqi": aqi_int, "status": status_str, "pm25": round(avg_pm25, 2), "sensors": mock_sensors}
         cache.set(AQI_CACHE_KEY, json.dumps(payload), timeout=60 * 35)
         return {"status": "fallback", "aqi": aqi_int, "pm25": round(avg_pm25, 2)}
+
+
+# ===========================================================================
+# STARTUP HYDRATION HOOK
+# ===========================================================================
+
+@worker_ready.connect
+def on_worker_ready(sender, **kwargs):
+    """
+    Startup Hydration Hook: Trigger lightweight telemetry tasks on Celery startup
+    so the frontend UI doesn't remain empty waiting for the first beat interval.
+    """
+    logger.info('{"event": "worker_ready", "action": "triggering_initial_telemetry"}')
+    fetch_aqi_data.delay()
+    fetch_wind_data.delay()
+    fetch_nws_alerts.delay()

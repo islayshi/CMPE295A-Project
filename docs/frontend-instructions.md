@@ -73,7 +73,7 @@ A translucent, glassmorphism-styled card displaying the live environmental conte
 * *Current Location:* e.g., "Hayward, CA"
 * *AQI / PM2.5:* "150 (Unhealthy)"
 * *Live Wind:* "25 mph, NE (Diablo Wind Conditions Active)"
-* *Vulnerability Score:* "High"
+
 
 **D. The RAG Chatbot Drawer (Floating Action Button)**
 A persistent chat icon that, when clicked, slides out a side-panel for the RAG LLM.

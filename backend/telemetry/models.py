@@ -6,7 +6,7 @@ Wind and NWS alert data is ephemeral and stored in Redis cache,
 not in the database. Only persistent spatial data lives here.
 
 Design Doc §8: GET /api/telemetry/shelters/ and /api/telemetry/alerts/
-FR-E04: Environmental telemetry (wind, alerts, vulnerability)
+FR-E04: Environmental telemetry (wind, alerts)
 FR-E05: Emergency POIs from FEMA/CalOES
 """
 

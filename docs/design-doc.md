@@ -281,14 +281,14 @@ To prevent visual clutter, the map employs a strict hierarchical rendering order
 7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
 ### 9.3 HUD (Heads-Up Display) Components
-- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
+- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI and Wind Speed/Direction). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
 - **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
 - **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
 - **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Safe Evacuation Route") to their real-world meanings.
 
 ### 9.4 Scenario Orchestration (The "Golden Path" Script)
 To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).
-- **State 1 (NORMAL):** Showcases ambient westerly winds, a low vulnerability score, and a clean map with no routes or warnings.
+- **State 1 (NORMAL):** Showcases ambient westerly winds, and a clean map with no routes or warnings.
 - **State 2 (AI_UPDATE):** Simulates an environmental shift. The wind shifts to a fierce 45 mph South-West blow, the Red Flag Warning polygon appears, the ML spread polygons bloom, and the original highway route renders as a compromised dashed red line.
 - **State 3 (REROUTE):** Simulates the A* backend. The compromised route disappears, and a solid blue detour path connects the user's location to the nearest safe shelter (Chabot College).
 

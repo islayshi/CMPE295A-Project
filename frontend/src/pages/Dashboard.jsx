@@ -88,7 +88,6 @@ export default function Dashboard() {
       />
       
       <TelemetryWidget 
-        predictions={predictions} 
         windData={windData} 
         userLocation={userLocation} 
         cityName={cityName}

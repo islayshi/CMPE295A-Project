@@ -46,7 +46,7 @@ For the purposes of the MVP showcase, the frontend relies on an internal mock da
 * **Styling Framework:** Configured natively with `@tailwindcss/vite` and `@tailwindcss/postcss` for utility-class styling.
 
 ### External Interfaces (Future State Integration)
-* **REST APIs (GeoDjango):** Will be consumed for initial telemetry, vulnerability scores, and initial routing.
+* **REST APIs (GeoDjango):** Will be consumed for initial telemetry and initial routing.
 * **WebSockets (Django Channels):** Will be integrated to stream live `FIRE_UPDATE` GeoJSON pushes and RAG Chatbot token streams.
 * **Mapbox APIs:** Uses native Mapbox vector tile endpoints and `mapbox-dem` for raster terrain mapping.
 
@@ -96,7 +96,7 @@ In the final production application:
 ## Appendix
 * **Mapbox Token:** Required for execution; freely available from `mapbox.com`.
 * **Golden Path Script Reference:**
-  1. Start `NORMAL` (Ambient West winds, User Location marker visible, Vulnerability: Low, no evacuation routes shown).
-  2. Toggle `AI_UPDATE` (Winds shift to 45 mph SW, Red Flag Warning zone activates, Vulnerability: High. Fire polygons render alongside the dashed red compromised highway route).
+  1. Start `NORMAL` (Ambient West winds, User Location marker visible, no evacuation routes shown).
+  2. Toggle `AI_UPDATE` (Winds shift to 45 mph SW, Red Flag Warning zone activates. Fire polygons render alongside the dashed red compromised highway route).
   3. Toggle `REROUTE` (A* pathfinding draws a safe solid blue detour originating from the User Location to the Chabot College Evacuation Center).
   4. Engage Chat (Input: "Where should I go?" -> Bot outputs localized routing advice referencing the active NWS Red Flag warning, current AQI, and cites [NWS] and [CalOES]).

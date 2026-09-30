@@ -190,7 +190,7 @@ To ensure the chatbot provides authoritative, verifiable, and locally relevant a
 - **State Safety Rules:** CalFire Defensible Space Guidelines (Zone 0, 1, and 2 rules).
 - **Medical Literature:** PubMed/PMC abstracts covering "wildfire smoke respiratory impact" and "asthma exacerbation."
 
-_Note on Implementation:_ The prompt sent to the LLM will always inject the user's _current live data_ (e.g., local Bay Area AQI, distance to fire, vulnerability score) to make the retrieved documents contextually relevant.
+_Note on Implementation:_ The prompt sent to the LLM will always inject the user's _current live data_ (e.g., local Bay Area AQI, distance to fire) to make the retrieved documents contextually relevant.
 
 ---
 
@@ -201,7 +201,7 @@ _Note on Implementation:_ The prompt sent to the LLM will always inject the user
 - **FR-E01 [Prediction Visualization]:** Visualize current fire perimeters and ML-generated next-day fire risk zones on the interactive map. The time scrubber allows switching between Day 0 and Day +1.
 - **FR-E02 [Dynamic Routing]:** Calculate optimal evacuation routes avoiding roads that intersect with predicted fire danger polygons.
 - **FR-E03 [Confidence Metrics]:** Display the ML model's `fire_probability` (float 0.0–1.0) and `risk_label` (HIGH_RISK/MEDIUM_RISK/LOW_RISK) from the GeoJSON contract for forecasted danger zones.
-- **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (AQI, Wind Speed/Direction), compute vulnerability scoring, render Deck.gl animated wind particle arrays reflecting live vectors, and overlay NWS Red Flag Warning polygons when active.
+- **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (AQI, Wind Speed/Direction), render Deck.gl animated wind particle arrays reflecting live vectors, and overlay NWS Red Flag Warning polygons when active.
 - **FR-E05 [Emergency POIs]:** Display static Points of Interest using custom HTML markers (e.g., FEMA Evacuation Shelters with Lucide-react icons) anchored securely to the map. Utilizes downloaded, open-source FEMA/CalOES datasets loaded into PostGIS.
 - **FR-E07 [Context-Aware Chat]:** Provide a simulated RAG-backed chatbot interface answering queries with contextual health data (e.g., asthma risks, AQI, shelter routing) and explicit citations (e.g., NWS, CalOES, BAAQMD).
 - **FR-E08 [Source Citation]:** The chatbot must explicitly cite the source document (e.g., CalFire, PubMed) retrieved from the vector database.
@@ -294,14 +294,14 @@ To prevent visual clutter, the map employs a strict hierarchical rendering order
 7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
 ### 9.3 HUD (Heads-Up Display) Components
-- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
+- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
 - **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
 - **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
 - **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Safe Evacuation Route") to their real-world meanings.
 
 ### 9.4 Scenario Orchestration (The "Golden Path" Script)
 To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).
-- **State 1 (NORMAL):** Showcases ambient westerly winds, a low vulnerability score, and a clean map with no routes or warnings.
+- **State 1 (NORMAL):** Showcases ambient westerly winds, and a clean map with no routes or warnings.
 - **State 2 (AI_UPDATE):** Simulates an environmental shift. The wind shifts to a fierce 45 mph South-West blow, the Red Flag Warning polygon appears, the ML spread polygons bloom, and the original highway route renders as a compromised dashed red line.
 - **State 3 (REROUTE):** Simulates the A* backend. The compromised route disappears, and a solid blue detour path connects the user's location to the nearest safe shelter (Chabot College).
 

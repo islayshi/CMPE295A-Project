@@ -38,7 +38,7 @@ function aqiColorClass(aqi) {
   return 'bg-red-900';
 }
 
-export default function TelemetryWidget({ predictions, windData, userLocation, cityName, aqiData }) {
+export default function TelemetryWidget({ windData, userLocation, cityName, aqiData }) {
   const [isOpen, setIsOpen] = useState(false);
   
   let windText = "Loading...";
@@ -59,16 +59,6 @@ export default function TelemetryWidget({ predictions, windData, userLocation, c
       windAngle = Math.round(-angleDeg);
     }
   }
-
-  let maxProbability = 0;
-  if (predictions && predictions.features) {
-    predictions.features.forEach(f => {
-      if (f.properties.fire_probability > maxProbability) {
-        maxProbability = f.properties.fire_probability;
-      }
-    });
-  }
-  const vulnerability = maxProbability > 0.7 ? "High" : (maxProbability > 0.4 ? "Medium" : "Low");
 
   // Real AQI from backend (Bug 1 fix — no more probability-derived fake values)
   const aqi = aqiData?.aqi ?? null;
@@ -134,10 +124,7 @@ export default function TelemetryWidget({ predictions, windData, userLocation, c
                     </svg>
                   </div>
                 </div>
-                <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-200">
-                  <span className="text-slate-800">Vulnerability Score:</span>
-                  <span className={`font-bold ${vulnerability === 'High' ? 'text-red-500' : (vulnerability === 'Medium' ? 'text-orange-500' : 'text-green-500')}`}>{vulnerability}</span>
-                </div>
+
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200">
