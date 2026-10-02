@@ -7,7 +7,7 @@ import AQIGrid from './AQIGrid';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
 
-export default function MapCanvas({ predictions, shelters, windData, userLocation, isAqiVisible, aqiData }) {
+export default function MapCanvas({ predictions, shelters, windData, userLocation, isAqiVisible, aqiData, timeScrub }) {
   const mapRef = useRef();
 
   return (
@@ -45,44 +45,40 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
             <Layer
               id="predictions-fill"
               type="fill"
+              filter={['<=', ['get', 'spread_hour'], timeScrub]}
               paint={{
                 'fill-color': [
-                  'interpolate',
-                  ['linear'],
-                  ['get', 'fire_probability'],
-                  0.0,  '#3f3f46',
-                  0.05, '#713f12',
-                  0.35, '#eab308',
-                  0.60, '#ea580c',
-                  0.80, '#dc2626',
-                  1.0,  '#7f1d1d'
+                  'match',
+                  ['get', 'spread_hour'],
+                  0, '#dc2626',
+                  12, '#f97316',
+                  24, '#eab308',
+                  '#dc2626'
                 ],
                 'fill-opacity': [
-                  'interpolate',
-                  ['linear'],
-                  ['get', 'fire_probability'],
-                  0.0,  0.0,
-                  0.05, 0.15,
-                  0.35, 0.45,
-                  0.70, 0.70,
-                  1.0,  0.85
+                  'match',
+                  ['get', 'spread_hour'],
+                  0, 0.8,
+                  12, 0.4,
+                  24, 0.3,
+                  0.5
                 ]
               }}
             />
             <Layer
               id="predictions-outline"
               type="line"
+              filter={['<=', ['get', 'spread_hour'], timeScrub]}
               paint={{
                 'line-color': [
-                  'interpolate',
-                  ['linear'],
-                  ['get', 'fire_probability'],
-                  0.0,  'rgba(0,0,0,0)',
-                  0.05, 'rgba(234,179,8,0.3)',
-                  0.60, 'rgba(234,88,12,0.5)',
-                  1.0,  'rgba(220,38,38,0.7)'
+                  'match',
+                  ['get', 'spread_hour'],
+                  0, '#dc2626',
+                  12, '#f97316',
+                  24, '#eab308',
+                  '#dc2626'
                 ],
-                'line-width': 0.5
+                'line-width': 1
               }}
             />
           </Source>

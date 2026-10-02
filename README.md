@@ -119,6 +119,8 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 cd backend
 pip install -r requirements.txt
+cd ../ml_adapter
+pip install -r requirements.txt
 ```
 
 **5. Run Database Migrations:**
@@ -195,10 +197,11 @@ export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
 
 ## Running Locally
 
-Open **four terminal windows**. Ensure you are in the `backend/` directory and your virtual environment is activated (`source ../.venv/bin/activate`) for the Python services.
+Open **five terminal windows** at the project root (`CMPE295A-Project/`).
 
 **Terminal 1 — Django REST API:**
 ```bash
+source .venv/bin/activate
 cd backend
 python manage.py runserver
 # Expected Output: Starting development server at http://127.0.0.1:8000/
@@ -206,12 +209,14 @@ python manage.py runserver
 
 **Terminal 2 — Celery Worker:**
 ```bash
+source .venv/bin/activate
 cd backend
 celery -A core worker -l info --pool=solo
 ```
 
 **Terminal 3 — Celery Beat (Scheduler):**
 ```bash
+source .venv/bin/activate
 cd backend
 celery -A core beat -l info
 ```
@@ -221,6 +226,14 @@ celery -A core beat -l info
 cd frontend
 npm run dev
 # Expected Output: Local: http://localhost:5173/
+```
+
+**Terminal 5 — FastAPI ML Adapter:**
+*Note: This specific service is required to serve the mock CZU Lightning Complex GeoJSON fire polygons to the frontend map while `MOCK_INFERENCE=True` is active in the Django settings.*
+```bash
+source .venv/bin/activate
+cd ml_adapter
+uvicorn main:app --port 8001 --reload
 ```
 
 ---

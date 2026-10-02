@@ -16,7 +16,7 @@ The system utilizes a Modular Monolith architecture to minimize deployment overh
 
 ---
 
-### 1.1 Component Specifications & Responsibilities
+## 1.1 Component Specifications & Responsibilities
 
 ### The Django Monolith (Web & Orchestration)
 
@@ -165,7 +165,6 @@ The RAG-backed chatbot (FR-E07, FR-E08) and its supporting vector database (`pgv
 - **NFR-R01 [Graceful Degradation]:** If external APIs or the ML Adapter fail, the pipeline shall automatically fall back to utilizing the last successfully cached GeoJSON prediction from Redis.
 - **NFR-R04 [Prediction Staleness]:** If the most recent successful prediction is older than **48 hours**, the system shall: (a) mark risk zones with a `STALE` badge in the UI, (b) log a critical alert, and (c) attempt inference with the last known valid feature set (degraded mode).
 - **NFR-R05 [Harvester Resilience]:** Each Celery harvester task shall implement independent retry logic with exponential backoff (max 3 retries). If a data source is unreachable after all retries, the task shall log a warning and proceed with the last cached value. The daily inference task shall execute regardless of partial harvester failures — partial data is better than no prediction.
-- **NFR-R06 [Startup Hydration]:** The Celery background workers shall use `@worker_ready` signal hooks to immediately hydrate all critical data caches (AQI, Wind, NWS Alerts) upon system boot, bypassing initial beat intervals to ensure the UI is populated immediately.
 
 ### D. Observability
 
@@ -244,9 +243,8 @@ Given the timeline and academic constraints, the following features are explicit
 | Google Earth Engine | SDK | `NOAA/GOES/18/FDCC` | GOES-18 Fire Detection (thermal hotspots) | Daily composite |
 | Google Earth Engine | SDK | `NOAA/GOES/18/MCMIPC` | GOES-18 Cloud & Moisture Imagery | Daily composite |
 | Google Earth Engine | SDK | `NASA/VIIRS/002/VNP09GA` | VIIRS active fire hotspots (375 m) | Daily |
-| Open-Meteo API | `GET` | `air-quality-api.open-meteo.com/v1/...` | Real-time Air Quality Index (PM2.5) | Every 30 minutes |
-| Open-Meteo API | `GET` | `api.open-meteo.com/v1/forecast/...` | Wind speed, direction, 7-day weather forecast | Hourly |
-| NWS Alerts API | `GET` | `api.weather.gov/alerts/active` | Red Flag Warnings (Bay Area zone) | Every 15 minutes |
+| NOAA / OpenWeather | `GET` | `api.openweathermap.org/data/2.5/...` | Wind speed, direction, temperature, humidity | Daily |
+| NWS Alerts API | `GET` | `api.weather.gov/alerts/active` | Red Flag Warnings (Bay Area zone) | Every 6 hours |
 | 511 SF Bay | `GET` | `511.org/open-data/...` | Road incidents and closures | Hourly |
 | NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/...` | Active fire data for validation | Daily |
 
@@ -265,35 +263,34 @@ While existing apps like *Watch Duty* serve as the gold standard for UI/UX and h
 
 The frontend MVP was developed as a standalone showcase of the system's capabilities, designed specifically for a Master's defense presentation. It simulates the real-time AI and routing behaviors described above without requiring a live connection to the Python/Django backend.
 
-### 10.1 Prototype Stack & Tooling
+### 9.1 Prototype Stack & Tooling
 - **React 19 & Vite:** Core SPA framework providing fast development and hot-module reloading.
 - **Tailwind CSS v4 & Lucide-React:** For rapid, utility-first UI styling with a "Glassmorphism" aesthetic (translucent, blurred backgrounds) and consistent SVG iconography.
 - **Mapbox GL JS (`react-map-gl/mapbox`):** Renders the core geospatial canvas using the `dark-v11` style and 3D terrain exaggeration (`mapbox-dem`) to highlight topographical features in the Bay Area (e.g., Hayward hills).
 - **Deck.gl:** A WebGL-powered framework used to overlay complex, high-performance animations—specifically, the animated wind particle grids.
 - **Framer Motion:** Powers smooth UI animations, such as the slide-out RAG Chatbot drawer.
 
-### 10.2 Map Layering & Visual Hierarchy (Strict Z-Index)
-The frontend UI strictly adheres to the "California Ember" theme (60-30-10 palette of Off-white, Dark Slate, and Burnt Orange). To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
-1. **Base Topography:** Mapbox `light-v11` base map for maximum contrast with UI elements.
-2. **Red Flag Warning Zone:** NWS environmental danger polygon rendered as a translucent red area.
+### 9.2 Map Layering & Visual Hierarchy (Strict Z-Index)
+To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
+1. **Base Topography:** Mapbox `dark-v11` base map with 1.5x 3D terrain exaggeration.
+2. **Red Flag Warning Zone:** A static NWS environmental danger polygon rendered as a translucent red area.
 3. **Fire Detection (ML Engine):** Solid red circle layers representing initial thermal anomalies.
 4. **Predictive Spread (U-Net):** Semi-transparent orange (Day 0) and yellow (Day +1) polygons representing predicted fire progression.
-5. **AQI Grid (IDW Interpolation):** A dynamic Deck.gl PolygonLayer mapping live PM2.5 API data to the official EPA color buckets via Inverse Distance Weighting.
-6. **Deck.gl Wind Particles:** A highly optimized WebGL `TripsLayer` rendering 1,200 dense, pure-white, short-trailing animated particles. It uses `interleaved: true` to natively share the WebGL context with Mapbox for flawless 60fps panning.
+5. **Evacuation Routes (A*):** A dynamic blue line layer representing the safe detour, and a dashed red line representing the compromised highway.
+6. **Deck.gl Wind Particles:** An animated WebGL `TextLayer` of Unicode arrows (➔) calculating offset per frame to simulate continuous wind flow over the map.
 7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
-### 10.3 HUD (Heads-Up Display) Components
-- **Telemetry Widget:** A dynamic side-panel displaying live API environmental data (AQI and Wind). The "Vulnerability Score" artifact has been removed to maintain focus on actionable meteorology.
-- **Detailed Forecast:** A 7-Day weather forecast component powered by live Open-Meteo data, directly tied to the user's Mapbox coordinates.
-- **Layers & Legend:** A dynamic key mapping the visual layers to their real-world meanings, with toggle switches to hide heavy layers like the AQI Heatmap.
+### 9.3 HUD (Heads-Up Display) Components
+- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
 - **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
-- **RAG Chatbot Drawer:** A floating action button (FAB) that opens an AI chat interface.
+- **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
+- **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Safe Evacuation Route") to their real-world meanings.
 
-### 10.4 Scenario Orchestration (The "Golden Path" Script)
+<!-- ### 9.4 Scenario Orchestration (The "Golden Path" Script)
 To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).
-- **State 1 (NORMAL):** Showcases ambient westerly winds, and a clean map with no routes or warnings.
+- **State 1 (NORMAL):** Showcases ambient westerly winds, a low vulnerability score, and a clean map with no routes or warnings.
 - **State 2 (AI_UPDATE):** Simulates an environmental shift. The wind shifts to a fierce 45 mph South-West blow, the Red Flag Warning polygon appears, the ML spread polygons bloom, and the original highway route renders as a compromised dashed red line.
-- **State 3 (REROUTE):** Simulates the A* backend. The compromised route disappears, and a solid blue detour path connects the user's location to the nearest safe shelter (Chabot College).
+- **State 3 (REROUTE):** Simulates the A* backend. The compromised route disappears, and a solid blue detour path connects the user's location to the nearest safe shelter (Chabot College). -->
 
 ---
 

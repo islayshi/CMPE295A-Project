@@ -64,19 +64,34 @@ def current_predictions(request):
     )
 
     if latest_timestamp is None:
-        # No predictions exist yet — return mock hint if in mock mode
+        # No predictions exist yet — fetch directly from ML Adapter in mock mode
         if settings.MOCK_INFERENCE:
+            import requests
+            try:
+                # Fetch directly from the ML Adapter for local development UX
+                ml_response = requests.post(
+                    f"{settings.ML_ADAPTER_URL}/predict/progression",
+                    json={"date": "now", "mock": True},
+                    timeout=5
+                )
+                if ml_response.status_code == 200:
+                    return Response(ml_response.json(), status=status.HTTP_200_OK)
+            except Exception as e:
+                logger.error("Failed to fetch mock fixture from ML Adapter: %s", str(e))
+                
+            # Fallback to empty if ML adapter is also unreachable
             return Response(
                 {
                     "type": "FeatureCollection",
                     "metadata": {
                         "source_model": "mock",
-                        "message": "No predictions yet. Trigger the harvester to generate data.",
+                        "message": "No predictions yet. ML Adapter unreachable.",
                     },
                     "features": [],
                 },
                 status=status.HTTP_200_OK,
             )
+
         return Response(
             {"error": "No predictions available. Harvester has not run yet."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,

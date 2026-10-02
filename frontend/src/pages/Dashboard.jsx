@@ -80,6 +80,7 @@ export default function Dashboard() {
         userLocation={userLocation}
         isAqiVisible={isAqiVisible}
         aqiData={aqiData}
+        timeScrub={timeScrub}
       />
       
       <LayersLegend 
