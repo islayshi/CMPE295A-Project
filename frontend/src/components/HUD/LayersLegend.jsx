@@ -76,15 +76,19 @@ export default function LayersLegend({ isAqiVisible, setIsAqiVisible }) {
                   </li>
                   <li className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-red-600/80 border border-red-600 rounded-sm"></div>
-                    <span className="text-slate-800">Current Fire Detection</span>
+                    <span className="text-slate-800">Active Fire</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-orange-500/40 border border-orange-500 rounded-sm"></div>
-                    <span className="text-slate-800">+12 Hour Spread Risk</span>
+                    <div className="w-3 h-3 bg-orange-500/60 border border-orange-500 rounded-sm"></div>
+                    <span className="text-slate-800">High Risk</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-yellow-500/30 border border-yellow-500 rounded-sm"></div>
-                    <span className="text-slate-800">+24 Hour Spread Risk</span>
+                    <div className="w-3 h-3 bg-yellow-400/60 border border-yellow-500 rounded-sm"></div>
+                    <span className="text-slate-800">Moderate Risk</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-green-500/60 border border-green-500 rounded-sm"></div>
+                    <span className="text-slate-800">Low Risk</span>
                   </li>
                 </ul>
               </div>

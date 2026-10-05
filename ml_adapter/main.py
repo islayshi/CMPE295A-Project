@@ -165,8 +165,7 @@ def _serve_mock_fixture() -> JSONResponse:
         "current_fire_goes18_20250110T21Z.geojson",
         "spread_goes_20250110T21Z_h1.geojson",
         "spread_goes_20250110T21Z_h3.geojson",
-        "spread_goes_20250110T21Z_h6.geojson",
-        "Palisades_2025-01-11_h24.geojson"
+        "spread_goes_20250110T21Z_h6.geojson"
     ]
 
     all_features = []
