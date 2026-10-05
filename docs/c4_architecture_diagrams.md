@@ -13,7 +13,7 @@ flowchart TD
     USER["👤 **End User**\n(Bay Area Resident)\nMobile / Desktop Browser"]
     ADMIN["🛠️ **System Admin /\nData Engineer**\nMonitors pipeline & predictions"]
 
-    FFWAI["🔥 **Fight Fire With AI**\nWildfire Prediction &\nDynamic Evacuation Routing Platform\n(fightfirewAI — Python/Django + FastAPI)"]
+    FFWAI["🔥 **Fight Fire With AI**\nWildfire Prediction &\nAlerting Platform\n(fightfirewAI — Python/Django + FastAPI)"]
 
     GEE["🛰️ **Google Earth Engine**\nNDVI / EVI / NDWI\nsatellite vegetation indices"]
     USGS["🏔️ **USGS 3DEP**\nDigital Elevation Model\n(elevation, slope, aspect)"]
@@ -25,7 +25,7 @@ flowchart TD
     BAY511["🚗 **511 SF Bay**\nReal-time road incidents\n& closures"]
     CALENERGY["⚡ **CA Energy Commission**\nPowerline GIS data\n(static, one-time)"]
 
-    USER -->|"Views fire risk,\nevacuation routes"| FFWAI
+    USER -->|"Views fire risk &\nzone alerts"| FFWAI
     ADMIN -->|"Monitors Celery tasks,\nprediction metrics"| FFWAI
 
     FFWAI -->|"Pulls NDVI/EVI\nvia API"| GEE
@@ -119,11 +119,6 @@ flowchart TD
             HARV_ROADS["fetch_road_incidents()\n511 SF Bay API\n→ Redis cache"]
         end
 
-        subgraph ROUTING_APP["routing app"]
-            ASTAR["A* Engine\nGeoDjango spatial query\nBayAreaGrid danger zones\n→ Evacuation path GeoJSON"]
-            ROUTE_API["REST endpoint\nPOST /api/routing/evacuate/\n{origin, destination}\n→ route GeoJSON"]
-        end
-
         subgraph CHANNELS_APP["Django Channels / WebSocket"]
             WS_CONSUMER["FireUpdateConsumer\nBroadcasts FIRE_UPDATE\n{predictions, risk_map}\nto all connected clients"]
             WS_TELEMETRY["TelemetryConsumer\nBroadcasts wind, AQI,\nNWS alerts in real time"]
@@ -149,7 +144,6 @@ flowchart TD
     REACT_C <-->|"WebSocket"| WS_TELEMETRY
 
     URL --> PRED_SERIAL
-    URL --> ROUTE_API
     URL --> WIND_API
     URL --> AQI_API
     URL --> POI_API
@@ -172,7 +166,6 @@ flowchart TD
     GRID_CMD --> GRID_MODEL
 
     PRED_MODEL --> POSTGRES_C
-    ASTAR --> POSTGRES_C
     PRED_SERIAL --> POSTGRES_C
 ```
 

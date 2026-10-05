@@ -69,6 +69,16 @@ export default function Dashboard() {
     refetchInterval: 300000,  // Poll every 5 minutes
   });
 
+  // Calculate dynamic maximum horizon and active horizon based on predictions data
+  const availableHorizons = predictions?.features 
+    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
+    : [0, 24];
+  
+  const maxHorizon = availableHorizons[availableHorizons.length - 1];
+  
+  // Find the largest horizon that is <= the current slider value
+  const activeHorizon = [...availableHorizons].reverse().find(h => h <= timeScrub) ?? 0;
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans">
       <Navbar onChatToggle={() => setIsChatOpen(!isChatOpen)} />
@@ -80,7 +90,7 @@ export default function Dashboard() {
         userLocation={userLocation}
         isAqiVisible={isAqiVisible}
         aqiData={aqiData}
-        timeScrub={timeScrub}
+        timeScrub={activeHorizon}
       />
       
       <LayersLegend 
@@ -96,7 +106,7 @@ export default function Dashboard() {
       />
         
       <div className="absolute bottom-0 left-0 w-full z-40 pointer-events-auto">
-        <TimeScrubber timeScrub={timeScrub} setTimeScrub={setTimeScrub} />
+        <TimeScrubber timeScrub={timeScrub} setTimeScrub={setTimeScrub} maxHorizon={maxHorizon} />
       </div>
 
       <ChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />

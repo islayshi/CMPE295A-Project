@@ -1,4 +1,4 @@
-export default function TimeScrubber({ timeScrub, setTimeScrub }) {
+export default function TimeScrubber({ timeScrub, setTimeScrub, maxHorizon = 24 }) {
   return (
     <div className="w-full relative group">
       {/* Tooltip / Label that appears above the scrubber on hover */}
@@ -7,15 +7,15 @@ export default function TimeScrubber({ timeScrub, setTimeScrub }) {
         <span className="text-red-500 font-bold tracking-wide">
           Prediction Window: +{timeScrub} Hour{timeScrub !== 1 ? 's' : ''}
         </span>
-        <span>+24 Hrs</span>
+        <span>+{maxHorizon} Hrs</span>
       </div>
       
       {/* Sleek Scrubber Input */}
       <input 
         type="range" 
         min="0" 
-        max="24" 
-        step="12" 
+        max={maxHorizon}
+        step="1" 
         value={timeScrub}
         onChange={(e) => setTimeScrub(parseInt(e.target.value))}
         className="w-full h-1.5 bg-slate-800/80 appearance-none cursor-pointer accent-red-600 outline-none block hover:h-2.5 transition-all"

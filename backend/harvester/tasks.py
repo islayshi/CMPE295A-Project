@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Redis cache keys (must match telemetry/views.py constants)
 WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
-CURRENT_RISK_CACHE_KEY = "ffwai:current_risk_map"
+CURRENT_RISK_CACHE_KEY = "ffwai:predictions:current"
 AQI_CACHE_KEY = "ffwai:aqi_data"
 
 
@@ -133,6 +133,9 @@ def _build_feature_payload() -> dict:
     return {
         "date": datetime.now(timezone.utc).date().isoformat(),
         "mock": settings.MOCK_INFERENCE,
+        "bbox": [-122.9, 36.9, -121.5, 38.3],
+        "time_horizon": 24,
+        "model_type": "unet",
         # TODO Month 2: Add actual feature arrays here
         # "features": load_features_from_gcs(date=today, bucket=settings.GCS_BUCKET_NAME)
     }
@@ -175,13 +178,13 @@ def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
 def store_geojson_result(geojson: dict) -> int:
     """
     Parses the GeoJSON FeatureCollection from the ML Adapter and writes:
-      1. Individual FireRiskPrediction rows to PostGIS (Cloud SQL)
+      1. Individual PredictionPolygon rows to PostGIS (Cloud SQL)
       2. Full GeoJSON to Redis cache (for fast REST polling — NFR-P01)
 
     ML Interface Contract §3.1: Expected GeoJSON structure.
     Returns the number of prediction rows written to the DB.
     """
-    from predictions.models import FireRiskPrediction
+    from predictions.models import PredictionPolygon
     from grid.models import BayAreaGrid
 
     features = geojson.get("features", [])
@@ -194,34 +197,94 @@ def store_geojson_result(geojson: dict) -> int:
     except ValueError:
         timestamp = datetime.now(timezone.utc)
 
+    from django.contrib.gis.geos import GEOSGeometry
+
+    incoming_grid_ids = [
+        f.get("properties", {}).get("grid_id") 
+        for f in features 
+        if f.get("properties", {}).get("grid_id") is not None
+    ]
+    
+    if incoming_grid_ids:
+        existing_grid_ids = set(BayAreaGrid.objects.filter(id__in=incoming_grid_ids).values_list("id", flat=True))
+        missing_grid_ids = set(incoming_grid_ids) - existing_grid_ids
+        
+        if missing_grid_ids:
+            missing_grids_to_create = []
+            for feature in features:
+                grid_id = feature.get("properties", {}).get("grid_id")
+                if grid_id in missing_grid_ids:
+                    try:
+                        geom_json = json.dumps(feature.get("geometry", {}))
+                        geom = GEOSGeometry(geom_json)
+                        missing_grids_to_create.append(BayAreaGrid(
+                            id=grid_id,
+                            geometry=geom,
+                            centroid=geom.centroid,
+                            row=-1,
+                            col=-(abs(hash(str(grid_id))) % 1000000000)
+                        ))
+                        missing_grid_ids.remove(grid_id)
+                    except Exception as exc:
+                        logger.warning('{"event": "store_stub_grid_error", "grid_id": "%s", "error": "%s"}', grid_id, str(exc))
+            
+            if missing_grids_to_create:
+                BayAreaGrid.objects.bulk_create(missing_grids_to_create, ignore_conflicts=True)
+                logger.info('{"event": "store_stub_grids", "created": %d}', len(missing_grids_to_create))
+
+    import datetime as dt
+
     predictions_to_create = []
     for feature in features:
         props = feature.get("properties", {})
         grid_id = props.get("grid_id")
         fire_prob = props.get("fire_probability")
         risk_label = props.get("risk_label", "LOW_RISK")
+        raw_horizon = props.get("horizon_hours")
+        try:
+            lead_time_hours = int(raw_horizon) if raw_horizon is not None else 0
+        except (ValueError, TypeError):
+            lead_time_hours = 0
 
         if grid_id is None or fire_prob is None:
             logger.warning('{"event": "store_skip", "reason": "missing grid_id or fire_probability"}')
             continue
 
-        predictions_to_create.append(FireRiskPrediction(
+        target_timestamp = timestamp + dt.timedelta(hours=lead_time_hours)
+
+        # Capture all raw ML properties into ml_metrics, excluding top-level fields
+        ml_metrics = {k: v for k, v in props.items() if k not in ("grid_id", "fire_probability", "risk_label", "source_model", "timestamp", "horizon_hours")}
+
+        predictions_to_create.append(PredictionPolygon(
             grid_id=grid_id,
             timestamp=timestamp,
+            lead_time_hours=lead_time_hours,
+            target_timestamp=target_timestamp,
             source_model=source_model,
             fire_probability=fire_prob,
             risk_label=risk_label,
+            ml_metrics=ml_metrics,
         ))
 
     # Atomic bulk insert — ffwai-django-celery skill: wrap PostGIS writes in
-    # transaction.atomic() so partial data is never exposed to the A* routing
-    # engine if the insert crashes mid-way. Redis write is intentionally outside
+    # transaction.atomic() so partial data is never exposed to external callers
+    # if the insert crashes mid-way. Redis write is intentionally outside
     # the transaction since Redis does not participate in PostgreSQL transactions.
     with transaction.atomic():
-        FireRiskPrediction.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
+        PredictionPolygon.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
 
-    # Update Redis cache with the full GeoJSON (REST polling reads this — NFR-P01)
-    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(geojson), timeout=60 * 60 * 48)  # 48h — NFR-R04
+    # Query the database for the batch polygons and assemble into a FeatureCollection
+    if timestamp:
+        valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
+        from predictions.serializers import PredictionPolygonGeoJSONSerializer
+        serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
+        feature_collection = {
+            "type": "FeatureCollection",
+            "metadata": {"timestamp": target_timestamp.isoformat(), "total_cells": valid_polygons.count()},
+            "features": serializer.data,
+        }
+        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
 
     return len(predictions_to_create)
@@ -698,3 +761,123 @@ def on_worker_ready(sender, **kwargs):
     fetch_aqi_data.delay()
     fetch_wind_data.delay()
     fetch_nws_alerts.delay()
+
+
+@shared_task(name="harvester.tasks.run_async_inference", bind=True, max_retries=3, default_retry_delay=60)
+def run_async_inference(self, bbox, model_type="unet"):
+    """
+    Async inference task decoupled from Django views.
+    Hits the FastAPI ML Adapter and writes results to PostGIS.
+    """
+    try:
+        url = f"{settings.ML_ADAPTER_URL}/predict/progression"
+        payload = {
+            "bbox": bbox,
+            "time_horizon": 24,
+            "model_type": model_type,
+            "mock": settings.MOCK_INFERENCE
+        }
+        logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s"}', url, model_type)
+        
+        response = requests.post(url, json=payload, timeout=120)
+        response.raise_for_status()
+        
+        geojson_result = response.json()
+        
+        predictions_written = store_geojson_result(geojson_result)
+        logger.info('{"event": "async_inference_complete", "predictions_written": %d}', predictions_written)
+        return {"status": "success", "predictions_written": predictions_written}
+        
+    except Exception as exc:
+        logger.error('{"event": "async_inference_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)
+
+
+@shared_task(name="harvester.tasks.trigger_active_inference", bind=True, max_retries=3, default_retry_delay=60)
+def trigger_active_inference(self):
+    """
+    Scout task: Queries NASA FIRMS public CSV for active fires.
+    Filters for San Francisco Bay Area bounds.
+    Calculates a 1x1km bounding box for each active fire.
+    Asynchronously fans out inference tasks.
+    """
+    import csv
+    from io import StringIO
+    
+    logger.info('{"event": "trigger_active_inference_start"}')
+    
+    # Bay Area Rough Bounding Box
+    lat_min, lat_max = 36.9, 38.3
+    lon_min, lon_max = -122.9, -121.5
+    
+    url = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.csv"
+    
+    active_fires = []
+    
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        csv_data = response.text
+        reader = csv.DictReader(StringIO(csv_data))
+        
+        if not reader.fieldnames or 'latitude' not in reader.fieldnames or 'longitude' not in reader.fieldnames:
+            raise ValueError("CSV is missing required 'latitude' or 'longitude' headers")
+            
+        for row in reader:
+            try:
+                lat = float(row['latitude'])
+                lon = float(row['longitude'])
+                if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
+                    active_fires.append((lat, lon))
+            except (ValueError, TypeError, KeyError):
+                continue
+    except Exception as exc:
+        logger.warning('{"event": "trigger_active_inference_fetch_error", "error": "%s", "action": "using_mock_data"}', str(exc))
+        # Fallback to mock data if network fails
+        active_fires = [
+            (37.3382, -121.8863),  # San Jose
+            (37.7749, -122.4194),  # San Francisco
+        ]
+        
+    logger.info('{"event": "trigger_active_inference_filtered", "fire_count": %d}', len(active_fires))
+    
+    # Calculate 1km x 1km bounding boxes and fan out
+    # 1 deg lat ~ 111 km -> 1km = 0.009 deg (half is 0.0045)
+    # 1 deg lon at 37 deg N ~ 88 km -> 1km = 0.011 deg (half is 0.0055)
+    for lat, lon in active_fires:
+        bbox = [
+            round(lon - 0.0055, 4), round(lat - 0.0045, 4),
+            round(lon + 0.0055, 4), round(lat + 0.0045, 4)
+        ]
+        # delay() fans out the async task
+        run_async_inference.delay(bbox, "unet")
+        
+    return {"status": "success", "fires_detected": len(active_fires)}
+
+
+@shared_task(name="harvester.tasks.trigger_mock_inference", bind=True)
+def trigger_mock_inference(self):
+    """
+    Mock task to bypass NASA FIRMS completely and instantly run inference to
+    force FastAPI to return the ML team's mock data.
+    """
+    logger.info('{"event": "trigger_mock_inference_start"}')
+    bbox = [-122.5, 37.5, -122.4, 37.6]
+    run_async_inference.delay(bbox, "unet")
+    return {"status": "success", "mock_inference_triggered": True}
+
+
+@shared_task(name="harvester.tasks.archive_old_predictions")
+def archive_old_predictions():
+    """
+    Deletes PredictionPolygon records older than 30 days to prevent database bloat.
+    """
+    from predictions.models import PredictionPolygon
+    from datetime import timedelta
+    
+    threshold_date = datetime.now(timezone.utc) - timedelta(days=30)
+    old_predictions = PredictionPolygon.objects.filter(timestamp__lt=threshold_date)
+    deleted_count, _ = old_predictions.delete()
+    
+    logger.info('{"event": "archive_old_predictions", "deleted_count": %d, "threshold_date": "%s"}', deleted_count, threshold_date.isoformat())
+    return {"status": "success", "deleted_count": deleted_count}

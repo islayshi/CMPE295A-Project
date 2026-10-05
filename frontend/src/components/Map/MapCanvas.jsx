@@ -45,22 +45,24 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
             <Layer
               id="predictions-fill"
               type="fill"
-              filter={['<=', ['get', 'spread_hour'], timeScrub]}
+              filter={['<=', ['coalesce', ['get', 'horizon_hours'], ['get', 'lead_time_hours'], 0], timeScrub]}
               paint={{
                 'fill-color': [
                   'match',
-                  ['get', 'spread_hour'],
-                  0, '#dc2626',
-                  12, '#f97316',
-                  24, '#eab308',
+                  ['get', 'risk_label'],
+                  'ACTIVE_FIRE', '#dc2626',
+                  'HIGH_RISK', '#f97316',
+                  'MODERATE_RISK', '#eab308',
+                  'LOW_RISK', '#4ade80',
                   '#dc2626'
                 ],
                 'fill-opacity': [
                   'match',
-                  ['get', 'spread_hour'],
-                  0, 0.8,
-                  12, 0.4,
-                  24, 0.3,
+                  ['get', 'risk_label'],
+                  'ACTIVE_FIRE', 0.8,
+                  'HIGH_RISK', 0.6,
+                  'MODERATE_RISK', 0.4,
+                  'LOW_RISK', 0.2,
                   0.5
                 ]
               }}
@@ -68,14 +70,15 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
             <Layer
               id="predictions-outline"
               type="line"
-              filter={['<=', ['get', 'spread_hour'], timeScrub]}
+              filter={['<=', ['coalesce', ['get', 'horizon_hours'], ['get', 'lead_time_hours'], 0], timeScrub]}
               paint={{
                 'line-color': [
                   'match',
-                  ['get', 'spread_hour'],
-                  0, '#dc2626',
-                  12, '#f97316',
-                  24, '#eab308',
+                  ['get', 'risk_label'],
+                  'ACTIVE_FIRE', '#dc2626',
+                  'HIGH_RISK', '#f97316',
+                  'MODERATE_RISK', '#eab308',
+                  'LOW_RISK', '#4ade80',
                   '#dc2626'
                 ],
                 'line-width': 1

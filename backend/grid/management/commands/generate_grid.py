@@ -5,8 +5,8 @@ Generates the static 1×1 km spatial grid covering the 9-county
 San Francisco Bay Area and populates the BayAreaGrid table.
 
 This command is a one-time setup step. Run it once after migrations
-to create the spatial foundation that all ML predictions, terrain data,
-and evacuation routing depend on.
+to create the spatial foundation that all ML predictions and terrain data
+depend on.
 
 Usage:
     python manage.py generate_grid                  # Full Bay Area grid (~18,000 cells)

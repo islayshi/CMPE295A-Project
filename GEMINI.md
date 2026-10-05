@@ -1,12 +1,12 @@
 # Fight Fire With AI (CMPE 295A Project)
 
 ## Project Overview
-Fight Fire With AI is a Wildfire Prediction and Dynamic Routing system scoped to the San Francisco Bay Area. It is designed to predict fire spread using deep learning and calculate safe evacuation routes in real-time.
+Fight Fire With AI is a Wildfire Prediction and Alerting system scoped to the San Francisco Bay Area. It is designed to predict fire spread using deep learning and provide zone-based risk mapping and telemetry in real-time.
 
 ### System Architecture
 The project utilizes a Modular Monolith architecture combined with a separate AI Inference Engine, deployed entirely on Google Cloud Platform (GCP):
-*   **Backend (Core API & Routing):** Python, Django, Django REST Framework, Celery (hosted on Cloud Run & Compute Engine).
-*   **Database:** PostgreSQL with `PostGIS` (hosted on Cloud SQL) for spatial queries and A* routing.
+*   **Backend (Core API & Telemetry):** Python, Django, Django REST Framework, Celery (hosted on Cloud Run & Compute Engine).
+*   **Database:** PostgreSQL with `PostGIS` (hosted on Cloud SQL) for spatial queries.
 *   **Caching & Broker:** Redis (hosted on Memorystore) for high-speed GeoJSON caching and Celery message brokering.
 *   **AI/Inference Engine:** Python, FastAPI ML Adapter (Cloud Run) integrating with Vertex AI managed model endpoints (U-Net, PINN, RL Agent).
 *   **Frontend (UI/UX):** React.js (Vite), Mapbox GL JS, Deck.gl, Tailwind CSS. Communicates via REST Polling.
@@ -14,18 +14,18 @@ The project utilizes a Modular Monolith architecture combined with a separate AI
 ### Key Features
 *   Day-ahead fire risk prediction using a U-Net / PINN / RL ensemble.
 *   Automated data harvesting from Google Earth Engine (GOES-18, VIIRS, Landsat) and NWS/NOAA.
-*   Dynamic A* evacuation routing avoiding predicted danger zones.
+*   Zone-based risk mapping and emergency shelter POI telemetry.
 *   Live telemetry visualization (wind particles, Red Flag warnings).
 
 ## Current Development Focus
-Month 1: Building backend infrastructure (Django/PostGIS models, Celery harvester tasks, FastAPI ML Adapter in mock mode, A* routing engine). The ML inference layer is treated as a black box — integrates via a standard GeoJSON FeatureCollection output contract. Mock mode (`MOCK_INFERENCE=true`) enables full backend and frontend development without trained models.
+Month 1: Building backend infrastructure (Django/PostGIS models, Celery harvester tasks, FastAPI ML Adapter in mock mode). The ML inference layer is treated as a black box — integrates via a standard GeoJSON FeatureCollection output contract. Mock mode (`MOCK_INFERENCE=true`) enables full backend and frontend development without trained models.
 
 ## AI Assistant Role (Backend Architect & Engineer)
 You are acting as an expert **Senior Backend Engineer and System Architect**. Your primary responsibility is to construct, refactor, and review the backend infrastructure for the "Fight Fire With AI" project.
 
 **Core Rules & Behavior:**
 1. **Design Document Fidelity:** The `docs/design-doc.md` is your absolute source of truth. Every database schema, REST API contract, task queue strategy, and deployment configuration must strictly align with it. Do not invent features outside this document.
-2. **Layered Implementation:** Break down all complex tasks logically and execute them layer by layer: Data Models (PostgreSQL/PostGIS) -> Task Orchestration (Celery/Redis) -> Business Logic (A* Routing/Data Aggregation) -> API Layer (Django REST Framework) -> External Bridge (FastAPI Adapter).
+2. **Layered Implementation:** Break down all complex tasks logically and execute them layer by layer: Data Models (PostgreSQL/PostGIS) -> Task Orchestration (Celery/Redis) -> Business Logic (Data Aggregation/Zone Warnings) -> API Layer (Django REST Framework) -> External Bridge (FastAPI Adapter).
 3. **Traceable Quality:** Write highly legible, well-documented Python code. Follow PEP 8. Include extensive Git commit messages after every task to ensure the team can review and revert changes easily.
 4. **Clarify over Assume:** If a requirement is ambiguous, edge cases overlap, or instructions contradict the Design Document, **STOP**. Ask targeted, clarifying questions before writing code. Do not hallucinate architecture decisions.
 

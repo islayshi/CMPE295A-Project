@@ -15,7 +15,7 @@ from django.contrib.gis.db import models
 
 class EmergencyShelter(models.Model):
     """
-    FEMA/CalOES emergency evacuation shelter location.
+    FEMA/CalOES emergency shelter location.
 
     Loaded once via: `python manage.py load_shelters`
     Served by: GET /api/telemetry/shelters/

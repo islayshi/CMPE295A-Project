@@ -5,7 +5,7 @@ description: Expert guidelines for utilizing Redis as a message broker and cachi
 
 ## When this skill should be used
 - When configuring or optimizing Redis for use as the Celery message broker.
-- When designing caching strategies for frequently accessed, computationally expensive data (e.g., active fire perimeters, static ML routing maps).
+- When designing caching strategies for frequently accessed, computationally expensive data (e.g., active fire perimeters, spatial risk maps).
 - When implementing pub/sub mechanisms for real-time alerts or websockets.
 - When handling rate-limiting or distributed locking.
 
@@ -24,6 +24,6 @@ This skill outlines how to leverage Redis effectively to ensure the "Fight Fire 
 
 ## Best Practices for Fight Fire With AI
 - **Broker Reliability:** When used as a Celery broker, ensure Redis is configured with appropriate persistence (RDB/AOF) if message loss is unacceptable, though prioritizing queue performance is often key. Monitor memory usage carefully to prevent OOM evictions of active tasks.
-- **Caching Geospatial Results:** Complex PostGIS queries (e.g., routing away from fires) are expensive. Cache the results of these queries in Redis using a consistent hashing of the request parameters. Set an appropriate TTL based on the volatility of the fire event (e.g., 5-15 minutes).
+- **Caching Geospatial Results:** Complex PostGIS queries (e.g., intersecting perimeters with grid cells) are expensive. Cache the results of these queries in Redis using a consistent hashing of the request parameters. Set an appropriate TTL based on the volatility of the fire event (e.g., 5-15 minutes).
 - **Rate Limiting:** Implement strict rate limiting using Redis for public-facing APIs to protect the backend and ML services from being overwhelmed during a crisis.
-- **Real-time Notifications:** Use Redis Pub/Sub or Redis Streams to push real-time updates (like new fire detections or evacuation orders) to connected clients without polling the database.
+- **Real-time Notifications:** Use Redis Pub/Sub or Redis Streams to push real-time updates (like new fire detections or zone warnings) to connected clients without polling the database.

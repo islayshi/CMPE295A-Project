@@ -8,7 +8,6 @@ respective Django app url modules.
 Endpoint summary:
   /api/predictions/current/     GET  Latest risk map (Redis cache)
   /api/predictions/history/     GET  Historical predictions
-  /api/routing/evacuate/        POST A* evacuation route
   /api/telemetry/wind/          GET  Wind speed/direction
   /api/telemetry/shelters/      GET  FEMA/CalOES shelter POIs
   /api/telemetry/alerts/        GET  Active NWS Red Flag Warnings
@@ -30,7 +29,6 @@ urlpatterns = [
     # Core API Routes — see design-doc.md §8 API Endpoint Registry
     # -------------------------------------------------------
     path("api/predictions/", include("predictions.urls")),
-    path("api/routing/", include("routing.urls")),
     path("api/telemetry/", include("telemetry.urls")),
     path("api/metrics/", include("metrics.urls")),
 

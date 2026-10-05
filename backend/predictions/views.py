@@ -15,7 +15,7 @@ NFR-P01: Inference is async (Celery). These views only READ — they are fast.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from django.conf import settings
 from django.core.cache import cache
@@ -23,12 +23,12 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import FireRiskPrediction
-from .serializers import FireRiskPredictionGeoJSONSerializer
+from .models import PredictionPolygon
+from .serializers import PredictionPolygonGeoJSONSerializer
 
 logger = logging.getLogger(__name__)
 
-CURRENT_RISK_CACHE_KEY = "ffwai:current_risk_map"
+CURRENT_RISK_CACHE_KEY = "ffwai:predictions:current"
 
 
 @api_view(["GET"])
@@ -37,74 +37,36 @@ def current_predictions(request):
     GET /api/predictions/current/
 
     Returns the most recent complete fire risk prediction as a
-    GeoJSON FeatureCollection. Reads from Redis cache first
-    (written by harvester.tasks.store_geojson_result).
-
-    Response: GeoJSON FeatureCollection with metadata envelope.
-
-    FR-E01: Prediction Visualization — feeds Deck.gl grid heatmap.
-    NFR-R04: If cache is cold, falls back to DB query (staleness check included).
+    GeoJSON FeatureCollection. Fetches from Redis cache O(1).
     """
-    # Attempt Redis cache read first — O(1) in-memory lookup
-    cached = cache.get(CURRENT_RISK_CACHE_KEY)
-    if cached:
-        logger.info("current_predictions: serving from Redis cache")
-        return Response(json.loads(cached))
+    cached_data = cache.get("ffwai:predictions:current")
+    if cached_data:
+        try:
+            return Response(json.loads(cached_data))
+        except (TypeError, ValueError):
+            pass
+            
+    latest_prediction = PredictionPolygon.objects.filter(
+        timestamp__lte=datetime.now(timezone.utc)
+    ).order_by("-timestamp").first()
+    if latest_prediction:
+        valid_polygons = PredictionPolygon.objects.filter(timestamp=latest_prediction.timestamp).select_related("grid")
+        serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
+        feature_collection = {
+            "type": "FeatureCollection",
+            "metadata": {
+                "timestamp": latest_prediction.timestamp.isoformat(),
+                "total_cells": valid_polygons.count()
+            },
+            "features": serializer.data,
+        }
+        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+        return Response(feature_collection)
 
-    # Cache miss — fallback to database query (AP architecture: availability first)
-    logger.warning(
-        "current_predictions: Redis cache miss — falling back to DB query. "
-        "This may indicate the Celery harvester has not run yet."
-    )
-    latest_timestamp = (
-        FireRiskPrediction.objects
-        .order_by("-timestamp")
-        .values_list("timestamp", flat=True)
-        .first()
-    )
-
-    if latest_timestamp is None:
-        # No predictions exist yet — fetch directly from ML Adapter in mock mode
-        if settings.MOCK_INFERENCE:
-            import requests
-            try:
-                # Fetch directly from the ML Adapter for local development UX
-                ml_response = requests.post(
-                    f"{settings.ML_ADAPTER_URL}/predict/progression",
-                    json={"date": "now", "mock": True},
-                    timeout=5
-                )
-                if ml_response.status_code == 200:
-                    return Response(ml_response.json(), status=status.HTTP_200_OK)
-            except Exception as e:
-                logger.error("Failed to fetch mock fixture from ML Adapter: %s", str(e))
-                
-            # Fallback to empty if ML adapter is also unreachable
-            return Response(
-                {
-                    "type": "FeatureCollection",
-                    "metadata": {
-                        "source_model": "mock",
-                        "message": "No predictions yet. ML Adapter unreachable.",
-                    },
-                    "features": [],
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        return Response(
-            {"error": "No predictions available. Harvester has not run yet."},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-
-    queryset = FireRiskPrediction.objects.filter(timestamp=latest_timestamp).select_related("grid")
-    serializer = FireRiskPredictionGeoJSONSerializer(queryset, many=True)
-    response_data = {
+    return Response({
         "type": "FeatureCollection",
-        "metadata": {"timestamp": latest_timestamp.isoformat(), "total_cells": queryset.count()},
-        "features": serializer.data,
-    }
-    return Response(response_data)
+        "features": []
+    })
 
 
 @api_view(["GET"])
@@ -122,7 +84,7 @@ def prediction_history(request):
 
     FR-E01: Historical prediction review.
     """
-    queryset = FireRiskPrediction.objects.all()
+    queryset = PredictionPolygon.objects.all()
 
     # Optional date range filter
     start = request.query_params.get("start")

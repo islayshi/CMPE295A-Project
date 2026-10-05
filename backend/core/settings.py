@@ -17,6 +17,7 @@ NFR References:
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 load_dotenv() # Load variables from .env into os.environment
 
@@ -47,7 +48,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # GeoDjango — REQUIRED for PostGIS spatial fields and A* routing
+    # GeoDjango — REQUIRED for PostGIS spatial fields
     # Design Doc §1.1 Module 3: PostGIS spatial queries
     "django.contrib.gis",
     # Third-party
@@ -57,9 +58,8 @@ INSTALLED_APPS = [
     # Project apps (each owns a distinct domain — see design-doc.md §1.1)
     "api",          # Legacy connection test — will be removed after full migration
     "grid",         # BayAreaGrid, TerrainFeature, VegetationIndex models
-    "predictions",  # FireRiskPrediction, ModelPerformanceMetric models
+    "predictions",  # PredictionPolygon, ModelPerformanceMetric models
     "harvester",    # Celery tasks: data harvest + ML inference trigger
-    "routing",      # A* evacuation routing engine
     "telemetry",    # Wind, NWS alerts, emergency shelters (FEMA/CalOES)
     "metrics",      # Model performance dashboard — FR-E10
 ]
@@ -156,7 +156,7 @@ CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULE = {
     "trigger-daily-inference": {
         "task": "harvester.tasks.trigger_daily_inference",
-        "schedule": 86400,  # 24 hours in seconds
+        "schedule": crontab(minute=0, hour=6),  # 06:00 UTC daily
     },
     "fetch-wind-data-hourly": {
         "task": "harvester.tasks.fetch_wind_data",
@@ -169,6 +169,14 @@ CELERY_BEAT_SCHEDULE = {
     "fetch-nws-alerts-15min": {
         "task": "harvester.tasks.fetch_nws_alerts",
         "schedule": 900,  # 15 minutes in seconds
+    },
+    "archive-old-predictions-nightly": {
+        "task": "harvester.tasks.archive_old_predictions",
+        "schedule": crontab(minute=0, hour=0),
+    },
+    "trigger-active-inference-30min": {
+        "task": "harvester.tasks.trigger_active_inference",
+        "schedule": 1800,  # 30 minutes in seconds
     },
 }
 
@@ -192,8 +200,8 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Fight Fire With AI API",
     "DESCRIPTION": (
-        "Backend REST API for the Fight Fire With AI wildfire prediction and "
-        "dynamic evacuation routing platform. Extends research from Malik et al. "
+        "Backend REST API for the Fight Fire With AI wildfire prediction "
+        "platform. Extends research from Malik et al. "
         "(Atmosphere 2021), Adhikari et al. (IEEE CCWC 2024), and Malik et al. "
         "(IEEE CCWC 2022)."
     ),

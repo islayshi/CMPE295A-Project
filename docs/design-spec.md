@@ -24,7 +24,7 @@ This document describes the design and implementation of the Frontend Minimum Vi
 ## Requirements
 ### Functional Requirements (Essential MVP Core)
 * **FR-E01 [Prediction Visualization]:** Visualize current fire perimeters and ConvLSTM deep learning-predicted spread polygons on a 3D interactive map.
-* **FR-E02 [Dynamic Routing]:** Display optimal evacuation routes and re-route paths that avoid dynamically compromised road polygons.
+* **FR-E02 [Alerts & Zone Warnings]:** Trigger alternative alerting methods (e.g., Safe Shelter Handoff or Zone-Based Warnings) instead of turn-by-turn routing when risk zones intersect populated areas.
 * **FR-E03 [Confidence Metrics / Time Scrubbing]:** Provide an interactive time slider (0 to +6 hrs) to view prediction windows and associated confidence metrics.
 * **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (AQI, Wind Speed/Direction), render Deck.gl animated wind particle arrays reflecting live vectors, and overlay NWS Red Flag Warning polygons when active.
 * **FR-E05 [Emergency POIs]:** Display static Points of Interest using custom Lucide-react HTML markers (e.g., FEMA Evacuation Shelters) anchored securely to the map.

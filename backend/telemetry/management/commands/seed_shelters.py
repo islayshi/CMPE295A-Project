@@ -3,7 +3,7 @@ from django.contrib.gis.geos import Point
 from telemetry.models import EmergencyShelter
 
 class Command(BaseCommand):
-    help = 'Seeds emergency shelters in the SF Bay Area for evacuation routing.'
+    help = 'Seeds emergency shelters in the SF Bay Area for telemetry POIs.'
 
     def handle(self, *args, **options):
         shelters = [

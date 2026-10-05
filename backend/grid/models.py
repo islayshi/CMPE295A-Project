@@ -3,7 +3,7 @@ Grid Models — Fight Fire With AI
 
 Defines the static 1×1 km spatial grid covering the 9-county
 San Francisco Bay Area. This grid is the foundational spatial
-unit for all ML predictions, terrain data, and routing.
+unit for all ML predictions and terrain data.
 
 Design Doc §1.1 Module 2: Database Engine
 Implementation Plan v4: BayAreaGrid + TerrainFeature models

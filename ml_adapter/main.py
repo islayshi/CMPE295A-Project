@@ -41,7 +41,7 @@ app = FastAPI(
 
 MOCK_INFERENCE: bool = os.getenv("MOCK_INFERENCE", "true").lower() == "true"
 
-FIXTURE_PATH: Path = Path(__file__).parent / "fixtures" / "bay_area_fixture.json"
+FIXTURE_DIR: Path = Path(__file__).parent / "ml_adapter/fixtures"
 
 
 # ---------------------------------------------------------------------------
@@ -52,13 +52,14 @@ class PredictionRequest(BaseModel):
     """
     Payload sent by the Django Celery harvester.
 
-    In Month 1, only `date` and `mock` are used.
-    In Month 2, `features` will carry the assembled feature tensor
-    (derived from GOES-18, VIIRS, vegetation indices, and weather data).
+    In Month 1, only `bbox`, `time_horizon`, `model_type`, `date` and `mock` are used.
+    In Month 2, features will be fetched or processed based on the spatial bounds.
     """
-    date: str
+    bbox: tuple[float, float, float, float] = (-122.9, 36.9, -121.5, 38.3)
+    time_horizon: int = 24
+    model_type: str = "unet"
+    date: str | None = None
     mock: bool = True
-    # Month 2: features: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -87,33 +88,45 @@ def predict_progression(request: PredictionRequest) -> JSONResponse:
     POST /predict/progression
 
     Month 1 (MOCK_INFERENCE=true):
-      Reads and returns the static bay_area_fixture.json GeoJSON.
-      This simulates a full U-Net + PINN + RL Agent ensemble response.
+      Reads and normalizes the mock GeoJSONs.
 
     Month 2 (MOCK_INFERENCE=false):
-      Assembles the feature tensor from the request payload and invokes
-      the Vertex AI managed endpoints. Returns their combined GeoJSON.
-
-    Design Doc §8.B, §14 ML Integration Contract.
-    FR-E09: Mock mode for Month 1 development and CI/CD without trained models.
+      Invokes the Vertex AI managed endpoints. Returns their combined GeoJSON.
     """
     if MOCK_INFERENCE or request.mock:
-        return _serve_mock_fixture()
+        if request.model_type == 'unet':
+            return _serve_mock_fixture()
+        
+        # Placeholder for other model types (e.g., pinn, rl_agent)
+        return JSONResponse(content={
+            "type": "FeatureCollection",
+            "metadata": {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "mock": True,
+                "model_type": request.model_type
+            },
+            "features": []
+        })
 
     # --- Month 2 placeholder ---
-    # TODO: Invoke Vertex AI endpoints with request.features
+    # TODO: Invoke Vertex AI endpoints with request.bbox and request.time_horizon
     # from adapters.vertex import call_unet, call_pinn, call_rl_agent
-    # unet_output   = call_unet(request.features)
-    # pinn_output   = call_pinn(request.features)
-    # rl_output     = call_rl_agent(request.features)
-    # geojson       = ensemble_combine(unet_output, pinn_output, rl_output)
+    # if request.model_type == 'unet':
+    #     geojson = call_unet(request.bbox, request.time_horizon)
+    # elif request.model_type == 'pinn':
+    #     geojson = call_pinn(request.bbox, request.time_horizon)
+    # else:
+    #     unet_output   = call_unet(request.bbox, request.time_horizon)
+    #     pinn_output   = call_pinn(request.bbox, request.time_horizon)
+    #     rl_output     = call_rl_agent(request.bbox, request.time_horizon)
+    #     geojson       = ensemble_combine(unet_output, pinn_output, rl_output)
     # return JSONResponse(content=geojson)
 
     raise HTTPException(
         status_code=501,
         detail=(
             "Live Vertex AI inference is not yet implemented. "
-            "Set MOCK_INFERENCE=true to use the static Bay Area fixture."
+            "Set MOCK_INFERENCE=true to use the static fixture."
         ),
     )
 
@@ -122,14 +135,6 @@ def predict_progression(request: PredictionRequest) -> JSONResponse:
 def predict_ensemble(request: PredictionRequest) -> JSONResponse:
     """
     POST /predict/ensemble
-
-    Explicit ensemble endpoint that combines all available model outputs
-    using weighted voting / probability averaging.
-    Extends Paper 3's Cellular Automata Rule 30 majority-vote pattern
-    (Malik et al., IEEE CCWC 2022).
-
-    Month 1: delegates to mock fixture (same as /predict/progression).
-    Month 2: orchestrates all three Vertex AI models and combines outputs.
     """
     if MOCK_INFERENCE or request.mock:
         return _serve_mock_fixture()
@@ -146,20 +151,81 @@ def predict_ensemble(request: PredictionRequest) -> JSONResponse:
 
 def _serve_mock_fixture() -> JSONResponse:
     """
-    Loads and returns the static bay_area_fixture.json GeoJSON.
-    Stamps the current UTC timestamp so each response looks fresh.
+    Loads and normalizes the raw GeoJSON schemas from frontend_team_geojson_files.
+    Merges all horizon outputs into a single unified FeatureCollection.
+    Standardizes the root metadata.
     """
-    if not FIXTURE_PATH.exists():
+    if not FIXTURE_DIR.exists():
         raise HTTPException(
             status_code=500,
-            detail=f"Mock fixture not found at {FIXTURE_PATH}. Check ml_adapter/fixtures/.",
+            detail=f"Mock fixture directory not found at {FIXTURE_DIR}.",
         )
 
-    with FIXTURE_PATH.open("r") as f:
-        geojson = json.load(f)
+    files_to_load = [
+        "current_fire_goes18_20250110T21Z.geojson",
+        "spread_goes_20250110T21Z_h1.geojson",
+        "spread_goes_20250110T21Z_h3.geojson",
+        "spread_goes_20250110T21Z_h6.geojson",
+        "Palisades_2025-01-11_h24.geojson"
+    ]
 
-    # Stamp with the current run time so Django can track inference cadence
-    geojson["metadata"]["timestamp"] = datetime.now(timezone.utc).isoformat()
+    all_features = []
+    
+    # Generate a single timestamp to avoid race conditions/mismatches across files
+    current_timestamp = datetime.now(timezone.utc).isoformat()
+    
+    metadata: dict = {
+        "timestamp": current_timestamp,
+        "mock": True,
+        "grid_resolution_km": 1.0,
+        "source": set(),
+        "model_version": set()
+    }
 
-    return JSONResponse(content=geojson)
+    for filename in files_to_load:
+        filepath = FIXTURE_DIR / filename
+        if not filepath.exists():
+            continue
+        
+        with filepath.open("r") as f:
+            data = json.load(f)
+            
+            # Intercept root metadata timestamp
+            if "metadata" not in data or not isinstance(data["metadata"], dict):
+                data["metadata"] = {}
+            data["metadata"]["timestamp"] = current_timestamp
+            
+            # Normalize metadata
+            if "source" in data:
+                metadata["source"].add(data["source"])
+            if "model_version" in data:
+                metadata["model_version"].add(data["model_version"])
+                
+            # Ensure horizon_hours is always present, defaulting to 0 for current fire
+            data.setdefault("horizon_hours", 0)
 
+            # Extract ML properties that are at the root (like w_unet, members, horizon_hours, etc.)
+            exclude_root_keys = {
+                "type", "features", "timestamp",
+                "layer", "window_start", "window_end", "valid_time", "valid_start"
+            }
+            root_ml_props = {k: v for k, v in data.items() if k not in exclude_root_keys}
+            
+            # Merge features and preserve properties
+            for feature in data.get("features", []):
+                feature.setdefault("properties", {})
+                for k, v in root_ml_props.items():
+                    if k not in feature["properties"]:
+                        feature["properties"][k] = v
+                all_features.append(feature)
+
+    metadata["source"] = list(metadata["source"])
+    metadata["model_version"] = list(metadata["model_version"])
+
+    unified_geojson = {
+        "type": "FeatureCollection",
+        "metadata": metadata,
+        "features": all_features
+    }
+
+    return JSONResponse(content=unified_geojson)
