@@ -113,14 +113,9 @@ ffwai_redis      redis:7-alpine           "docker-entrypoint.s..." redis     Up 
 ```
 
 **4. Create a virtual environment and install dependencies:**
-*Context: A virtual environment isolates the Python packages used for this project so they don't conflict with other projects on your computer.*
+*Context: We have provided an automated script that creates a Python virtual environment and installs all dependencies for the backend, ML adapter, and frontend.*
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-cd backend
-pip install -r requirements.txt
-cd ../ml_adapter
-pip install -r requirements.txt
+./scripts/install.sh
 ```
 
 **5. Run Database Migrations:**
@@ -165,11 +160,7 @@ python manage.py load_terrain --mock
   Mock terrain loaded!
 ```
 
-**8. Install frontend dependencies:**
-```bash
-cd ../frontend
-npm install
-```
+
 
 ### Troubleshooting macOS GDAL Issues
 Because GeoDjango relies on C++ spatial libraries, macOS users often encounter Homebrew linkage issues like `Library not loaded: libabsl_log_internal_check_op...dylib` or `gdal-config not found`.
@@ -197,44 +188,36 @@ export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
 
 ## Running Locally
 
-Open **five terminal windows** at the project root (`CMPE295A-Project/`).
+We have provided an automated script that starts Docker and opens all five required terminal windows on macOS.
 
-**Terminal 1 — Django REST API:**
+```bash
+./scripts/run_local.sh
+```
+
+**If you prefer to start them manually, open five terminal windows at the project root:**
+
+1. **Django REST API:** `cd backend && source ../.venv/bin/activate && python manage.py runserver`
+2. **Celery Worker:** `cd backend && source ../.venv/bin/activate && celery -A core worker -l info --pool=solo`
+3. **React Frontend:** `cd frontend && npm run dev`
+4. **FastAPI ML Adapter:** `cd ml_adapter && source ../.venv/bin/activate && uvicorn main:app --port 8001 --reload`
+5. **Celery Beat:** `cd backend && source ../.venv/bin/activate && celery -A core beat -l info`
+
+### Triggering Mock Inference
+If `MOCK_INFERENCE=True` is set in your `.env` file, you can manually trigger the Celery pipeline to fetch the mock GeoJSON fire polygons and send them to the frontend UI. 
+
+Open a new terminal window at the project root and run:
 ```bash
 source .venv/bin/activate
 cd backend
-python manage.py runserver
-# Expected Output: Starting development server at http://127.0.0.1:8000/
+python manage.py shell
 ```
+Inside the interactive Python shell, execute:
+```python
+from harvester.tasks import trigger_mock_inference
+trigger_mock_inference()
+```
+The polygons should immediately render on the Mapbox frontend (http://localhost:5173/) and you can interact with the time scrubber to view the +1, +3, +6, and +24 hour predictions!
 
-**Terminal 2 — Celery Worker:**
-```bash
-source .venv/bin/activate
-cd backend
-celery -A core worker -l info --pool=solo
-```
-
-**Terminal 3 — React Frontend:**
-```bash
-cd frontend
-npm run dev
-# Expected Output: Local: http://localhost:5173/
-```
-
-**Terminal 4 — FastAPI ML Adapter:**
-*Note: This specific service is required to serve the mock CZU Lightning Complex GeoJSON fire polygons to the frontend map while `MOCK_INFERENCE=True` is active in the Django settings.*
-```bash
-source .venv/bin/activate
-cd ml_adapter
-uvicorn main:app --port 8001 --reload
-```
-
-**Terminal 5 — Celery Beat (Scheduler):**
-```bash
-source .venv/bin/activate
-cd backend
-celery -A core beat -l info
-```
 
 ---
 
