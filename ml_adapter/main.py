@@ -41,7 +41,7 @@ app = FastAPI(
 
 MOCK_INFERENCE: bool = os.getenv("MOCK_INFERENCE", "true").lower() == "true"
 
-FIXTURE_DIR: Path = Path(__file__).parent / "ml_adapter/fixtures"
+FIXTURE_DIR: Path = Path(__file__).parent / "fixtures/frontend_team_geojson_files"
 
 
 # ---------------------------------------------------------------------------
