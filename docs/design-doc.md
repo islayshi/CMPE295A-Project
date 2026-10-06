@@ -37,7 +37,6 @@ The Django model for the GeoJSON output contract is defined as follows:
 - `source_model` (CharField: "unet", "pinn", "mock")
 - `grid` (ForeignKey to BayAreaGrid, SRID=4326)
 - `fire_probability` (FloatField, 0.0–1.0)
-- `risk_label` (CharField: ACTIVE_FIRE | HIGH_RISK | MODERATE_RISK | LOW_RISK)
 - `ml_metrics` (JSONField for raw model output parameters)
 
 **Module 3 (API & Alerts)**
@@ -52,7 +51,7 @@ The FastAPI ML Adapter serves as an isolated translation layer between the Djang
 - **Endpoint:** `GET /health` — Returns service status and mock mode flag
 - **Month 1 behavior:** Normalizes and unifies multiple static Bay Area GeoJSON fixture files when `MOCK_INFERENCE=true`.
 - **Month 2 behavior:** Invokes Vertex AI endpoints for trained U-Net (`.keras`), PINN, and RL agent (DQN/PPO) models
-- Always returns the standard unified GeoJSON FeatureCollection output contract.
+- Always returns the standard unified GeoJSON FeatureCollection output contract. (See [Vertex AI Endpoint Output Contract](vertex-ai-endpoint-contract.md) for Month 2 ML Integration requirements).
 
 **ML Model Ensemble:**
 The FastAPI adapter orchestrates three complementary model types, extending all three of the advisor's research papers:
@@ -118,7 +117,7 @@ The RAG-backed chatbot (FR-E07, FR-E08) and its supporting vector database (`pgv
 
 - **FR-E01 [Prediction Visualization]:** Visualize ML-generated next-day fire risk zones on the interactive map as a 1×1 km grid-based Deck.gl heatmap. Each cell displays `fire_probability` with color intensity. Extends the grid-based visualization from all three advisor papers.
 - **FR-E02 [Alerts & Zone Warnings]:** Trigger alternative alerting methods (e.g., Safe Shelter Handoff or Zone-Based Warnings) instead of turn-by-turn routing when risk zones intersect populated areas.
-- **FR-E03 [Confidence Metrics]:** Display the ML model's `fire_probability` (float 0.0–1.0) and `risk_label` (HIGH_RISK / MEDIUM_RISK / LOW_RISK) from the GeoJSON contract for each grid cell.
+- **FR-E03 [Confidence Metrics]:** Display the ML model's `fire_probability` (float 0.0–1.0) from the GeoJSON contract for each grid cell.
 - **FR-E04 [Telemetry & Environmental Hazards]:** Display live telemetry (Wind Speed/Direction), render Deck.gl animated wind particle arrays reflecting live weather vectors, and overlay NWS Red Flag Warning polygons when active.
 - **FR-E05 [Emergency POIs]:** Display static Points of Interest using custom HTML markers (e.g., FEMA Evacuation Shelters with Lucide-react icons) anchored to the map. Utilizes FEMA/CalOES datasets loaded into PostGIS.
 - **FR-E09 [Mock Mode]:** The system must support a `MOCK_INFERENCE=true` environment flag that bypasses the FastAPI ML Adapter and serves a pre-loaded Bay Area GeoJSON fixture. Required for Month 1 development and CI/CD testing without a trained model.
@@ -356,7 +355,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 ## 14. ML Integration Contract
 
 - **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter.
-- **Output Contract (ML Engine → Django Backend):** The exact GeoJSON FeatureCollection format including all field types (`fire_probability`, `risk_label`, `geometry`, `timestamp`).
+- **Output Contract (ML Engine → Django Backend):** The exact GeoJSON FeatureCollection format including all field types (`fire_probability`, `geometry`, `timestamp`).
 - **Input Contract (Django → ML Engine):** PENDING — to be documented in `docs/ml-model-spec.md` once the ML team confirms required feature tensors and data sources.
 - **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
 - **Inference Cadence:** Daily Celery cron job (configurable via environment variable).

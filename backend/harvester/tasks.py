@@ -239,7 +239,6 @@ def store_geojson_result(geojson: dict) -> int:
         props = feature.get("properties", {})
         grid_id = props.get("grid_id")
         fire_prob = props.get("fire_probability")
-        risk_label = props.get("risk_label", "LOW_RISK")
         raw_horizon = props.get("horizon_hours")
         try:
             lead_time_hours = int(raw_horizon) if raw_horizon is not None else 0
@@ -253,7 +252,7 @@ def store_geojson_result(geojson: dict) -> int:
         target_timestamp = timestamp + dt.timedelta(hours=lead_time_hours)
 
         # Capture all raw ML properties into ml_metrics, excluding top-level fields
-        ml_metrics = {k: v for k, v in props.items() if k not in ("grid_id", "fire_probability", "risk_label", "source_model", "timestamp", "horizon_hours")}
+        ml_metrics = {k: v for k, v in props.items() if k not in ("grid_id", "fire_probability", "source_model", "timestamp", "horizon_hours")}
 
         predictions_to_create.append(PredictionPolygon(
             grid_id=grid_id,
@@ -262,7 +261,6 @@ def store_geojson_result(geojson: dict) -> int:
             target_timestamp=target_timestamp,
             source_model=source_model,
             fire_probability=fire_prob,
-            risk_label=risk_label,
             ml_metrics=ml_metrics,
         ))
 

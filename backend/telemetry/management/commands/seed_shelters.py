@@ -42,6 +42,36 @@ class Command(BaseCommand):
                 "lat": 37.7082, "lon": -122.4206,
                 "address": "2600 Geneva Ave, Daly City, CA 94014",
                 "county": "San Mateo", "capacity": 3000
+            },
+            {
+                "name": "Petaluma Community Center",
+                "lat": 38.2575, "lon": -122.6263,
+                "address": "320 N McDowell Blvd, Petaluma, CA 94954",
+                "county": "Sonoma", "capacity": 800
+            },
+            {
+                "name": "Marin Center (San Rafael)",
+                "lat": 37.9972, "lon": -122.5317,
+                "address": "10 Avenue of the Flags, San Rafael, CA 94903",
+                "county": "Marin", "capacity": 1200
+            },
+            {
+                "name": "Robert Livermore Community Center",
+                "lat": 37.6749, "lon": -121.7483,
+                "address": "4444 East Ave, Livermore, CA 94550",
+                "county": "Alameda", "capacity": 900
+            },
+            {
+                "name": "Dublin Senior Center",
+                "lat": 37.7088, "lon": -121.9056,
+                "address": "7600 Amador Valley Blvd, Dublin, CA 94568",
+                "county": "Alameda", "capacity": 400
+            },
+            {
+                "name": "Morgan Hill Community Center",
+                "lat": 37.1278, "lon": -121.6507,
+                "address": "17000 Monterey Rd, Morgan Hill, CA 95037",
+                "county": "Santa Clara", "capacity": 750
             }
         ]
 

@@ -50,7 +50,6 @@ MOCK_GEOJSON_RESPONSE = {
             "properties": {
                 "grid_id": 1001,
                 "fire_probability": 0.91,
-                "risk_label": "HIGH_RISK",
                 "source_model": "mock",
                 "timestamp": "2026-09-23T06:00:00+00:00",
                 "horizon_hours": 24,
@@ -71,7 +70,6 @@ MOCK_GEOJSON_RESPONSE = {
             "properties": {
                 "grid_id": 1002,
                 "fire_probability": 0.45,
-                "risk_label": "MODERATE_RISK",
                 "source_model": "mock",
                 "timestamp": "2026-09-23T06:00:00+00:00",
                 "horizon_hours": 24,
@@ -152,7 +150,6 @@ def test_trigger_daily_inference_happy_path():
     high_risk = predictions.filter(grid_id=1001).first()
     assert high_risk is not None, "Expected a HIGH_RISK prediction for grid_id=1001"
     assert abs(high_risk.fire_probability - 0.91) < 0.001
-    assert high_risk.risk_label == "HIGH_RISK"
     assert high_risk.source_model == "mock"
     assert high_risk.lead_time_hours == 24
     assert "timestamp" not in high_risk.ml_metrics
@@ -160,7 +157,6 @@ def test_trigger_daily_inference_happy_path():
 
     medium_risk = predictions.filter(grid_id=1002).first()
     assert medium_risk is not None, "Expected a MODERATE_RISK prediction for grid_id=1002"
-    assert medium_risk.risk_label == "MODERATE_RISK"
 
     # --- Assert Redis cache write ---
     assert mock_cache_set.called, (
@@ -388,17 +384,17 @@ def test_archive_old_predictions():
     # Create 31 days old prediction (should be deleted)
     PredictionPolygon.objects.create(
         grid_id=2001, timestamp=now - timedelta(days=31),
-        source_model="mock", fire_probability=0.5, risk_label="MODERATE_RISK"
+        source_model="mock", fire_probability=0.5
     )
     # Create 29 days old prediction (should be kept)
     PredictionPolygon.objects.create(
         grid_id=2001, timestamp=now - timedelta(days=29),
-        source_model="mock", fire_probability=0.5, risk_label="MODERATE_RISK"
+        source_model="mock", fire_probability=0.5
     )
     # Create current prediction (should be kept)
     PredictionPolygon.objects.create(
         grid_id=2001, timestamp=now,
-        source_model="mock", fire_probability=0.5, risk_label="MODERATE_RISK"
+        source_model="mock", fire_probability=0.5
     )
 
     assert PredictionPolygon.objects.count() == 3

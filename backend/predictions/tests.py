@@ -24,15 +24,13 @@ def prediction_data():
         grid=grid1,
         timestamp=ts,
         source_model="mock",
-        fire_probability=0.8,
-        risk_label="HIGH_RISK"
+        fire_probability=0.8
     )
     PredictionPolygon.objects.create(
         grid=grid2,
         timestamp=ts,
         source_model="mock",
-        fire_probability=0.2,
-        risk_label="LOW_RISK"
+        fire_probability=0.2
     )
     return ts
 

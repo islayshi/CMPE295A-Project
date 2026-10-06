@@ -1,1 +1,431 @@
-{"type": "FeatureCollection", "timestamp": "2025-01-10T21:00:00Z", "valid_time": "2025-01-10T22:00:00Z", "horizon_hours": 1, "layer": "spread_risk", "model_version": "unet-goes-h1-v1", "members": ["unet-goes"], "risk_thresholds": {"MODERATE_RISK": 0.17849299311637878, "HIGH_RISK": 0.35698598623275757}, "features": [{"type": "Feature", "properties": {"grid_id": 889566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.021912, 37.316445], [-122.011046, 37.316304], [-122.010875, 37.325315], [-122.021743, 37.325456], [-122.021912, 37.316445]]]}}, {"type": "Feature", "properties": {"grid_id": 889567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.011046, 37.316304], [-122.000179, 37.316162], [-122.000007, 37.325173], [-122.010875, 37.325315], [-122.011046, 37.316304]]]}}, {"type": "Feature", "properties": {"grid_id": 890566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.022082, 37.307434], [-122.011216, 37.307293], [-122.011046, 37.316304], [-122.021912, 37.316445], [-122.022082, 37.307434]]]}}, {"type": "Feature", "properties": {"grid_id": 890567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.011216, 37.307293], [-122.000351, 37.307151], [-122.000179, 37.316162], [-122.011046, 37.316304], [-122.011216, 37.307293]]]}}, {"type": "Feature", "properties": {"grid_id": 891566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.022251, 37.298422], [-122.011387, 37.298281], [-122.011216, 37.307293], [-122.022082, 37.307434], [-122.022251, 37.298422]]]}}, {"type": "Feature", "properties": {"grid_id": 891567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.011387, 37.298281], [-122.000523, 37.298139], [-122.000351, 37.307151], [-122.011216, 37.307293], [-122.011387, 37.298281]]]}}, {"type": "Feature", "properties": {"grid_id": 895603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-121.621171, 37.256475], [-121.610314, 37.256296], [-121.610098, 37.265307], [-121.620956, 37.265486], [-121.621171, 37.256475]]]}}, {"type": "Feature", "properties": {"grid_id": 895604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.610314, 37.256296], [-121.599457, 37.256115], [-121.599239, 37.265126], [-121.610098, 37.265307], [-121.610314, 37.256296]]]}}, {"type": "Feature", "properties": {"grid_id": 895605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.599457, 37.256115], [-121.588599, 37.255934], [-121.58838, 37.264945], [-121.599239, 37.265126], [-121.599457, 37.256115]]]}}, {"type": "Feature", "properties": {"grid_id": 895606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.588599, 37.255934], [-121.577742, 37.255752], [-121.577522, 37.264763], [-121.58838, 37.264945], [-121.588599, 37.255934]]]}}, {"type": "Feature", "properties": {"grid_id": 895607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.577742, 37.255752], [-121.566885, 37.255569], [-121.566663, 37.26458], [-121.577522, 37.264763], [-121.577742, 37.255752]]]}}, {"type": "Feature", "properties": {"grid_id": 895608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.566885, 37.255569], [-121.556028, 37.255384], [-121.555805, 37.264395], [-121.566663, 37.26458], [-121.566885, 37.255569]]]}}, {"type": "Feature", "properties": {"grid_id": 895609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.556028, 37.255384], [-121.545171, 37.255199], [-121.544947, 37.26421], [-121.555805, 37.264395], [-121.556028, 37.255384]]]}}, {"type": "Feature", "properties": {"grid_id": 895610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.019}, "geometry": {"type": "Polygon", "coordinates": [[[-121.545171, 37.255199], [-121.534314, 37.255013], [-121.534088, 37.264024], [-121.544947, 37.26421], [-121.545171, 37.255199]]]}}, {"type": "Feature", "properties": {"grid_id": 896603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.018}, "geometry": {"type": "Polygon", "coordinates": [[[-121.621387, 37.247464], [-121.61053, 37.247284], [-121.610314, 37.256296], [-121.621171, 37.256475], [-121.621387, 37.247464]]]}}, {"type": "Feature", "properties": {"grid_id": 896604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.61053, 37.247284], [-121.599674, 37.247104], [-121.599457, 37.256115], [-121.610314, 37.256296], [-121.61053, 37.247284]]]}}, {"type": "Feature", "properties": {"grid_id": 896605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.599674, 37.247104], [-121.588818, 37.246923], [-121.588599, 37.255934], [-121.599457, 37.256115], [-121.599674, 37.247104]]]}}, {"type": "Feature", "properties": {"grid_id": 896606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.588818, 37.246923], [-121.577962, 37.246741], [-121.577742, 37.255752], [-121.588599, 37.255934], [-121.588818, 37.246923]]]}}, {"type": "Feature", "properties": {"grid_id": 896607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.577962, 37.246741], [-121.567106, 37.246558], [-121.566885, 37.255569], [-121.577742, 37.255752], [-121.577962, 37.246741]]]}}, {"type": "Feature", "properties": {"grid_id": 896608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.567106, 37.246558], [-121.55625, 37.246373], [-121.556028, 37.255384], [-121.566885, 37.255569], [-121.567106, 37.246558]]]}}, {"type": "Feature", "properties": {"grid_id": 896609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.55625, 37.246373], [-121.545394, 37.246188], [-121.545171, 37.255199], [-121.556028, 37.255384], [-121.55625, 37.246373]]]}}, {"type": "Feature", "properties": {"grid_id": 896610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.545394, 37.246188], [-121.534539, 37.246002], [-121.534314, 37.255013], [-121.545171, 37.255199], [-121.545394, 37.246188]]]}}, {"type": "Feature", "properties": {"grid_id": 897603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.019}, "geometry": {"type": "Polygon", "coordinates": [[[-121.621602, 37.238452], [-121.610747, 37.238273], [-121.61053, 37.247284], [-121.621387, 37.247464], [-121.621602, 37.238452]]]}}, {"type": "Feature", "properties": {"grid_id": 897604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.027}, "geometry": {"type": "Polygon", "coordinates": [[[-121.610747, 37.238273], [-121.599892, 37.238093], [-121.599674, 37.247104], [-121.61053, 37.247284], [-121.610747, 37.238273]]]}}, {"type": "Feature", "properties": {"grid_id": 897605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.599892, 37.238093], [-121.589037, 37.237912], [-121.588818, 37.246923], [-121.599674, 37.247104], [-121.599892, 37.238093]]]}}, {"type": "Feature", "properties": {"grid_id": 897606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-121.589037, 37.237912], [-121.578182, 37.23773], [-121.577962, 37.246741], [-121.588818, 37.246923], [-121.589037, 37.237912]]]}}, {"type": "Feature", "properties": {"grid_id": 897607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.578182, 37.23773], [-121.567328, 37.237547], [-121.567106, 37.246558], [-121.577962, 37.246741], [-121.578182, 37.23773]]]}}, {"type": "Feature", "properties": {"grid_id": 897608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.567328, 37.237547], [-121.556473, 37.237362], [-121.55625, 37.246373], [-121.567106, 37.246558], [-121.567328, 37.237547]]]}}, {"type": "Feature", "properties": {"grid_id": 897609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.044}, "geometry": {"type": "Polygon", "coordinates": [[[-121.556473, 37.237362], [-121.545618, 37.237177], [-121.545394, 37.246188], [-121.55625, 37.246373], [-121.556473, 37.237362]]]}}, {"type": "Feature", "properties": {"grid_id": 897610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.044}, "geometry": {"type": "Polygon", "coordinates": [[[-121.545618, 37.237177], [-121.534764, 37.236991], [-121.534539, 37.246002], [-121.545394, 37.246188], [-121.545618, 37.237177]]]}}, {"type": "Feature", "properties": {"grid_id": 898602, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-121.632671, 37.229619], [-121.621817, 37.229441], [-121.621602, 37.238452], [-121.632457, 37.23863], [-121.632671, 37.229619]]]}}, {"type": "Feature", "properties": {"grid_id": 898603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.621817, 37.229441], [-121.610963, 37.229262], [-121.610747, 37.238273], [-121.621602, 37.238452], [-121.621817, 37.229441]]]}}, {"type": "Feature", "properties": {"grid_id": 898604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.610963, 37.229262], [-121.600109, 37.229082], [-121.599892, 37.238093], [-121.610747, 37.238273], [-121.610963, 37.229262]]]}}, {"type": "Feature", "properties": {"grid_id": 898605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.600109, 37.229082], [-121.589256, 37.228901], [-121.589037, 37.237912], [-121.599892, 37.238093], [-121.600109, 37.229082]]]}}, {"type": "Feature", "properties": {"grid_id": 898606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.044}, "geometry": {"type": "Polygon", "coordinates": [[[-121.589256, 37.228901], [-121.578402, 37.228719], [-121.578182, 37.23773], [-121.589037, 37.237912], [-121.589256, 37.228901]]]}}, {"type": "Feature", "properties": {"grid_id": 898607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.044}, "geometry": {"type": "Polygon", "coordinates": [[[-121.578402, 37.228719], [-121.567549, 37.228535], [-121.567328, 37.237547], [-121.578182, 37.23773], [-121.578402, 37.228719]]]}}, {"type": "Feature", "properties": {"grid_id": 898608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.567549, 37.228535], [-121.556695, 37.228351], [-121.556473, 37.237362], [-121.567328, 37.237547], [-121.567549, 37.228535]]]}}, {"type": "Feature", "properties": {"grid_id": 898609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.556695, 37.228351], [-121.545842, 37.228166], [-121.545618, 37.237177], [-121.556473, 37.237362], [-121.556695, 37.228351]]]}}, {"type": "Feature", "properties": {"grid_id": 898610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.545842, 37.228166], [-121.534989, 37.22798], [-121.534764, 37.236991], [-121.545618, 37.237177], [-121.545842, 37.228166]]]}}, {"type": "Feature", "properties": {"grid_id": 899602, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.632884, 37.220608], [-121.622032, 37.22043], [-121.621817, 37.229441], [-121.632671, 37.229619], [-121.632884, 37.220608]]]}}, {"type": "Feature", "properties": {"grid_id": 899603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.019}, "geometry": {"type": "Polygon", "coordinates": [[[-121.622032, 37.22043], [-121.611179, 37.220251], [-121.610963, 37.229262], [-121.621817, 37.229441], [-121.622032, 37.22043]]]}}, {"type": "Feature", "properties": {"grid_id": 899604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.611179, 37.220251], [-121.600327, 37.220071], [-121.600109, 37.229082], [-121.610963, 37.229262], [-121.611179, 37.220251]]]}}, {"type": "Feature", "properties": {"grid_id": 899605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.600327, 37.220071], [-121.589475, 37.21989], [-121.589256, 37.228901], [-121.600109, 37.229082], [-121.600327, 37.220071]]]}}, {"type": "Feature", "properties": {"grid_id": 899606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.589475, 37.21989], [-121.578622, 37.219707], [-121.578402, 37.228719], [-121.589256, 37.228901], [-121.589475, 37.21989]]]}}, {"type": "Feature", "properties": {"grid_id": 899607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-121.578622, 37.219707], [-121.56777, 37.219524], [-121.567549, 37.228535], [-121.578402, 37.228719], [-121.578622, 37.219707]]]}}, {"type": "Feature", "properties": {"grid_id": 899608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.044}, "geometry": {"type": "Polygon", "coordinates": [[[-121.56777, 37.219524], [-121.556918, 37.21934], [-121.556695, 37.228351], [-121.567549, 37.228535], [-121.56777, 37.219524]]]}}, {"type": "Feature", "properties": {"grid_id": 899609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.556918, 37.21934], [-121.546066, 37.219155], [-121.545842, 37.228166], [-121.556695, 37.228351], [-121.556918, 37.21934]]]}}, {"type": "Feature", "properties": {"grid_id": 899610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.546066, 37.219155], [-121.535214, 37.218969], [-121.534989, 37.22798], [-121.545842, 37.228166], [-121.546066, 37.219155]]]}}, {"type": "Feature", "properties": {"grid_id": 900602, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-121.633098, 37.211596], [-121.622247, 37.211418], [-121.622032, 37.22043], [-121.632884, 37.220608], [-121.633098, 37.211596]]]}}, {"type": "Feature", "properties": {"grid_id": 900603, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.018}, "geometry": {"type": "Polygon", "coordinates": [[[-121.622247, 37.211418], [-121.611396, 37.211239], [-121.611179, 37.220251], [-121.622032, 37.22043], [-121.622247, 37.211418]]]}}, {"type": "Feature", "properties": {"grid_id": 900604, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.611396, 37.211239], [-121.600544, 37.211059], [-121.600327, 37.220071], [-121.611179, 37.220251], [-121.611396, 37.211239]]]}}, {"type": "Feature", "properties": {"grid_id": 900605, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.600544, 37.211059], [-121.589693, 37.210878], [-121.589475, 37.21989], [-121.600327, 37.220071], [-121.600544, 37.211059]]]}}, {"type": "Feature", "properties": {"grid_id": 900606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.027}, "geometry": {"type": "Polygon", "coordinates": [[[-121.589693, 37.210878], [-121.578842, 37.210696], [-121.578622, 37.219707], [-121.589475, 37.21989], [-121.589693, 37.210878]]]}}, {"type": "Feature", "properties": {"grid_id": 900607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.578842, 37.210696], [-121.567991, 37.210513], [-121.56777, 37.219524], [-121.578622, 37.219707], [-121.578842, 37.210696]]]}}, {"type": "Feature", "properties": {"grid_id": 900608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.033}, "geometry": {"type": "Polygon", "coordinates": [[[-121.567991, 37.210513], [-121.55714, 37.210329], [-121.556918, 37.21934], [-121.56777, 37.219524], [-121.567991, 37.210513]]]}}, {"type": "Feature", "properties": {"grid_id": 900609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-121.55714, 37.210329], [-121.546289, 37.210143], [-121.546066, 37.219155], [-121.556918, 37.21934], [-121.55714, 37.210329]]]}}, {"type": "Feature", "properties": {"grid_id": 900610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.027}, "geometry": {"type": "Polygon", "coordinates": [[[-121.546289, 37.210143], [-121.535439, 37.209957], [-121.535214, 37.218969], [-121.546066, 37.219155], [-121.546289, 37.210143]]]}}, {"type": "Feature", "properties": {"grid_id": 901606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.018}, "geometry": {"type": "Polygon", "coordinates": [[[-121.589912, 37.201867], [-121.579062, 37.201685], [-121.578842, 37.210696], [-121.589693, 37.210878], [-121.589912, 37.201867]]]}}, {"type": "Feature", "properties": {"grid_id": 901607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.579062, 37.201685], [-121.568212, 37.201501], [-121.567991, 37.210513], [-121.578842, 37.210696], [-121.579062, 37.201685]]]}}, {"type": "Feature", "properties": {"grid_id": 901608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.568212, 37.201501], [-121.557363, 37.201317], [-121.55714, 37.210329], [-121.567991, 37.210513], [-121.568212, 37.201501]]]}}, {"type": "Feature", "properties": {"grid_id": 901609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.026}, "geometry": {"type": "Polygon", "coordinates": [[[-121.557363, 37.201317], [-121.546513, 37.201132], [-121.546289, 37.210143], [-121.55714, 37.210329], [-121.557363, 37.201317]]]}}, {"type": "Feature", "properties": {"grid_id": 901610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.018}, "geometry": {"type": "Polygon", "coordinates": [[[-121.546513, 37.201132], [-121.535663, 37.200946], [-121.535439, 37.209957], [-121.546289, 37.210143], [-121.546513, 37.201132]]]}}, {"type": "Feature", "properties": {"grid_id": 902606, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-121.590131, 37.192855], [-121.579282, 37.192673], [-121.579062, 37.201685], [-121.589912, 37.201867], [-121.590131, 37.192855]]]}}, {"type": "Feature", "properties": {"grid_id": 902607, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.018}, "geometry": {"type": "Polygon", "coordinates": [[[-121.579282, 37.192673], [-121.568433, 37.19249], [-121.568212, 37.201501], [-121.579062, 37.201685], [-121.579282, 37.192673]]]}}, {"type": "Feature", "properties": {"grid_id": 902608, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.019}, "geometry": {"type": "Polygon", "coordinates": [[[-121.568433, 37.19249], [-121.557585, 37.192306], [-121.557363, 37.201317], [-121.568212, 37.201501], [-121.568433, 37.19249]]]}}, {"type": "Feature", "properties": {"grid_id": 902609, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.019}, "geometry": {"type": "Polygon", "coordinates": [[[-121.557585, 37.192306], [-121.546737, 37.192121], [-121.546513, 37.201132], [-121.557363, 37.201317], [-121.557585, 37.192306]]]}}, {"type": "Feature", "properties": {"grid_id": 902610, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.011}, "geometry": {"type": "Polygon", "coordinates": [[[-121.546737, 37.192121], [-121.535888, 37.191934], [-121.535663, 37.200946], [-121.546513, 37.201132], [-121.546737, 37.192121]]]}}, {"type": "Feature", "properties": {"grid_id": 904550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.19802, 37.18338], [-122.187172, 37.183256], [-122.187021, 37.192268], [-122.197871, 37.192393], [-122.19802, 37.18338]]]}}, {"type": "Feature", "properties": {"grid_id": 904551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.187172, 37.183256], [-122.176323, 37.18313], [-122.176172, 37.192143], [-122.187021, 37.192268], [-122.187172, 37.183256]]]}}, {"type": "Feature", "properties": {"grid_id": 904552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.001}, "geometry": {"type": "Polygon", "coordinates": [[[-122.176323, 37.18313], [-122.165475, 37.183004], [-122.165322, 37.192017], [-122.176172, 37.192143], [-122.176323, 37.18313]]]}}, {"type": "Feature", "properties": {"grid_id": 904553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.001}, "geometry": {"type": "Polygon", "coordinates": [[[-122.165475, 37.183004], [-122.154626, 37.182877], [-122.154473, 37.191889], [-122.165322, 37.192017], [-122.165475, 37.183004]]]}}, {"type": "Feature", "properties": {"grid_id": 905550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.198169, 37.174367], [-122.187322, 37.174243], [-122.187172, 37.183256], [-122.19802, 37.18338], [-122.198169, 37.174367]]]}}, {"type": "Feature", "properties": {"grid_id": 905551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.187322, 37.174243], [-122.176475, 37.174118], [-122.176323, 37.18313], [-122.187172, 37.183256], [-122.187322, 37.174243]]]}}, {"type": "Feature", "properties": {"grid_id": 905552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.176475, 37.174118], [-122.165628, 37.173991], [-122.165475, 37.183004], [-122.176323, 37.18313], [-122.176475, 37.174118]]]}}, {"type": "Feature", "properties": {"grid_id": 905553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.165628, 37.173991], [-122.15478, 37.173864], [-122.154626, 37.182877], [-122.165475, 37.183004], [-122.165628, 37.173991]]]}}, {"type": "Feature", "properties": {"grid_id": 906549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.209164, 37.165478], [-122.198318, 37.165355], [-122.198169, 37.174367], [-122.209016, 37.174491], [-122.209164, 37.165478]]]}}, {"type": "Feature", "properties": {"grid_id": 906550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.005}, "geometry": {"type": "Polygon", "coordinates": [[[-122.198318, 37.165355], [-122.187472, 37.16523], [-122.187322, 37.174243], [-122.198169, 37.174367], [-122.198318, 37.165355]]]}}, {"type": "Feature", "properties": {"grid_id": 906551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.187472, 37.16523], [-122.176626, 37.165105], [-122.176475, 37.174118], [-122.187322, 37.174243], [-122.187472, 37.16523]]]}}, {"type": "Feature", "properties": {"grid_id": 906552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.005}, "geometry": {"type": "Polygon", "coordinates": [[[-122.176626, 37.165105], [-122.16578, 37.164979], [-122.165628, 37.173991], [-122.176475, 37.174118], [-122.176626, 37.165105]]]}}, {"type": "Feature", "properties": {"grid_id": 906553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.16578, 37.164979], [-122.154934, 37.164851], [-122.15478, 37.173864], [-122.165628, 37.173991], [-122.16578, 37.164979]]]}}, {"type": "Feature", "properties": {"grid_id": 907549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.209312, 37.156465], [-122.198467, 37.156342], [-122.198318, 37.165355], [-122.209164, 37.165478], [-122.209312, 37.156465]]]}}, {"type": "Feature", "properties": {"grid_id": 907550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.198467, 37.156342], [-122.187622, 37.156217], [-122.187472, 37.16523], [-122.198318, 37.165355], [-122.198467, 37.156342]]]}}, {"type": "Feature", "properties": {"grid_id": 907551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.187622, 37.156217], [-122.176777, 37.156092], [-122.176626, 37.165105], [-122.187472, 37.16523], [-122.187622, 37.156217]]]}}, {"type": "Feature", "properties": {"grid_id": 907552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.009}, "geometry": {"type": "Polygon", "coordinates": [[[-122.176777, 37.156092], [-122.165933, 37.155966], [-122.16578, 37.164979], [-122.176626, 37.165105], [-122.176777, 37.156092]]]}}, {"type": "Feature", "properties": {"grid_id": 907553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.165933, 37.155966], [-122.155088, 37.155839], [-122.154934, 37.164851], [-122.16578, 37.164979], [-122.165933, 37.155966]]]}}, {"type": "Feature", "properties": {"grid_id": 907568, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.003267, 37.153947], [-121.992423, 37.153805], [-121.992251, 37.162817], [-122.003096, 37.16296], [-122.003267, 37.153947]]]}}, {"type": "Feature", "properties": {"grid_id": 908549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.0}, "geometry": {"type": "Polygon", "coordinates": [[[-122.209459, 37.147452], [-122.198616, 37.147329], [-122.198467, 37.156342], [-122.209312, 37.156465], [-122.209459, 37.147452]]]}}, {"type": "Feature", "properties": {"grid_id": 908550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.198616, 37.147329], [-122.187772, 37.147205], [-122.187622, 37.156217], [-122.198467, 37.156342], [-122.198616, 37.147329]]]}}, {"type": "Feature", "properties": {"grid_id": 908551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.187772, 37.147205], [-122.176929, 37.147079], [-122.176777, 37.156092], [-122.187622, 37.156217], [-122.187772, 37.147205]]]}}, {"type": "Feature", "properties": {"grid_id": 908552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.003}, "geometry": {"type": "Polygon", "coordinates": [[[-122.176929, 37.147079], [-122.166085, 37.146953], [-122.165933, 37.155966], [-122.176777, 37.156092], [-122.176929, 37.147079]]]}}, {"type": "Feature", "properties": {"grid_id": 908564, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.04681, 37.145496], [-122.035967, 37.145357], [-122.0358, 37.15437], [-122.046644, 37.154508], [-122.04681, 37.145496]]]}}, {"type": "Feature", "properties": {"grid_id": 908565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.035967, 37.145357], [-122.025124, 37.145217], [-122.024955, 37.15423], [-122.0358, 37.15437], [-122.035967, 37.145357]]]}}, {"type": "Feature", "properties": {"grid_id": 908566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.025124, 37.145217], [-122.014281, 37.145076], [-122.014111, 37.154089], [-122.024955, 37.15423], [-122.025124, 37.145217]]]}}, {"type": "Feature", "properties": {"grid_id": 908567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.014281, 37.145076], [-122.003438, 37.144935], [-122.003267, 37.153947], [-122.014111, 37.154089], [-122.014281, 37.145076]]]}}, {"type": "Feature", "properties": {"grid_id": 908568, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.454}, "geometry": {"type": "Polygon", "coordinates": [[[-122.003438, 37.144935], [-121.992596, 37.144792], [-121.992423, 37.153805], [-122.003267, 37.153947], [-122.003438, 37.144935]]]}}, {"type": "Feature", "properties": {"grid_id": 909562, "fire_probability": 0.056, "risk_label": "LOW_RISK", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-122.06866, 37.136757], [-122.057818, 37.13662], [-122.057653, 37.145633], [-122.068496, 37.14577], [-122.06866, 37.136757]]]}}, {"type": "Feature", "properties": {"grid_id": 909563, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.057818, 37.13662], [-122.046976, 37.136483], [-122.04681, 37.145496], [-122.057653, 37.145633], [-122.057818, 37.13662]]]}}, {"type": "Feature", "properties": {"grid_id": 909564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.046976, 37.136483], [-122.036135, 37.136344], [-122.035967, 37.145357], [-122.04681, 37.145496], [-122.046976, 37.136483]]]}}, {"type": "Feature", "properties": {"grid_id": 909565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036135, 37.136344], [-122.025293, 37.136204], [-122.025124, 37.145217], [-122.035967, 37.145357], [-122.036135, 37.136344]]]}}, {"type": "Feature", "properties": {"grid_id": 909566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.025293, 37.136204], [-122.014451, 37.136064], [-122.014281, 37.145076], [-122.025124, 37.145217], [-122.025293, 37.136204]]]}}, {"type": "Feature", "properties": {"grid_id": 909567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.014451, 37.136064], [-122.00361, 37.135922], [-122.003438, 37.144935], [-122.014281, 37.145076], [-122.014451, 37.136064]]]}}, {"type": "Feature", "properties": {"grid_id": 909568, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.00361, 37.135922], [-121.992768, 37.135779], [-121.992596, 37.144792], [-122.003438, 37.144935], [-122.00361, 37.135922]]]}}, {"type": "Feature", "properties": {"grid_id": 910562, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.068824, 37.127744], [-122.057983, 37.127607], [-122.057818, 37.13662], [-122.06866, 37.136757], [-122.068824, 37.127744]]]}}, {"type": "Feature", "properties": {"grid_id": 910563, "fire_probability": 0.183, "risk_label": "MODERATE_RISK", "p_unet": 0.183}, "geometry": {"type": "Polygon", "coordinates": [[[-122.057983, 37.127607], [-122.047142, 37.12747], [-122.046976, 37.136483], [-122.057818, 37.13662], [-122.057983, 37.127607]]]}}, {"type": "Feature", "properties": {"grid_id": 910564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047142, 37.12747], [-122.036302, 37.127331], [-122.036135, 37.136344], [-122.046976, 37.136483], [-122.047142, 37.12747]]]}}, {"type": "Feature", "properties": {"grid_id": 910565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036302, 37.127331], [-122.025462, 37.127191], [-122.025293, 37.136204], [-122.036135, 37.136344], [-122.036302, 37.127331]]]}}, {"type": "Feature", "properties": {"grid_id": 910566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.025462, 37.127191], [-122.014621, 37.127051], [-122.014451, 37.136064], [-122.025293, 37.136204], [-122.025462, 37.127191]]]}}, {"type": "Feature", "properties": {"grid_id": 910567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.014621, 37.127051], [-122.003781, 37.126909], [-122.00361, 37.135922], [-122.014451, 37.136064], [-122.014621, 37.127051]]]}}, {"type": "Feature", "properties": {"grid_id": 910568, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.003781, 37.126909], [-121.99294, 37.126766], [-121.992768, 37.135779], [-122.00361, 37.135922], [-122.003781, 37.126909]]]}}, {"type": "Feature", "properties": {"grid_id": 910569, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-121.99294, 37.126766], [-121.9821, 37.126622], [-121.981926, 37.135635], [-121.992768, 37.135779], [-121.99294, 37.126766]]]}}, {"type": "Feature", "properties": {"grid_id": 911559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.032}, "geometry": {"type": "Polygon", "coordinates": [[[-122.101505, 37.119134], [-122.090666, 37.119001], [-122.090505, 37.128014], [-122.101346, 37.128148], [-122.101505, 37.119134]]]}}, {"type": "Feature", "properties": {"grid_id": 911560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.090666, 37.119001], [-122.079827, 37.118866], [-122.079664, 37.127879], [-122.090505, 37.128014], [-122.090666, 37.119001]]]}}, {"type": "Feature", "properties": {"grid_id": 911561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.139}, "geometry": {"type": "Polygon", "coordinates": [[[-122.079827, 37.118866], [-122.068987, 37.118731], [-122.068824, 37.127744], [-122.079664, 37.127879], [-122.079827, 37.118866]]]}}, {"type": "Feature", "properties": {"grid_id": 911562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.068987, 37.118731], [-122.058148, 37.118594], [-122.057983, 37.127607], [-122.068824, 37.127744], [-122.068987, 37.118731]]]}}, {"type": "Feature", "properties": {"grid_id": 911563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058148, 37.118594], [-122.047309, 37.118457], [-122.047142, 37.12747], [-122.057983, 37.127607], [-122.058148, 37.118594]]]}}, {"type": "Feature", "properties": {"grid_id": 911564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047309, 37.118457], [-122.036469, 37.118318], [-122.036302, 37.127331], [-122.047142, 37.12747], [-122.047309, 37.118457]]]}}, {"type": "Feature", "properties": {"grid_id": 911565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036469, 37.118318], [-122.02563, 37.118178], [-122.025462, 37.127191], [-122.036302, 37.127331], [-122.036469, 37.118318]]]}}, {"type": "Feature", "properties": {"grid_id": 911566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.02563, 37.118178], [-122.014791, 37.118038], [-122.014621, 37.127051], [-122.025462, 37.127191], [-122.02563, 37.118178]]]}}, {"type": "Feature", "properties": {"grid_id": 911567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.014791, 37.118038], [-122.003952, 37.117896], [-122.003781, 37.126909], [-122.014621, 37.127051], [-122.014791, 37.118038]]]}}, {"type": "Feature", "properties": {"grid_id": 911568, "fire_probability": 0.183, "risk_label": "MODERATE_RISK", "p_unet": 0.183}, "geometry": {"type": "Polygon", "coordinates": [[[-122.003952, 37.117896], [-121.993113, 37.117753], [-121.99294, 37.126766], [-122.003781, 37.126909], [-122.003952, 37.117896]]]}}, {"type": "Feature", "properties": {"grid_id": 912559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.101665, 37.110121], [-122.090827, 37.109988], [-122.090666, 37.119001], [-122.101505, 37.119134], [-122.101665, 37.110121]]]}}, {"type": "Feature", "properties": {"grid_id": 912560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.156}, "geometry": {"type": "Polygon", "coordinates": [[[-122.090827, 37.109988], [-122.079989, 37.109853], [-122.079827, 37.118866], [-122.090666, 37.119001], [-122.090827, 37.109988]]]}}, {"type": "Feature", "properties": {"grid_id": 912561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.079989, 37.109853], [-122.069151, 37.109718], [-122.068987, 37.118731], [-122.079827, 37.118866], [-122.079989, 37.109853]]]}}, {"type": "Feature", "properties": {"grid_id": 912562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.069151, 37.109718], [-122.058313, 37.109581], [-122.058148, 37.118594], [-122.068987, 37.118731], [-122.069151, 37.109718]]]}}, {"type": "Feature", "properties": {"grid_id": 912563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058313, 37.109581], [-122.047475, 37.109444], [-122.047309, 37.118457], [-122.058148, 37.118594], [-122.058313, 37.109581]]]}}, {"type": "Feature", "properties": {"grid_id": 912564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047475, 37.109444], [-122.036637, 37.109305], [-122.036469, 37.118318], [-122.047309, 37.118457], [-122.047475, 37.109444]]]}}, {"type": "Feature", "properties": {"grid_id": 912565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036637, 37.109305], [-122.025799, 37.109165], [-122.02563, 37.118178], [-122.036469, 37.118318], [-122.036637, 37.109305]]]}}, {"type": "Feature", "properties": {"grid_id": 912566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.025799, 37.109165], [-122.014961, 37.109025], [-122.014791, 37.118038], [-122.02563, 37.118178], [-122.025799, 37.109165]]]}}, {"type": "Feature", "properties": {"grid_id": 912567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.014961, 37.109025], [-122.004123, 37.108883], [-122.003952, 37.117896], [-122.014791, 37.118038], [-122.014961, 37.109025]]]}}, {"type": "Feature", "properties": {"grid_id": 912568, "fire_probability": 0.103, "risk_label": "LOW_RISK", "p_unet": 0.103}, "geometry": {"type": "Polygon", "coordinates": [[[-122.004123, 37.108883], [-121.993285, 37.10874], [-121.993113, 37.117753], [-122.003952, 37.117896], [-122.004123, 37.108883]]]}}, {"type": "Feature", "properties": {"grid_id": 913559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.101825, 37.101108], [-122.090988, 37.100974], [-122.090827, 37.109988], [-122.101665, 37.110121], [-122.101825, 37.101108]]]}}, {"type": "Feature", "properties": {"grid_id": 913560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.204}, "geometry": {"type": "Polygon", "coordinates": [[[-122.090988, 37.100974], [-122.080151, 37.10084], [-122.079989, 37.109853], [-122.090827, 37.109988], [-122.090988, 37.100974]]]}}, {"type": "Feature", "properties": {"grid_id": 913561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.080151, 37.10084], [-122.069314, 37.100704], [-122.069151, 37.109718], [-122.079989, 37.109853], [-122.080151, 37.10084]]]}}, {"type": "Feature", "properties": {"grid_id": 913562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.069314, 37.100704], [-122.058478, 37.100568], [-122.058313, 37.109581], [-122.069151, 37.109718], [-122.069314, 37.100704]]]}}, {"type": "Feature", "properties": {"grid_id": 913563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058478, 37.100568], [-122.047641, 37.10043], [-122.047475, 37.109444], [-122.058313, 37.109581], [-122.058478, 37.100568]]]}}, {"type": "Feature", "properties": {"grid_id": 913564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047641, 37.10043], [-122.036804, 37.100292], [-122.036637, 37.109305], [-122.047475, 37.109444], [-122.047641, 37.10043]]]}}, {"type": "Feature", "properties": {"grid_id": 913565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036804, 37.100292], [-122.025967, 37.100152], [-122.025799, 37.109165], [-122.036637, 37.109305], [-122.036804, 37.100292]]]}}, {"type": "Feature", "properties": {"grid_id": 913566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.025967, 37.100152], [-122.01513, 37.100011], [-122.014961, 37.109025], [-122.025799, 37.109165], [-122.025967, 37.100152]]]}}, {"type": "Feature", "properties": {"grid_id": 913567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.01513, 37.100011], [-122.004294, 37.09987], [-122.004123, 37.108883], [-122.014961, 37.109025], [-122.01513, 37.100011]]]}}, {"type": "Feature", "properties": {"grid_id": 913568, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.004294, 37.09987], [-121.993457, 37.099727], [-121.993285, 37.10874], [-122.004123, 37.108883], [-122.004294, 37.09987]]]}}, {"type": "Feature", "properties": {"grid_id": 914553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.139}, "geometry": {"type": "Polygon", "coordinates": [[[-122.167, 37.092873], [-122.156164, 37.092746], [-122.156011, 37.10176], [-122.166848, 37.101887], [-122.167, 37.092873]]]}}, {"type": "Feature", "properties": {"grid_id": 914557, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.123657, 37.092358], [-122.112821, 37.092227], [-122.112662, 37.10124], [-122.123499, 37.101372], [-122.123657, 37.092358]]]}}, {"type": "Feature", "properties": {"grid_id": 914558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.112821, 37.092227], [-122.101985, 37.092095], [-122.101825, 37.101108], [-122.112662, 37.10124], [-122.112821, 37.092227]]]}}, {"type": "Feature", "properties": {"grid_id": 914559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.101985, 37.092095], [-122.091149, 37.091961], [-122.090988, 37.100974], [-122.101825, 37.101108], [-122.101985, 37.092095]]]}}, {"type": "Feature", "properties": {"grid_id": 914560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.091149, 37.091961], [-122.080314, 37.091827], [-122.080151, 37.10084], [-122.090988, 37.100974], [-122.091149, 37.091961]]]}}, {"type": "Feature", "properties": {"grid_id": 914561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.080314, 37.091827], [-122.069478, 37.091691], [-122.069314, 37.100704], [-122.080151, 37.10084], [-122.080314, 37.091827]]]}}, {"type": "Feature", "properties": {"grid_id": 914562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.389}, "geometry": {"type": "Polygon", "coordinates": [[[-122.069478, 37.091691], [-122.058642, 37.091555], [-122.058478, 37.100568], [-122.069314, 37.100704], [-122.069478, 37.091691]]]}}, {"type": "Feature", "properties": {"grid_id": 914563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058642, 37.091555], [-122.047807, 37.091417], [-122.047641, 37.10043], [-122.058478, 37.100568], [-122.058642, 37.091555]]]}}, {"type": "Feature", "properties": {"grid_id": 914564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047807, 37.091417], [-122.036971, 37.091278], [-122.036804, 37.100292], [-122.047641, 37.10043], [-122.047807, 37.091417]]]}}, {"type": "Feature", "properties": {"grid_id": 914565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.036971, 37.091278], [-122.026136, 37.091139], [-122.025967, 37.100152], [-122.036804, 37.100292], [-122.036971, 37.091278]]]}}, {"type": "Feature", "properties": {"grid_id": 914566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.256}, "geometry": {"type": "Polygon", "coordinates": [[[-122.026136, 37.091139], [-122.0153, 37.090998], [-122.01513, 37.100011], [-122.025967, 37.100152], [-122.026136, 37.091139]]]}}, {"type": "Feature", "properties": {"grid_id": 914567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.0153, 37.090998], [-122.004465, 37.090857], [-122.004294, 37.09987], [-122.01513, 37.100011], [-122.0153, 37.090998]]]}}, {"type": "Feature", "properties": {"grid_id": 915550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-122.199657, 37.084235], [-122.188822, 37.084111], [-122.188672, 37.093125], [-122.199508, 37.093249], [-122.199657, 37.084235]]]}}, {"type": "Feature", "properties": {"grid_id": 915551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.103}, "geometry": {"type": "Polygon", "coordinates": [[[-122.188822, 37.084111], [-122.177987, 37.083986], [-122.177836, 37.093], [-122.188672, 37.093125], [-122.188822, 37.084111]]]}}, {"type": "Feature", "properties": {"grid_id": 915552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.177987, 37.083986], [-122.167153, 37.08386], [-122.167, 37.092873], [-122.177836, 37.093], [-122.177987, 37.083986]]]}}, {"type": "Feature", "properties": {"grid_id": 915553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.167153, 37.08386], [-122.156318, 37.083733], [-122.156164, 37.092746], [-122.167, 37.092873], [-122.167153, 37.08386]]]}}, {"type": "Feature", "properties": {"grid_id": 915554, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.156318, 37.083733], [-122.145483, 37.083604], [-122.145328, 37.092618], [-122.156164, 37.092746], [-122.156318, 37.083733]]]}}, {"type": "Feature", "properties": {"grid_id": 915556, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-122.134649, 37.083475], [-122.123814, 37.083345], [-122.123657, 37.092358], [-122.134492, 37.092489], [-122.134649, 37.083475]]]}}, {"type": "Feature", "properties": {"grid_id": 915557, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-122.123814, 37.083345], [-122.112979, 37.083213], [-122.112821, 37.092227], [-122.123657, 37.092358], [-122.123814, 37.083345]]]}}, {"type": "Feature", "properties": {"grid_id": 915558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.175}, "geometry": {"type": "Polygon", "coordinates": [[[-122.112979, 37.083213], [-122.102145, 37.083081], [-122.101985, 37.092095], [-122.112821, 37.092227], [-122.112979, 37.083213]]]}}, {"type": "Feature", "properties": {"grid_id": 915559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.102145, 37.083081], [-122.09131, 37.082948], [-122.091149, 37.091961], [-122.101985, 37.092095], [-122.102145, 37.083081]]]}}, {"type": "Feature", "properties": {"grid_id": 915560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.09131, 37.082948], [-122.080476, 37.082813], [-122.080314, 37.091827], [-122.091149, 37.091961], [-122.09131, 37.082948]]]}}, {"type": "Feature", "properties": {"grid_id": 915561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.576}, "geometry": {"type": "Polygon", "coordinates": [[[-122.080476, 37.082813], [-122.069641, 37.082678], [-122.069478, 37.091691], [-122.080314, 37.091827], [-122.080476, 37.082813]]]}}, {"type": "Feature", "properties": {"grid_id": 915562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.389}, "geometry": {"type": "Polygon", "coordinates": [[[-122.069641, 37.082678], [-122.058807, 37.082541], [-122.058642, 37.091555], [-122.069478, 37.091691], [-122.069641, 37.082678]]]}}, {"type": "Feature", "properties": {"grid_id": 915563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058807, 37.082541], [-122.047973, 37.082404], [-122.047807, 37.091417], [-122.058642, 37.091555], [-122.058807, 37.082541]]]}}, {"type": "Feature", "properties": {"grid_id": 915564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.047973, 37.082404], [-122.037138, 37.082265], [-122.036971, 37.091278], [-122.047807, 37.091417], [-122.047973, 37.082404]]]}}, {"type": "Feature", "properties": {"grid_id": 915565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.289}, "geometry": {"type": "Polygon", "coordinates": [[[-122.037138, 37.082265], [-122.026304, 37.082125], [-122.026136, 37.091139], [-122.036971, 37.091278], [-122.037138, 37.082265]]]}}, {"type": "Feature", "properties": {"grid_id": 915566, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.026304, 37.082125], [-122.01547, 37.081985], [-122.0153, 37.090998], [-122.026136, 37.091139], [-122.026304, 37.082125]]]}}, {"type": "Feature", "properties": {"grid_id": 915567, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-122.01547, 37.081985], [-122.004636, 37.081843], [-122.004465, 37.090857], [-122.0153, 37.090998], [-122.01547, 37.081985]]]}}, {"type": "Feature", "properties": {"grid_id": 916550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.092}, "geometry": {"type": "Polygon", "coordinates": [[[-122.199805, 37.075222], [-122.188972, 37.075098], [-122.188822, 37.084111], [-122.199657, 37.084235], [-122.199805, 37.075222]]]}}, {"type": "Feature", "properties": {"grid_id": 916551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.183}, "geometry": {"type": "Polygon", "coordinates": [[[-122.188972, 37.075098], [-122.178138, 37.074972], [-122.177987, 37.083986], [-122.188822, 37.084111], [-122.188972, 37.075098]]]}}, {"type": "Feature", "properties": {"grid_id": 916552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.178138, 37.074972], [-122.167305, 37.074846], [-122.167153, 37.08386], [-122.177987, 37.083986], [-122.178138, 37.074972]]]}}, {"type": "Feature", "properties": {"grid_id": 916553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.167305, 37.074846], [-122.156471, 37.074719], [-122.156318, 37.083733], [-122.167153, 37.08386], [-122.167305, 37.074846]]]}}, {"type": "Feature", "properties": {"grid_id": 916554, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.156471, 37.074719], [-122.145638, 37.074591], [-122.145483, 37.083604], [-122.156318, 37.083733], [-122.156471, 37.074719]]]}}, {"type": "Feature", "properties": {"grid_id": 916556, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.134805, 37.074462], [-122.123971, 37.074331], [-122.123814, 37.083345], [-122.134649, 37.083475], [-122.134805, 37.074462]]]}}, {"type": "Feature", "properties": {"grid_id": 916557, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.103}, "geometry": {"type": "Polygon", "coordinates": [[[-122.123971, 37.074331], [-122.113138, 37.0742], [-122.112979, 37.083213], [-122.123814, 37.083345], [-122.123971, 37.074331]]]}}, {"type": "Feature", "properties": {"grid_id": 916558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.113138, 37.0742], [-122.102305, 37.074067], [-122.102145, 37.083081], [-122.112979, 37.083213], [-122.113138, 37.0742]]]}}, {"type": "Feature", "properties": {"grid_id": 916559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.102305, 37.074067], [-122.091471, 37.073934], [-122.09131, 37.082948], [-122.102145, 37.083081], [-122.102305, 37.074067]]]}}, {"type": "Feature", "properties": {"grid_id": 916560, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.091471, 37.073934], [-122.080638, 37.0738], [-122.080476, 37.082813], [-122.09131, 37.082948], [-122.091471, 37.073934]]]}}, {"type": "Feature", "properties": {"grid_id": 916561, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.389}, "geometry": {"type": "Polygon", "coordinates": [[[-122.080638, 37.0738], [-122.069805, 37.073664], [-122.069641, 37.082678], [-122.080476, 37.082813], [-122.080638, 37.0738]]]}}, {"type": "Feature", "properties": {"grid_id": 916562, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.357}, "geometry": {"type": "Polygon", "coordinates": [[[-122.069805, 37.073664], [-122.058972, 37.073528], [-122.058807, 37.082541], [-122.069641, 37.082678], [-122.069805, 37.073664]]]}}, {"type": "Feature", "properties": {"grid_id": 916563, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.058972, 37.073528], [-122.048139, 37.07339], [-122.047973, 37.082404], [-122.058807, 37.082541], [-122.058972, 37.073528]]]}}, {"type": "Feature", "properties": {"grid_id": 916564, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.6}, "geometry": {"type": "Polygon", "coordinates": [[[-122.048139, 37.07339], [-122.037306, 37.073252], [-122.037138, 37.082265], [-122.047973, 37.082404], [-122.048139, 37.07339]]]}}, {"type": "Feature", "properties": {"grid_id": 916565, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.183}, "geometry": {"type": "Polygon", "coordinates": [[[-122.037306, 37.073252], [-122.026472, 37.073112], [-122.026304, 37.082125], [-122.037138, 37.082265], [-122.037306, 37.073252]]]}}, {"type": "Feature", "properties": {"grid_id": 916566, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.026472, 37.073112], [-122.015639, 37.072971], [-122.01547, 37.081985], [-122.026304, 37.082125], [-122.026472, 37.073112]]]}}, {"type": "Feature", "properties": {"grid_id": 917549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.027}, "geometry": {"type": "Polygon", "coordinates": [[[-122.210786, 37.066331], [-122.199954, 37.066208], [-122.199805, 37.075222], [-122.210639, 37.075345], [-122.210786, 37.066331]]]}}, {"type": "Feature", "properties": {"grid_id": 917550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-122.199954, 37.066208], [-122.189122, 37.066084], [-122.188972, 37.075098], [-122.199805, 37.075222], [-122.199954, 37.066208]]]}}, {"type": "Feature", "properties": {"grid_id": 917551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-122.189122, 37.066084], [-122.178289, 37.065959], [-122.178138, 37.074972], [-122.188972, 37.075098], [-122.189122, 37.066084]]]}}, {"type": "Feature", "properties": {"grid_id": 917552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.178289, 37.065959], [-122.167457, 37.065833], [-122.167305, 37.074846], [-122.178138, 37.074972], [-122.178289, 37.065959]]]}}, {"type": "Feature", "properties": {"grid_id": 917553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.092}, "geometry": {"type": "Polygon", "coordinates": [[[-122.167457, 37.065833], [-122.156625, 37.065705], [-122.156471, 37.074719], [-122.167305, 37.074846], [-122.167457, 37.065833]]]}}, {"type": "Feature", "properties": {"grid_id": 917558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.092}, "geometry": {"type": "Polygon", "coordinates": [[[-122.113296, 37.065186], [-122.102464, 37.065054], [-122.102305, 37.074067], [-122.113138, 37.0742], [-122.113296, 37.065186]]]}}, {"type": "Feature", "properties": {"grid_id": 917559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.103}, "geometry": {"type": "Polygon", "coordinates": [[[-122.102464, 37.065054], [-122.091632, 37.06492], [-122.091471, 37.073934], [-122.102305, 37.074067], [-122.102464, 37.065054]]]}}, {"type": "Feature", "properties": {"grid_id": 917560, "fire_probability": 0.081, "risk_label": "LOW_RISK", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.091632, 37.06492], [-122.0808, 37.064786], [-122.080638, 37.0738], [-122.091471, 37.073934], [-122.091632, 37.06492]]]}}, {"type": "Feature", "properties": {"grid_id": 918549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-122.210934, 37.057317], [-122.200103, 37.057194], [-122.199954, 37.066208], [-122.210786, 37.066331], [-122.210934, 37.057317]]]}}, {"type": "Feature", "properties": {"grid_id": 918550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.200103, 37.057194], [-122.189271, 37.05707], [-122.189122, 37.066084], [-122.199954, 37.066208], [-122.200103, 37.057194]]]}}, {"type": "Feature", "properties": {"grid_id": 918551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.189271, 37.05707], [-122.17844, 37.056945], [-122.178289, 37.065959], [-122.189122, 37.066084], [-122.189271, 37.05707]]]}}, {"type": "Feature", "properties": {"grid_id": 918552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.103}, "geometry": {"type": "Polygon", "coordinates": [[[-122.17844, 37.056945], [-122.167609, 37.056819], [-122.167457, 37.065833], [-122.178289, 37.065959], [-122.17844, 37.056945]]]}}, {"type": "Feature", "properties": {"grid_id": 918553, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.167609, 37.056819], [-122.156778, 37.056692], [-122.156625, 37.065705], [-122.167457, 37.065833], [-122.167609, 37.056819]]]}}, {"type": "Feature", "properties": {"grid_id": 918558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.092}, "geometry": {"type": "Polygon", "coordinates": [[[-122.113455, 37.056172], [-122.102624, 37.05604], [-122.102464, 37.065054], [-122.113296, 37.065186], [-122.113455, 37.056172]]]}}, {"type": "Feature", "properties": {"grid_id": 918559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.102624, 37.05604], [-122.091793, 37.055907], [-122.091632, 37.06492], [-122.102464, 37.065054], [-122.102624, 37.05604]]]}}, {"type": "Feature", "properties": {"grid_id": 919549, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.049}, "geometry": {"type": "Polygon", "coordinates": [[[-122.211081, 37.048303], [-122.200251, 37.04818], [-122.200103, 37.057194], [-122.210934, 37.057317], [-122.211081, 37.048303]]]}}, {"type": "Feature", "properties": {"grid_id": 919550, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.056}, "geometry": {"type": "Polygon", "coordinates": [[[-122.200251, 37.04818], [-122.189421, 37.048056], [-122.189271, 37.05707], [-122.200103, 37.057194], [-122.200251, 37.04818]]]}}, {"type": "Feature", "properties": {"grid_id": 919551, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.189421, 37.048056], [-122.178591, 37.047931], [-122.17844, 37.056945], [-122.189271, 37.05707], [-122.189421, 37.048056]]]}}, {"type": "Feature", "properties": {"grid_id": 919552, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.178591, 37.047931], [-122.167762, 37.047805], [-122.167609, 37.056819], [-122.17844, 37.056945], [-122.178591, 37.047931]]]}}, {"type": "Feature", "properties": {"grid_id": 919558, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.081}, "geometry": {"type": "Polygon", "coordinates": [[[-122.113613, 37.047159], [-122.102784, 37.047026], [-122.102624, 37.05604], [-122.113455, 37.056172], [-122.113613, 37.047159]]]}}, {"type": "Feature", "properties": {"grid_id": 919559, "fire_probability": 1.0, "risk_label": "ACTIVE_FIRE", "p_unet": 0.086}, "geometry": {"type": "Polygon", "coordinates": [[[-122.102784, 37.047026], [-122.091954, 37.046893], [-122.091793, 37.055907], [-122.102624, 37.05604], [-122.102784, 37.047026]]]}}]}
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "timestamp": "2025-01-10T21:00:00Z",
+    "source": "U-Net",
+    "model_version": "v1.0",
+    "mock": true
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.16000000000001,
+              37.04
+            ],
+            [
+              -122.15,
+              37.04
+            ],
+            [
+              -122.15,
+              37.05
+            ],
+            [
+              -122.16000000000001,
+              37.05
+            ],
+            [
+              -122.16000000000001,
+              37.04
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2003,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.16000000000001,
+              37.05
+            ],
+            [
+              -122.15,
+              37.05
+            ],
+            [
+              -122.15,
+              37.059999999999995
+            ],
+            [
+              -122.16000000000001,
+              37.059999999999995
+            ],
+            [
+              -122.16000000000001,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2004,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.16000000000001,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.06999999999999
+            ],
+            [
+              -122.16000000000001,
+              37.06999999999999
+            ],
+            [
+              -122.16000000000001,
+              37.059999999999995
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2005,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.15,
+              37.04
+            ],
+            [
+              -122.14,
+              37.04
+            ],
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.15,
+              37.05
+            ],
+            [
+              -122.15,
+              37.04
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2006,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.15,
+              37.05
+            ],
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2007,
+        "fire_probability": 0.95,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.15,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.06999999999999
+            ],
+            [
+              -122.15,
+              37.06999999999999
+            ],
+            [
+              -122.15,
+              37.059999999999995
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2008,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.14,
+              37.04
+            ],
+            [
+              -122.13,
+              37.04
+            ],
+            [
+              -122.13,
+              37.05
+            ],
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.14,
+              37.04
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2009,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.13,
+              37.05
+            ],
+            [
+              -122.13,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2010,
+        "fire_probability": 0.95,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.13,
+              37.059999999999995
+            ],
+            [
+              -122.13,
+              37.06999999999999
+            ],
+            [
+              -122.14,
+              37.06999999999999
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2011,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.13000000000001,
+              37.04
+            ],
+            [
+              -122.12,
+              37.04
+            ],
+            [
+              -122.12,
+              37.05
+            ],
+            [
+              -122.13000000000001,
+              37.05
+            ],
+            [
+              -122.13000000000001,
+              37.04
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2012,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.13000000000001,
+              37.05
+            ],
+            [
+              -122.12,
+              37.05
+            ],
+            [
+              -122.12,
+              37.059999999999995
+            ],
+            [
+              -122.13000000000001,
+              37.059999999999995
+            ],
+            [
+              -122.13000000000001,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2013,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.13000000000001,
+              37.059999999999995
+            ],
+            [
+              -122.12,
+              37.059999999999995
+            ],
+            [
+              -122.12,
+              37.06999999999999
+            ],
+            [
+              -122.13000000000001,
+              37.06999999999999
+            ],
+            [
+              -122.13000000000001,
+              37.059999999999995
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2014,
+        "fire_probability": 0.8,
+        "horizon_hours": 1
+      }
+    }
+  ]
+}

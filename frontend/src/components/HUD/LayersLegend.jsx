@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Layers, ShieldPlus, Activity, Map as MapIcon, X } from 'lucide-react';
+import { Layers, ShieldPlus, Activity, Map as MapIcon, X, Tent } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LayersLegend({ isAqiVisible, setIsAqiVisible }) {
+export default function LayersLegend({ isAqiVisible, setIsAqiVisible, isSheltersVisible, setIsSheltersVisible }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const aqiLegend = [
@@ -46,18 +46,33 @@ export default function LayersLegend({ isAqiVisible, setIsAqiVisible }) {
               {/* Layer Toggles */}
               <div>
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Map Layers</h3>
-                <button
-                  onClick={() => setIsAqiVisible(!isAqiVisible)}
-                  className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
-                >
-                  <div className="flex items-center gap-2">
-                    <Activity size={16} className={isAqiVisible ? 'text-orange-600' : 'text-slate-400'} />
-                    <span className="text-sm font-medium text-slate-800">AQI Grid Layer</span>
-                  </div>
-                  <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isAqiVisible ? 'bg-orange-600' : 'bg-slate-300'}`}>
-                    <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isAqiVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                  </div>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setIsAqiVisible(!isAqiVisible)}
+                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Activity size={16} className={isAqiVisible ? 'text-orange-600' : 'text-slate-400'} />
+                      <span className="text-sm font-medium text-slate-800">AQI Grid Layer</span>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isAqiVisible ? 'bg-orange-600' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isAqiVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setIsSheltersVisible(!isSheltersVisible)}
+                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Tent size={16} className={isSheltersVisible ? 'text-blue-500' : 'text-slate-400'} />
+                      <span className="text-sm font-medium text-slate-800">Emergency Shelters</span>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isSheltersVisible ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isSheltersVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Map Legend */}
@@ -69,26 +84,18 @@ export default function LayersLegend({ isAqiVisible, setIsAqiVisible }) {
                     <span className="text-slate-800">Red Flag Warning Zone</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-5 h-5 bg-green-600 text-white flex items-center justify-center rounded-full border border-white/20 shadow-sm shrink-0">
-                      <ShieldPlus size={10} />
+                    <div className="px-2 py-0.5 bg-blue-500 text-white flex items-center justify-center rounded-full border border-blue-400 shadow-sm shrink-0">
+                      <Tent size={12} />
                     </div>
-                    <span className="text-slate-800">Official Evac Shelter</span>
+                    <span className="text-slate-800">Official Emergency Shelter</span>
                   </li>
-                  <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-red-600/80 border border-red-600 rounded-sm"></div>
-                    <span className="text-slate-800">Active Fire</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-orange-500/60 border border-orange-500 rounded-sm"></div>
-                    <span className="text-slate-800">High Risk</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-yellow-400/60 border border-yellow-500 rounded-sm"></div>
-                    <span className="text-slate-800">Moderate Risk</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-green-500/60 border border-green-500 rounded-sm"></div>
-                    <span className="text-slate-800">Low Risk</span>
+                  <li className="flex flex-col gap-1 mt-2">
+                    <div className="flex justify-between text-xs text-slate-500 font-medium px-1">
+                      <span>0%</span>
+                      <span>Fire Probability</span>
+                      <span>100%</span>
+                    </div>
+                    <div className="h-3 w-full rounded-sm shadow-inner" style={{ background: 'linear-gradient(to right, #eab308 0%, #eab308 20%, #f97316 50%, #dc2626 80%, #991b1b 100%)' }}></div>
                   </li>
                 </ul>
               </div>

@@ -9,7 +9,6 @@ ML Interface Contract §3.1: Each Feature must have:
   geometry.coordinates = [[lon, lat], ...]
   properties.grid_id
   properties.fire_probability
-  properties.risk_label
   properties.source_model
 """
 
@@ -42,7 +41,6 @@ class PredictionPolygonGeoJSONSerializer(serializers.ModelSerializer):
         props = {
             "grid_id": obj.grid_id,
             "fire_probability": obj.fire_probability,
-            "risk_label": obj.risk_label,
             "source_model": obj.source_model,
             "timestamp": obj.timestamp.isoformat(),
             "lead_time_hours": obj.lead_time_hours,

@@ -105,7 +105,7 @@ flowchart TD
         end
 
         subgraph PREDICTIONS_APP["predictions app"]
-            PRED_MODEL["FireRiskPrediction model\nModelPerformanceMetric model\n\nForeignKey → BayAreaGrid\nfire_probability, risk_label\nsource_model: unet/pinn/ensemble"]
+            PRED_MODEL["FireRiskPrediction model\nModelPerformanceMetric model\n\nForeignKey → BayAreaGrid\nfire_probability\nsource_model: unet/pinn/ensemble"]
             PRED_SERIAL["GeoJSON Serializer\nSpatial REST endpoint\n/api/predictions/current/\n/api/predictions/history/"]
             PRED_STORE["store_geojson_result()\nParses GeoJSON → DB rows\nUpdates Redis cache\nTriggers WS broadcast"]
         end

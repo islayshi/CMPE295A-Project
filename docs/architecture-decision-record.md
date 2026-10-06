@@ -45,8 +45,7 @@ Here are some of the data sources they are considering in researching to include
       },
       "properties": {
         "grid_id": 25,
-        "fire_probability": 0.73,
-        "risk_label": "HIGH_RISK"
+        "fire_probability": 0.73
       }
     }
   ]
@@ -67,7 +66,7 @@ Here are some of the data sources they are considering in researching to include
 - The A* routing just needs to query danger_zone polygons — it doesn't care whether those came from a U-Net, PINN, or a mock. Build it against mock GeoJSON first.
 - Build the FastAPI endpoint that receives the GeoJSON contract and POSTs it to Django. You can mock the model call itself with a static fixture.
 - WebSocket broadcast (Django Channels) - The FIRE_UPDATE event just serializes whatever FireRiskMap objects are in the DB.
-- RAG chatbot : It consumes risk_label and fire_probability from PostGIS queries — no ML dependency.
+- RAG chatbot : It consumes fire_probability from PostGIS queries — no ML dependency.
 ## ADR-002: Treat ML Inference as a Plug-and-Play Black Box
 
 **Status:** Accepted
@@ -77,7 +76,6 @@ Here are some of the data sources they are considering in researching to include
 
 **Decision:** The ML Inference Engine (U-Net + PINN) is treated as a black box that integrates with the backend exclusively via a GeoJSON FeatureCollection output contract:
 - `fire_probability` (float, 0.0–1.0)
-- `risk_label` (HIGH_RISK | MEDIUM_RISK | LOW_RISK)
 - `geometry` (Polygon, WGS84)
 - `timestamp` (ISO-8601 UTC)
 

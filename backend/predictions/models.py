@@ -14,14 +14,6 @@ from django.contrib.gis.db import models
 from grid.models import BayAreaGrid
 
 
-# Risk label choices enforced at the DB level
-RISK_LABEL_CHOICES = [
-    ("ACTIVE_FIRE", "Active Fire (Observed)"),
-    ("HIGH_RISK", "High Risk (≥ 0.70)"),
-    ("MODERATE_RISK", "Moderate Risk (0.40–0.69)"),
-    ("LOW_RISK", "Low Risk (< 0.40)"),
-]
-
 # Source model choices — must match ML Interface Contract §3.2
 SOURCE_MODEL_CHOICES = [
     ("unet", "U-Net (Spatial Segmentation)"),
@@ -61,7 +53,6 @@ class PredictionPolygon(models.Model):
 
     ML Output Contract (from docs/ml-team-interface-contract.md):
       properties.fire_probability → fire_probability
-      properties.risk_label       → risk_label
       properties.source_model     → source_model
       metadata.timestamp          → timestamp
 
@@ -106,11 +97,6 @@ class PredictionPolygon(models.Model):
     fire_probability = models.FloatField(
         help_text="Fire risk probability for this grid cell. Range: 0.0 (none) to 1.0 (certain)."
     )
-    risk_label = models.CharField(
-        max_length=20,
-        choices=RISK_LABEL_CHOICES,
-        help_text="Human-readable risk tier derived from fire_probability."
-    )
     ml_metrics = models.JSONField(
         null=True,
         blank=True,
@@ -138,7 +124,6 @@ class PredictionPolygon(models.Model):
             f"Prediction[{self.source_model}] "
             f"grid={self.grid_id} "
             f"p={self.fire_probability:.2f} "
-            f"label={self.risk_label} "
             f"ts={self.timestamp.date()}"
         )
 

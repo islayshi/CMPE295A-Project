@@ -13,6 +13,7 @@ import { fetchShelters, fetchWindData, fetchAqiData } from '../api/telemetry';
 export default function Dashboard() {
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
+  const [isSheltersVisible, setIsSheltersVisible] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userLocation, setUserLocation] = useState({ lat: 37.6688, lon: -122.0828 });
   const [cityName, setCityName] = useState("Hayward, CA");
@@ -88,6 +89,7 @@ export default function Dashboard() {
         windData={windData}
         userLocation={userLocation}
         isAqiVisible={isAqiVisible}
+        isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
         timeScrub={activeHorizon}
       />
@@ -95,6 +97,8 @@ export default function Dashboard() {
       <LayersLegend 
         isAqiVisible={isAqiVisible} 
         setIsAqiVisible={setIsAqiVisible} 
+        isSheltersVisible={isSheltersVisible}
+        setIsSheltersVisible={setIsSheltersVisible}
       />
       
       <TelemetryWidget 
