@@ -4,6 +4,8 @@ import DataCard from '../components/DataCard';
 import AirQualityTable from '../components/AirQualityTable';
 import { MapContainer, TileLayer, LayersControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -12,7 +14,6 @@ const categories = [
   'EPA AirNow / Open-Meteo',
 ];
 
-// SF Bay Area Station Directory with Lat/Lon coordinates
 const bayAreaStations = [
   { id: 'SF-01', name: 'San Francisco - Financial Dist', subRegion: 'San Francisco', lat: 37.79, lon: -122.40 },
   { id: 'OAK-02', name: 'Oakland Hills - Redwood Canyon', subRegion: 'East Bay', lat: 37.81, lon: -122.21 },
@@ -49,8 +50,9 @@ const datasets = [
 
 const DataPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('Remote Sensing/Satellite');
-  const [selectedDate, setSelectedDate] = useState('2026-10-06');
-  
+  const [availableDates, setAvailableDates] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
   // Real API Data States (Open-Meteo)
   const [telemetryData, setTelemetryData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +63,33 @@ const DataPage = () => {
   const [isGeeLoading, setIsGeeLoading] = useState(false);
   const [geeError, setGeeError] = useState(null);
 
-  // Fetch GEE NDVI Tile when Remote Sensing tab is active
+  // Helper to format Date objects as YYYY-MM-DD
+  const formatDateString = (dateObj) => {
+    return dateObj.toISOString().split('T')[0];
+  };
+
+  // 1. Fetch available acquisition dates from Django
+  useEffect(() => {
+    const fetchAvailableDates = async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8000/api/telemetry/gee/available-dates/');
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+          const dateObjects = data.dates.map(dateStr => new Date(dateStr + 'T00:00:00'));
+          setAvailableDates(dateObjects);
+          if (dateObjects.length > 0) {
+            setSelectedDate(dateObjects[dateObjects.length - 1]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch GEE available dates:', err);
+      }
+    };
+
+    fetchAvailableDates();
+  }, []);
+
+  // 2. Fetch GEE NDVI Tile when category or date changes
   useEffect(() => {
     if (selectedCategory !== 'Remote Sensing/Satellite') return;
 
@@ -70,17 +98,21 @@ const DataPage = () => {
       setGeeError(null);
 
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/telemetry/gee/ndvi-tile/');
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const dateStr = formatDateString(selectedDate);
+        const startDate = new Date(selectedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+        const startDateStr = formatDateString(startDate);
+
+        const url = `http://127.0.0.1:8000/api/telemetry/gee/ndvi-tile/?start_date=${startDateStr}&end_date=${dateStr}`;
         
+        const res = await fetch(url);
         const data = await res.json();
-        if (data.status === 'success' && data.tile_url) {
+        
+        if (res.ok && data.status === 'success') {
           setNdviTileUrl(data.tile_url);
         } else {
-          throw new Error(data.message || 'Failed to retrieve NDVI tile URL from backend.');
+          throw new Error(data.message || 'Failed to fetch satellite layer.');
         }
       } catch (err) {
-        console.error('Failed to fetch GEE tile:', err);
         setGeeError(err.message);
       } finally {
         setIsGeeLoading(false);
@@ -88,9 +120,9 @@ const DataPage = () => {
     };
 
     fetchGeeTile();
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedDate]);
 
-  // Fetch real data from Open-Meteo API when date or tab changes
+  // 3. Fetch Open-Meteo Air Quality Data
   useEffect(() => {
     if (selectedCategory !== 'EPA AirNow / Open-Meteo') return;
 
@@ -99,8 +131,9 @@ const DataPage = () => {
       setError(null);
 
       try {
+        const dateStr = formatDateString(selectedDate);
         const requests = bayAreaStations.map(async (station) => {
-          const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.lon}&hourly=pm10,pm2_5,us_aqi&start_date=${selectedDate}&end_date=${selectedDate}`;
+          const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.lon}&hourly=pm10,pm2_5,us_aqi&start_date=${dateStr}&end_date=${dateStr}`;
           
           const res = await fetch(url);
           if (!res.ok) throw new Error(`HTTP ${res.status} on station ${station.id}`);
@@ -169,56 +202,79 @@ const DataPage = () => {
         {/* View Switcher */}
         {selectedCategory === 'Remote Sensing/Satellite' ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Google Earth Engine (GEE) - Sentinel-2 NDVI
-              </h2>
-              <p className="text-sm text-gray-600">
-                Multi-spectral surface reflectance and vegetation dryness index for fuel assessment.
-              </p>
+            
+            {/* Header & DatePicker Control */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Google Earth Engine (GEE) - Sentinel-2 NDVI
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Multi-spectral surface reflectance and vegetation dryness index for fuel assessment.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Target Date:</label>
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date) => setSelectedDate(date)}
+                  includeDates={availableDates}
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Select date with data"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             {isGeeLoading && (
-              <div className="p-8 text-center text-sm font-semibold text-blue-600 bg-blue-50 rounded-xl border border-blue-100 animate-pulse">
-                Fetching live satellite raster tile from Google Earth Engine backend...
+              <div className="p-8 text-center text-sm font-semibold text-blue-600 bg-blue-50 rounded-xl border border-blue-100 animate-pulse mb-4">
+                Fetching live satellite raster composite from Google Earth Engine...
               </div>
             )}
 
             {geeError && (
-              <div className="p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200">
+              <div className="p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 mb-4">
                 Failed to load satellite tiles: {geeError}
               </div>
             )}
 
-            {!isGeeLoading && !geeError && (
-              <div className="h-[550px] w-full rounded-lg overflow-hidden border border-gray-200 relative">
-                <MapContainer
-                  center={[37.6, -122.1]}
-                  zoom={9}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <LayersControl position="topright">
-                    <LayersControl.BaseLayer checked name="CartoDB Dark Matter">
-                      <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-                      />
-                    </LayersControl.BaseLayer>
+            {/* Map Canvas */}
+            <div className="h-[550px] w-full rounded-lg overflow-hidden border border-gray-200 relative">
+              <MapContainer
+                center={[37.6, -122.1]}
+                zoom={9}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <LayersControl position="topright">
+                  <LayersControl.BaseLayer checked name="OpenStreetMap Standard">
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                  </LayersControl.BaseLayer>
 
-                    <LayersControl.Overlay checked name="Sentinel-2 Vegetation Dryness (NDVI)">
-                      {ndviTileUrl && (
-                        <TileLayer
-                          url={ndviTileUrl}
-                          opacity={0.75}
-                          maxZoom={18}
-                          attribution="Google Earth Engine | Sentinel-2"
-                        />
-                      )}
-                    </LayersControl.Overlay>
-                  </LayersControl>
-                </MapContainer>
-              </div>
-            )}
+                  <LayersControl.BaseLayer name="Esri World Imagery">
+                    <TileLayer
+                      url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                      attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+                    />
+                  </LayersControl.BaseLayer>
+
+                  <LayersControl.Overlay checked name="Sentinel-2 Vegetation Dryness (NDVI)">
+                    {ndviTileUrl && (
+                      <TileLayer
+                        url={ndviTileUrl}
+                        opacity={0.75}
+                        maxZoom={18}
+                        attribution="Google Earth Engine | Sentinel-2"
+                      />
+                    )}
+                  </LayersControl.Overlay>
+                </LayersControl>
+              </MapContainer>
+            </div>
+
           </div>
         ) : selectedCategory === 'EPA AirNow / Open-Meteo' ? (
           <div>
@@ -238,8 +294,8 @@ const DataPage = () => {
               <AirQualityTable
                 telemetryData={telemetryData}
                 bayAreaStations={bayAreaStations}
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
+                selectedDate={formatDateString(selectedDate)}
+                onDateChange={(dateStr) => setSelectedDate(new Date(dateStr + 'T00:00:00'))}
               />
             )}
           </div>
