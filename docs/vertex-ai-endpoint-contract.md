@@ -1,10 +1,12 @@
 ## Architectural Context & Codebase Overview
+<img width="1025" height="817" alt="image" src="https://github.com/user-attachments/assets/12feea5c-3ff7-48df-96bc-3d2882412a50" />
 
 The system is built as a series of loosely‑coupled services, each optimized for a specific responsibility. The FastAPI ML Adapter runs on Cloud Run and provides a thin, HTTP‑based façade for Vertex AI model endpoints. FastAPI was chosen for its high performance, automatic OpenAPI generation, and minimal runtime footprint, making it ideal for a stateless inference service that can scale automatically.
 
 When a prediction request arrives, the adapter forwards a lightweight JSON payload to the appropriate Vertex AI model. The model returns a GeoJSON FeatureCollection, which the adapter hands off to a Celery worker (`store_geojson_result`). Celery gives us reliable, asynchronous processing and retries, ensuring the backend can continue ingesting new requests even if the model call experiences transient latency.
 
 The worker persists each feature into the PostGIS‑backed `Prediction` table, enabling powerful spatial queries and future analytics. To keep the UI snappy, the full GeoJSON result is also cached in Redis with a short TTL, allowing the frontend to fetch the latest predictions without hitting the database on every map repaint. Finally, Mapbox renders the data client‑side, providing an interactive, high‑performance map experience.
+
 
 **Why these choices?**
 - **FastAPI + Cloud Run** gives us serverless elasticity without managing infrastructure.
