@@ -82,11 +82,11 @@ Every GeoJSON **Feature** must contain a **`properties`** object. The UI and Cel
 
 | Key | Type | Allowed Values / Range | Why it matters |
 |-----|------|------------------------|----------------|
-| `fire_probability` | `float` | `0.0` – `1.0` | Used for heat‑map intensity and stored in Django `FloatField`. |
-| `grid_id` | `int` | Positive integer | Primary lookup key for the `BayAreaGrid` FK in Django. |
-| `horizon_hours` | `int` | `0`, `1`, `3`, `6` | Enables the time‑scrubber; the UI filters on this field. |
-| `w_unet` | `float` | Any (model‑specific metric) | Captured for analytics; stored in `ml_metrics` JSONField. |
-| `members` | `int` | Positive integer | Likewise stored for debugging and model‑performance dashboards. |
+| (required)`fire_probability` | `float` | `0.0` – `1.0` | Used for heat‑map intensity and stored in Django `FloatField`. |
+| (required)`grid_id` | `int` | Positive integer | Primary lookup key for the `BayAreaGrid` FK in Django. |
+| (required)`horizon_hours` | `int` | `0`, `1`, `3`, `6` | Enables the time‑scrubber; the UI filters on this field. |
+| (in consideration)`w_unet` | `float` | Any (model‑specific metric) | Captured for analytics; stored in `ml_metrics` JSONField. Stands for "weight of the U_Net model, represents how much the U-Net contributed to the final probability vs PINN or RL|
+| (in consideration)`members` | `int` | Positive integer | Likewise stored for debugging and model‑performance dashboards. Number of ensemble members that "voted" on the fire spreading to this cell |
 
 ### Full Feature Example (nested properties)
 ```json
