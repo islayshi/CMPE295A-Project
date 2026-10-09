@@ -11,7 +11,7 @@ description: Expert guidelines and best practices for developing with the Django
 
 ## When this skill should NOT be used
 - When performing heavy machine learning inference or training (use `ffwai-fastapi` instead).
-- When writing raw spatial SQL queries or focusing purely on GIS routing (use `ffwai-postgis` instead).
+- When writing raw spatial SQL queries (use `ffwai-postgis` instead).
 - When configuring the underlying caching layer or message broker settings directly (use `ffwai-redis` instead).
 
 ## Purpose
@@ -33,7 +33,7 @@ This skill provides the architectural guidelines for maintaining a robust, scala
 - **Stateless Tasks:** Ensure Celery tasks are completely stateless and idempotent, allowing them to be safely retried in case of worker failure or scaling events.
 - **Service Layer Pattern:** Keep DRF views and serializers lightweight (strictly for routing and validation). Move complex business logic, such as aggregating predictions or staging data for the ML adapter, into dedicated service modules.
 - **Async REST Polling Endpoints:** Use `async def` views for frontend REST polling endpoints to handle high-volume telemetry traffic without blocking synchronous WSGI threads during an emergency.
-- **Atomic Harvester Operations:** Wrap Celery data harvesting tasks (GOES-18, VIIRS) in `transaction.atomic()` to guarantee that partial or corrupted spatial data is never exposed to the A* routing engine if a task crashes.
+- **Atomic Harvester Operations:** Wrap Celery data harvesting tasks (GOES-18, VIIRS) in `transaction.atomic()` to guarantee that partial or corrupted spatial data is never exposed to downstream prediction queries if a task crashes.
 
 ## Testing & Quality
 - Enforce comprehensive testing using `pytest-django` across all backend components.

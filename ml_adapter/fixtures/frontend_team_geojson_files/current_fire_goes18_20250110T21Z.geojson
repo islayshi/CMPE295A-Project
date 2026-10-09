@@ -1,0 +1,81 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "timestamp": "2025-01-10T21:00:00Z",
+    "source": "GOES-18",
+    "model_version": "v1.0",
+    "mock": true
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.15,
+              37.05
+            ],
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.059999999999995
+            ],
+            [
+              -122.15,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2001,
+        "fire_probability": 0.95,
+        "horizon_hours": 0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.14,
+              37.05
+            ],
+            [
+              -122.13,
+              37.05
+            ],
+            [
+              -122.13,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.059999999999995
+            ],
+            [
+              -122.14,
+              37.05
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2002,
+        "fire_probability": 0.95,
+        "horizon_hours": 0
+      }
+    }
+  ]
+}

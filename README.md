@@ -1,6 +1,6 @@
 # Fight Fire With AI
 
-A wildfire risk prediction and dynamic evacuation routing platform for the San Francisco Bay Area, powered by a U-Net / PINN / Reinforcement Learning ML ensemble and deployed on Google Cloud Platform.
+A wildfire risk prediction and alert platform for the San Francisco Bay Area, powered by a U-Net / PINN / Reinforcement Learning ML ensemble and deployed on Google Cloud Platform.
 
 **Team:** Earl Padron, Isla Shi, Scott Kennedy, Nikhil Koganti  
 **Course:** CMPE 295A — Master's Project (San José State University)  
@@ -10,7 +10,7 @@ A wildfire risk prediction and dynamic evacuation routing platform for the San F
 
 ## About The Project
 
-Fight Fire With AI is a day-ahead fire risk planning and dynamic evacuation routing system scoped to the 9-county San Francisco Bay Area. It synthesizes satellite imagery, weather telemetry, vegetation indices, and terrain data to produce a live fire risk heatmap on a 1x1 km spatial grid, and uses that prediction to calculate safe A* evacuation routes in real time.
+Fight Fire With AI is a day-ahead fire risk planning and zone-warning system scoped to the 9-county San Francisco Bay Area. It synthesizes satellite imagery, weather telemetry, vegetation indices, and terrain data to produce a live fire risk heatmap on a 1x1 km spatial grid, providing zone-based alerts and emergency shelter POI telemetry in real time.
 
 The system directly extends three peer-reviewed publications by Dr. Jerry Gao:
 - **Malik et al., Atmosphere 2021:** Grid-based risk prediction with terrain and vegetation features.
@@ -30,7 +30,7 @@ The backend is a modular Django monolith (Cloud Run) paired with a separate Fast
 ### Backend
 - **Python 3.12:** Primary language across all backend services.
 - **Django 5.x + Django REST Framework:** Core API and ORM.
-- **GeoDjango + PostGIS:** Spatial queries and A* routing engine.
+- **GeoDjango + PostGIS:** Spatial queries and spatial indexing.
 - **Celery + Celery Beat:** Async task worker and daily cron scheduler.
 - **FastAPI:** Lightweight ML Adapter bridging Django to Vertex AI.
 
@@ -82,8 +82,8 @@ Ensure the following are installed on your machine:
 - **GDAL 3.7+:** Required by GeoDjango.
 - **Git:** Version control.
 
-> **macOS (Homebrew):** `brew install gdal python@3.12`
-> **Ubuntu:** `sudo apt-get install gdal-bin libgdal-dev python3.12`
+> **macOS (Homebrew):** `brew install gdal python3`
+> **Ubuntu:** `sudo apt-get install gdal-bin libgdal-dev python3`
 
 ### Installation
 
@@ -113,14 +113,9 @@ ffwai_redis      redis:7-alpine           "docker-entrypoint.s..." redis     Up 
 ```
 
 **4. Create a virtual environment and install dependencies:**
-*Context: A virtual environment isolates the Python packages used for this project so they don't conflict with other projects on your computer.*
+*Context: We have provided an automated script that creates a Python virtual environment and installs all dependencies for the backend, ML adapter, and frontend.*
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-cd backend
-pip install -r requirements.txt
-cd ../ml_adapter
-pip install -r requirements.txt
+./scripts/install.sh
 ```
 
 **5. Run Database Migrations:**
@@ -154,7 +149,7 @@ python manage.py generate_grid
 ```
 
 **7. Load Mock Terrain Data:**
-*Context: This command generates synthetic elevation, slope, and aspect data for the grid cells so we can test routing and UI rendering before connecting to the live Google Earth Engine data.*
+*Context: This command generates synthetic elevation, slope, and aspect data for the grid cells so we can test spatial queries and UI rendering before connecting to the live Google Earth Engine data.*
 ```bash
 python manage.py load_terrain --mock
 ```
@@ -165,11 +160,7 @@ python manage.py load_terrain --mock
   Mock terrain loaded!
 ```
 
-**8. Install frontend dependencies:**
-```bash
-cd ../frontend
-npm install
-```
+
 
 ### Troubleshooting macOS GDAL Issues
 Because GeoDjango relies on C++ spatial libraries, macOS users often encounter Homebrew linkage issues like `Library not loaded: libabsl_log_internal_check_op...dylib` or `gdal-config not found`.
@@ -197,44 +188,36 @@ export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
 
 ## Running Locally
 
-Open **five terminal windows** at the project root (`CMPE295A-Project/`).
+We have provided an automated script that starts Docker and opens all five required terminal windows on macOS.
 
-**Terminal 1 — Django REST API:**
+```bash
+./scripts/run_local.sh
+```
+
+**If you prefer to start them manually, open five terminal windows at the project root:**
+
+1. **Django REST API:** `cd backend && source ../.venv/bin/activate && python manage.py runserver`
+2. **Celery Worker:** `cd backend && source ../.venv/bin/activate && celery -A core worker -l info --pool=solo`
+3. **React Frontend:** `cd frontend && npm run dev`
+4. **FastAPI ML Adapter:** `cd ml_adapter && source ../.venv/bin/activate && uvicorn main:app --port 8001 --reload`
+5. **Celery Beat:** `cd backend && source ../.venv/bin/activate && celery -A core beat -l info`
+
+### Triggering Mock Inference
+If `MOCK_INFERENCE=True` is set in your `.env` file, you can manually trigger the Celery pipeline to fetch the mock GeoJSON fire polygons and send them to the frontend UI. 
+
+Open a new terminal window at the project root and run:
 ```bash
 source .venv/bin/activate
 cd backend
-python manage.py runserver
-# Expected Output: Starting development server at http://127.0.0.1:8000/
+python manage.py shell
 ```
+Inside the interactive Python shell, execute:
+```python
+from harvester.tasks import trigger_mock_inference
+trigger_mock_inference()
+```
+The polygons should immediately render on the Mapbox frontend (http://localhost:5173/) and you can interact with the time scrubber to view the +1, +3, +6, and +24 hour predictions!
 
-**Terminal 2 — Celery Worker:**
-```bash
-source .venv/bin/activate
-cd backend
-celery -A core worker -l info --pool=solo
-```
-
-**Terminal 3 — Celery Beat (Scheduler):**
-```bash
-source .venv/bin/activate
-cd backend
-celery -A core beat -l info
-```
-
-**Terminal 4 — React Frontend:**
-```bash
-cd frontend
-npm run dev
-# Expected Output: Local: http://localhost:5173/
-```
-
-**Terminal 5 — FastAPI ML Adapter:**
-*Note: This specific service is required to serve the mock CZU Lightning Complex GeoJSON fire polygons to the frontend map while `MOCK_INFERENCE=True` is active in the Django settings.*
-```bash
-source .venv/bin/activate
-cd ml_adapter
-uvicorn main:app --port 8001 --reload
-```
 
 ---
 
@@ -256,13 +239,6 @@ curl http://localhost:8000/api/health/
 {"status":"healthy","db":"ok","redis":"ok","mock_inference":true,"last_inference_timestamp":null,"staleness_hours":null,"is_stale":false}
 ```
 
-### Example: Request an Evacuation Route
-```bash
-curl -X POST http://localhost:8000/api/routing/evacuate/ \
-  -H "Content-Type: application/json" \
-  -d '{"origin": {"lat": 37.1234, "lon": -122.4567}}'
-```
-
 ---
 
 ## API Reference
@@ -272,9 +248,6 @@ All endpoints are prefixed with `/api/`. Full interactive docs at `/api/docs/`.
 ### Predictions
 - `GET /api/predictions/current/`: Latest fire risk GeoJSON (from Redis cache with database fallback).
 - `GET /api/predictions/history/`: Historical inference runs. Supports `?start=`, `?end=`, `?model=` filters.
-
-### Routing
-- `POST /api/routing/evacuate/`: A* route from `{origin: {lat, lon}}` to nearest safe shelter.
 
 ### Telemetry
 - `GET /api/telemetry/wind/`: Wind speed and direction for Deck.gl particles.
@@ -297,7 +270,6 @@ CMPE295A-Project/
 │   ├── grid/                   # BayAreaGrid, TerrainFeature, VegetationIndex models
 │   ├── predictions/            # FireRiskPrediction, ModelPerformanceMetric, serializers
 │   ├── harvester/              # Celery tasks: GEE data harvest + ML inference pipeline
-│   ├── routing/                # A* evacuation routing engine
 │   ├── telemetry/              # Wind, NWS alerts, FEMA shelter endpoints
 │   ├── metrics/                # Model performance dashboard endpoint
 │   ├── manage.py

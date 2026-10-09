@@ -176,7 +176,6 @@ The following model selections are based directly on the three advisor papers. Y
       "properties": {
         "grid_id": 25,
         "fire_probability": 0.85,
-        "risk_label": "HIGH_RISK",
         "source_model": "ensemble"
       }
     }
@@ -204,16 +203,7 @@ The following model selections are based directly on the three advisor papers. Y
 | `geometry.coordinates` | `array` | YES | Ring of `[lon, lat]` pairs (NOT lat/lon). Must close (first = last). SRID: 4326. |
 | `properties.grid_id` | `integer` | YES | The `BayAreaGrid.id` primary key from PostGIS. Backend will provide a grid lookup CSV. |
 | `properties.fire_probability` | `float` | YES | Range: `0.0` to `1.0`. Do NOT use percentages. |
-| `properties.risk_label` | `string` | YES | Exactly: `"HIGH_RISK"`, `"MEDIUM_RISK"`, or `"LOW_RISK"`. |
 | `properties.source_model` | `string` | YES | Same as metadata source_model field. |
-
-### 3.3 Risk Label Thresholds
-
-| Probability Range | `risk_label` |
-|---|---|
-| `>= 0.70` | `"HIGH_RISK"` |
-| `0.40 – 0.69` | `"MEDIUM_RISK"` |
-| `< 0.40` | `"LOW_RISK"` |
 
 ### 3.4 Common Mistakes — Do NOT Return These
 

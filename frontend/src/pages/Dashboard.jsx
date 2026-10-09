@@ -13,6 +13,7 @@ import { fetchShelters, fetchWindData, fetchAqiData } from '../api/telemetry';
 export default function Dashboard() {
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
+  const [isSheltersVisible, setIsSheltersVisible] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userLocation, setUserLocation] = useState({ lat: 37.6688, lon: -122.0828 });
   const [cityName, setCityName] = useState("Hayward, CA");
@@ -69,6 +70,15 @@ export default function Dashboard() {
     refetchInterval: 300000,  // Poll every 5 minutes
   });
 
+  // Calculate dynamic available horizons based on predictions data
+  const parsedHorizons = predictions?.features 
+    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
+    : [];
+  const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6];
+  
+  // Find the largest horizon that is <= the current slider value
+  const activeHorizon = [...availableHorizons].reverse().find(h => h <= timeScrub) ?? 0;
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans">
       <Navbar onChatToggle={() => setIsChatOpen(!isChatOpen)} />
@@ -79,13 +89,16 @@ export default function Dashboard() {
         windData={windData}
         userLocation={userLocation}
         isAqiVisible={isAqiVisible}
+        isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
-        timeScrub={timeScrub}
+        timeScrub={activeHorizon}
       />
       
       <LayersLegend 
         isAqiVisible={isAqiVisible} 
         setIsAqiVisible={setIsAqiVisible} 
+        isSheltersVisible={isSheltersVisible}
+        setIsSheltersVisible={setIsSheltersVisible}
       />
       
       <TelemetryWidget 
@@ -96,7 +109,7 @@ export default function Dashboard() {
       />
         
       <div className="absolute bottom-0 left-0 w-full z-40 pointer-events-auto">
-        <TimeScrubber timeScrub={timeScrub} setTimeScrub={setTimeScrub} />
+        <TimeScrubber timeScrub={activeHorizon} setTimeScrub={setTimeScrub} availableHorizons={availableHorizons} />
       </div>
 
       <ChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />

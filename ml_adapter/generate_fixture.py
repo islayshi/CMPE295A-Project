@@ -26,7 +26,6 @@ features.append({
     "properties": {
         "grid_id": 2001,
         "fire_probability": 0.95,
-        "risk_label": "HIGH_RISK",
         "source_model": "mock",
         "spread_hour": 0
     }
@@ -42,7 +41,6 @@ features.append({
     "properties": {
         "grid_id": 2002,
         "fire_probability": 0.65,
-        "risk_label": "MEDIUM_RISK",
         "source_model": "mock",
         "spread_hour": 12
     }
@@ -58,9 +56,8 @@ features.append({
     "properties": {
         "grid_id": 2003,
         "fire_probability": 0.35,
-        "risk_label": "LOW_RISK",
         "source_model": "mock",
-        "spread_hour": 24
+        "spread_hour": 6
     }
 })
 

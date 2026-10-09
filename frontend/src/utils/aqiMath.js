@@ -55,10 +55,10 @@ export function evaluateIDW(targetLat, targetLng, sensors, milesToLat, milesToLn
  * Calculates the interpolated PM2.5 value for a specific coordinate based on Inverse Distance Weighting (IDW).
  * Evaluates at the center of the grid cell to ensure exact match with the rendered AQIGrid cells.
  */
-export function calculateInterpolatedPM25(targetLat, targetLng, sensors, centerLat = 37.6688, centerLng = -122.0828, radiusMiles = 45) {
+export function calculateInterpolatedPM25(targetLat, targetLng, sensors, centerLat = 37.6688, centerLng = -122.0828, radiusMiles = 70) {
   if (!sensors || sensors.length === 0) return null;
 
-  const stepMiles = 4;
+  const stepMiles = 2;
   const milesToLat = 1 / 69;
   const milesToLng = 1 / (69 * Math.cos((centerLat * Math.PI) / 180));
   const stepLat = stepMiles * milesToLat;
@@ -81,8 +81,9 @@ export function calculateInterpolatedPM25(targetLat, targetLng, sensors, centerL
     Math.pow((latCorner - centerLat) / milesToLat, 2) + Math.pow((lngCorner - centerLng) / milesToLng, 2)
   );
 
-  if (distFromCenter > radiusMiles) {
-    return null; // The map does not render a cell here
+  // Remove the hard cutoff constraint so the tooltip still interpolates at edges
+  if (distFromCenter > radiusMiles + stepMiles * 2) {
+    return null; 
   }
 
   // Find the cell center (where IDW evaluates in AQIGrid.jsx)

@@ -71,8 +71,8 @@ def health_check(request):
 
     # Check prediction staleness (NFR-R04: alert if > 48h old)
     try:
-        from predictions.models import FireRiskPrediction
-        latest = FireRiskPrediction.objects.order_by("-timestamp").first()
+        from predictions.models import PredictionPolygon
+        latest = PredictionPolygon.objects.order_by("-timestamp").first()
         if latest:
             health["last_inference_timestamp"] = latest.timestamp.isoformat()
             staleness = timezone.now() - latest.timestamp

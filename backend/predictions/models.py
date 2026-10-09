@@ -10,16 +10,9 @@ Design Doc §14: ML Integration Contract (source_model field values)
 ML Interface Contract: docs/ml-team-interface-contract.md
 """
 
-from django.db import models
+from django.contrib.gis.db import models
 from grid.models import BayAreaGrid
 
-
-# Risk label choices enforced at the DB level
-RISK_LABEL_CHOICES = [
-    ("HIGH_RISK", "High Risk (≥ 0.70)"),
-    ("MEDIUM_RISK", "Medium Risk (0.40–0.69)"),
-    ("LOW_RISK", "Low Risk (< 0.40)"),
-]
 
 # Source model choices — must match ML Interface Contract §3.2
 SOURCE_MODEL_CHOICES = [
@@ -31,7 +24,26 @@ SOURCE_MODEL_CHOICES = [
 ]
 
 
-class FireRiskPrediction(models.Model):
+class FireIncident(models.Model):
+    """
+    Tracks the lifecycle of an active fire incident.
+    """
+    name = models.CharField(max_length=255, blank=True, help_text="Optional name of the fire incident")
+    start_time = models.DateTimeField(db_index=True, help_text="When the fire was first detected")
+    end_time = models.DateTimeField(null=True, blank=True, help_text="When the fire was contained/extinguished")
+    is_active = models.BooleanField(default=True, db_index=True, help_text="Whether the fire is currently active")
+    containment_status = models.FloatField(null=True, blank=True, help_text="Containment percentage (0.0 to 100.0)")
+
+    class Meta:
+        verbose_name = "Fire Incident"
+        verbose_name_plural = "Fire Incidents"
+        ordering = ["-start_time"]
+
+    def __str__(self):
+        return f"FireIncident {self.name or self.id} (Active: {self.is_active})"
+
+
+class PredictionPolygon(models.Model):
     """
     A single fire risk prediction for one grid cell at one timestamp.
 
@@ -41,7 +53,6 @@ class FireRiskPrediction(models.Model):
 
     ML Output Contract (from docs/ml-team-interface-contract.md):
       properties.fire_probability → fire_probability
-      properties.risk_label       → risk_label
       properties.source_model     → source_model
       metadata.timestamp          → timestamp
 
@@ -56,9 +67,27 @@ class FireRiskPrediction(models.Model):
         related_name="predictions",
         help_text="The 1×1 km grid cell this prediction is for."
     )
+    fire_incident = models.ForeignKey(
+        FireIncident,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="predictions",
+        help_text="The fire incident this prediction is associated with, if any."
+    )
     timestamp = models.DateTimeField(
         db_index=True,
         help_text="UTC datetime of the inference run that produced this prediction."
+    )
+    lead_time_hours = models.IntegerField(
+        default=0,
+        help_text="Number of hours into the future this prediction applies to (0 = current state)."
+    )
+    target_timestamp = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="The exact future timestamp this prediction applies to (timestamp + lead_time_hours)."
     )
     source_model = models.CharField(
         max_length=50,
@@ -68,10 +97,10 @@ class FireRiskPrediction(models.Model):
     fire_probability = models.FloatField(
         help_text="Fire risk probability for this grid cell. Range: 0.0 (none) to 1.0 (certain)."
     )
-    risk_label = models.CharField(
-        max_length=20,
-        choices=RISK_LABEL_CHOICES,
-        help_text="Human-readable risk tier derived from fire_probability."
+    ml_metrics = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Raw ML output metrics (p_low, w_unet, frp_mw, p_unet, fire_confidence, etc.)"
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -79,21 +108,22 @@ class FireRiskPrediction(models.Model):
     )
 
     class Meta:
-        verbose_name = "Fire Risk Prediction"
-        verbose_name_plural = "Fire Risk Predictions"
+        verbose_name = "Prediction Polygon"
+        verbose_name_plural = "Prediction Polygons"
         indexes = [
             models.Index(fields=["timestamp"]),
+            models.Index(fields=["target_timestamp"]),
             models.Index(fields=["grid", "timestamp"]),
+            models.Index(fields=["grid", "target_timestamp"]),
             models.Index(fields=["source_model", "timestamp"]),
         ]
-        ordering = ["-timestamp"]
+        ordering = ["-timestamp", "lead_time_hours"]
 
     def __str__(self):
         return (
             f"Prediction[{self.source_model}] "
             f"grid={self.grid_id} "
             f"p={self.fire_probability:.2f} "
-            f"label={self.risk_label} "
             f"ts={self.timestamp.date()}"
         )
 

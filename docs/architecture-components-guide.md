@@ -7,17 +7,17 @@
 ## 1. Django (The Web Server & REST API)
 
 ### Role & Purpose
-Django is the front door of our backend. Its primary job is to handle fast, synchronous HTTP requests from the React frontend, perform spatial queries (like A* evacuation routing), and return JSON responses in under 200 milliseconds. 
+Django is the front door of our backend. Its primary job is to handle fast, synchronous HTTP requests from the React frontend, perform spatial queries (like zone risk intersections and emergency shelter lookups), and return JSON responses in under 200 milliseconds. 
 
 ### Why We Chose It
 * **"Batteries-Included" Framework:** Django provides built-in routing, ORM (Object-Relational Mapping), and security features out of the box, accelerating MVP development.
-* **GeoDjango & PostGIS Support:** Django has native support for geographic data. This is critical for our project, as it allows us to perform complex spatial queries (e.g., "Find a path that avoids these fire risk polygons") directly in Python.
+* **GeoDjango & PostGIS Support:** Django has native support for geographic data. This is critical for our project, as it allows us to perform complex spatial queries (e.g., "Find which shelters intersect active hazard zones") directly in Python.
 * **Python Parity:** Using Python on the backend ensures that both the Backend and ML teams are speaking the same programming language, reducing context switching.
 
 ### Interactions
 * **React Frontend:** The frontend polls Django's REST API every 5 minutes (`GET /api/predictions/current/`).
 * **Redis (Cache):** When polled, Django reads the latest predictions from the Redis in-memory cache to guarantee sub-100ms response times.
-* **PostgreSQL (PostGIS):** Django queries the database to run spatial algorithms for dynamic evacuation routing.
+* **PostgreSQL (PostGIS):** Django queries the database to run spatial queries for grid cells, prediction polygons, and shelter telemetry.
 
 ---
 
@@ -83,10 +83,10 @@ Redis is an extremely fast, in-memory datastore. It serves two distinct purposes
 PostgreSQL is our persistent relational database. PostGIS is an extension that turns PostgreSQL into a powerful spatial database, allowing it to understand geometry (points, lines, polygons) and geography (Earth's curvature).
 
 ### Why We Chose It
-* **Spatial Supremacy:** Standard databases only understand text and numbers. PostGIS understands coordinates. It allows us to ask questions like: *"Does this evacuation route line intersect with this fire risk polygon?"* directly in SQL.
+* **Spatial Supremacy:** Standard databases only understand text and numbers. PostGIS understands coordinates. It allows us to ask questions like: *"Does this shelter location intersect with this fire risk polygon?"* directly in SQL.
 * **Grid Architecture:** Our entire system relies on a 1x1 km Bay Area grid. PostGIS natively handles the indexing and querying of these 18,000 spatial grid cells.
 * **Historical Permanence:** While Redis holds the *current* prediction, PostgreSQL stores the *entire history* of predictions, model performance metrics (ROC-AUC), and static terrain features (elevation, slope).
 
 ### Interactions
-* **Django:** Queries PostGIS to execute the A* routing algorithm and serve historical performance metrics.
+* **Django:** Queries PostGIS to execute spatial queries and serve historical performance metrics.
 * **Celery:** Writes the final GeoJSON predictions into PostGIS for long-term storage after receiving them from FastAPI.
