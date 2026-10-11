@@ -56,3 +56,6 @@ staticfiles/
 postgres_data/
 redis_data/
 celerybeat-schedule*
+
+#GEE key
+gee_service_account.json

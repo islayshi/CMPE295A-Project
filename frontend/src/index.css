@@ -39,3 +39,7 @@ html, body, #root {
   color: #2a9d8f;
 }
 
+/* Force React Datepicker overlay on top of Leaflet maps (Leaflet uses z-index up to 1000) */
+.react-datepicker-popper {
+  z-index: 9999 !important;
+}

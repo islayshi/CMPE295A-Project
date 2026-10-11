@@ -16,6 +16,10 @@ from django.db import connection
 from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+import ee
+from django.http import JsonResponse
+from pathlib import Path
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -90,3 +94,55 @@ def health_check(request):
 def connection_test(request):
     """Legacy connection test endpoint. Will be removed post-migration."""
     return Response({"message": "Backend is online!", "version": "1.0.0"})
+
+SERVICE_ACCOUNT_FILE = settings.BASE_DIR / 'gee_service_account.json'
+
+# Initialize GEE when module loads
+try:
+    credentials = ee.ServiceAccountCredentials(key_file=SERVICE_ACCOUNT_FILE)
+    ee.Initialize(credentials)
+except Exception as e:
+    print(f"GEE Initialization warning: {e}")
+
+@api_view(['GET'])
+def get_gee_ndvi_tile(request):
+    """
+    Returns GEE tile URL template for Sentinel-2 NDVI (Vegetation Index).
+    """
+    try:
+        # Define region: SF Bay Area / NorCal wildfire risk zone
+        roi = ee.Geometry.BBox(-122.6, 37.0, -121.5, 38.2)
+        
+        # Get latest low-cloud Sentinel-2 image
+        s2_collection = (
+            ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+            .filterBounds(roi)
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+            .sort('system:time_start', False)
+        )
+        
+        image = s2_collection.first()
+
+        # Calculate NDVI: (NIR - Red) / (NIR + Red) -> (B8 - B4) / (B8 + B4)
+        ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
+
+        # Dry vegetation = Red/Yellow, Dense green = Dark Green
+        vis_params = {
+            'min': 0.0,
+            'max': 0.8,
+            'palette': ['d73027', 'f46d43', 'fdae61', 'fee08b', 'd9ef8b', 'a6d96a', '66bd63', '1a9850']
+        }
+
+        # Generate GEE tile URL template
+        map_id = ee.data.getTileUrlTemplate(
+            ndvi.getMapId(vis_params)
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'tile_url': map_id, # Format: https://earthengine.googleapis.com/.../tiles/{z}/{x}/{y}
+            'description': 'Sentinel-2 NDVI Vegetation Layer'
+        })
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
