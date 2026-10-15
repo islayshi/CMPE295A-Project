@@ -43,3 +43,16 @@ html, body, #root {
 .react-datepicker-popper {
   z-index: 9999 !important;
 }
+
+/* Custom Red Highlight for Dates with FIRMS Thermal Hotspots */
+.react-datepicker__day--highlighted-firms {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.react-datepicker__day--highlighted-firms:hover {
+  background-color: #dc2626 !important;
+}

@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import FirmsHotspotMap from '../components/FirmsHotspotMap';
+import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -308,6 +309,11 @@ const DataPage = () => {
               />
             )}
           </div>
+        ) : selectedCategory === 'Weather & Meteorology' ? (
+          <WeatherTelemetryPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDatasets.map((data) => (
