@@ -6,9 +6,11 @@ import { MapContainer, TileLayer, LayersControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import FirmsHotspotMap from '../components/FirmsHotspotMap';
 
 const categories = [
   'Remote Sensing/Satellite',
+  'NASA FIRMS', 
   'Weather & Meteorology',
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
@@ -214,7 +216,8 @@ const DataPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Fixed z-index for DatePicker overlap */}
+              <div className="flex items-center gap-2 relative z-[1001]">
                 <label className="text-sm font-medium text-gray-700">Target Date:</label>
                 <DatePicker
                   selected={selectedDate}
@@ -222,7 +225,7 @@ const DataPage = () => {
                   includeDates={availableDates}
                   dateFormat="yyyy-MM-dd"
                   placeholderText="Select date with data"
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
               </div>
             </div>
@@ -276,6 +279,12 @@ const DataPage = () => {
             </div>
 
           </div>
+        ) : selectedCategory === 'NASA FIRMS' ? (
+          <FirmsHotspotMap
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            formatDateString={formatDateString}
+          />
         ) : selectedCategory === 'EPA AirNow / Open-Meteo' ? (
           <div>
             {isLoading && (

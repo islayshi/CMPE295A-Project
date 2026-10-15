@@ -12,6 +12,8 @@ from django.http import JsonResponse
 from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+import csv
+import requests
 
 from .models import EmergencyShelter
 
@@ -206,3 +208,71 @@ def emergency_shelters(request):
         "total": len(features),
         "features": features,
     })
+    
+FIRMS_MAP_KEY = "4662f76dd6eb25c6f51ff640047d442e"
+
+@api_view(["GET"])
+def get_firms_hotspots(request):
+    """
+    GET /api/telemetry/firms/
+    Accepts optional query params: ?date=YYYY-MM-DD&time=HHMM
+    """
+    target_date = request.GET.get('date')
+    target_time = request.GET.get('time')  # e.g., '2115'
+
+    # SF Bay Area Bounding Box: West, South, East, North
+    bbox = "-123.1,36.8,-121.5,38.8"
+    
+    # Query VIIRS Suomi-NPP detections for the Bay Area (5-day max limit for Area API)
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{bbox}/5"
+
+    try:
+        res = requests.get(url, timeout=12)
+        if res.status_code != 200:
+            return JsonResponse({'status': 'error', 'message': f'FIRMS API returned status {res.status_code}'}, status=500)
+
+        lines = res.text.strip().splitlines()
+        if len(lines) <= 1:
+            return JsonResponse({'status': 'success', 'hotspots': [], 'passes': {}})
+
+        reader = csv.DictReader(lines)
+        all_hotspots = []
+        passes_map = {}
+
+        for row in reader:
+            acq_date = row['acq_date']
+            acq_time = row['acq_time'].zfill(4)
+
+            if acq_date not in passes_map:
+                passes_map[acq_date] = set()
+            passes_map[acq_date].add(acq_time)
+
+            all_hotspots.append({
+                "lat": float(row['latitude']),
+                "lon": float(row['longitude']),
+                "frp": float(row['frp']),
+                "confidence": row['confidence'],
+                "bright_ti4": float(row['bright_ti4']),
+                "acq_date": acq_date,
+                "acq_time": acq_time,
+                "satellite": row['satellite'],
+                "daynight": row['daynight']
+            })
+
+        formatted_passes = {d: sorted(list(t_set)) for d, t_set in passes_map.items()}
+
+        filtered_hotspots = all_hotspots
+        if target_date:
+            filtered_hotspots = [h for h in filtered_hotspots if h['acq_date'] == target_date]
+        if target_time:
+            filtered_hotspots = [h for h in filtered_hotspots if h['acq_time'] == target_time]
+
+        return JsonResponse({
+            'status': 'success',
+            'passes': formatted_passes,
+            'hotspots': filtered_hotspots,
+            'total_count': len(filtered_hotspots)
+        })
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
