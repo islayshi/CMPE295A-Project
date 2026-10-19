@@ -5,7 +5,7 @@ Generates the static 1×1 km spatial grid covering the 9-county
 San Francisco Bay Area and populates the BayAreaGrid table.
 
 This command is a one-time setup step. Run it once after migrations
-to create the spatial foundation that all ML predictions and terrain data
+to create the spatial foundation that all ML predictions and vegetation indices
 depend on.
 
 Usage:
@@ -249,9 +249,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             "  Next steps:\n"
-            "    python manage.py load_terrain    # Load USGS DEM terrain data\n"
-            "    python manage.py load_shelters   # Load FEMA/CalOES shelter data\n"
-            "    python manage.py seed_czu_fire   # Seed CZU demo scenario data\n"
+            "    python manage.py seed_shelters        # Seed FEMA/CalOES shelter POIs\n"
         )
 
         logger.info(

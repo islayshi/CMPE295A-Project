@@ -148,20 +148,6 @@ python manage.py generate_grid
     Cells written : 19,344
 ```
 
-**7. Load Mock Terrain Data:**
-*Context: This command generates synthetic elevation, slope, and aspect data for the grid cells so we can test spatial queries and UI rendering before connecting to the live Google Earth Engine data.*
-```bash
-python manage.py load_terrain --mock
-```
-**Expected Output:**
-```
-  Generating mock terrain data...
-  Progress: 19,000 / 19,344 (98.2%) — 1.7s
-  Mock terrain loaded!
-```
-
-
-
 ### Troubleshooting macOS GDAL Issues
 Because GeoDjango relies on C++ spatial libraries, macOS users often encounter Homebrew linkage issues like `Library not loaded: libabsl_log_internal_check_op...dylib` or `gdal-config not found`.
 
@@ -267,7 +253,7 @@ All endpoints are prefixed with `/api/`. Full interactive docs at `/api/docs/`.
 CMPE295A-Project/
 ├── backend/                    # Django monolith
 │   ├── core/                   # Django project settings, URLs, Celery config
-│   ├── grid/                   # BayAreaGrid, TerrainFeature, VegetationIndex models
+│   ├── grid/                   # BayAreaGrid, VegetationIndex models
 │   ├── predictions/            # FireRiskPrediction, ModelPerformanceMetric, serializers
 │   ├── harvester/              # Celery tasks: GEE data harvest + ML inference pipeline
 │   ├── telemetry/              # Wind, NWS alerts, FEMA shelter endpoints

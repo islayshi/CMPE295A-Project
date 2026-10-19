@@ -48,7 +48,7 @@
 |---|---|---|---|
 | **React build** | ~5 MB | AWS S3 | Free tier |
 | **Processed `.npz` feature files** (daily, Bay Area) | ~100–500 MB/day | AWS S3 | ~\$0.023/GB/mo |
-| **PostGIS spatial data** (grid, terrain, predictions) | ~2–5 GB | AWS RDS | Free tier (20GB) |
+| **PostGIS spatial data** (grid, vegetation, predictions, shelters) | ~2–5 GB | AWS RDS | Free tier (20GB) |
 | **Trained U-Net `.keras` model** | ~50–200 MB | **Hugging Face Hub** | Free (public repo) |
 | **PINN model weights** | ~10–50 MB | **Hugging Face Hub** | Free |
 | **Raw satellite imagery** (Landsat, GOES) | **Terabytes** | **Google Earth Engine** — do NOT download | Free academic |

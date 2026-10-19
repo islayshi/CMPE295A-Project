@@ -42,7 +42,7 @@ The **only communication channel** between these two zones is:
 
 ### 1.1 What We Harvest Daily (Backend's Responsibility)
 
-The Celery harvester runs daily and will produce the following data layers. These are collected from Google Earth Engine and other public APIs:
+The Celery harvester runs daily and collects the following dynamic data layers from Google Earth Engine and other public APIs (note: USGS DEM static terrain data is ingested directly by the ML pipeline on Vertex AI):
 
 | Data Source | GEE Collection ID / API | Spatial Resolution | Temporal | Feature(s) |
 |---|---|---|---|---|
@@ -50,7 +50,7 @@ The Celery harvester runs daily and will produce the following data layers. Thes
 | **GOES-18 Cloud/Moisture** | `NOAA/GOES/18/MCMIPC` | ~2 km | Daily composite | Band values (Cloud Top Temp) |
 | **VIIRS Hotspots** | `NASA/VIIRS/002/VNP09GA` | 375 m | 12-24 hr | Surface reflectance, active fire |
 | **Landsat 8/9 Vegetation** | `LANDSAT/LC09/C02/T1_L2` | 30 m | ~8-16 days | NDVI, EVI, NDWI |
-| **USGS DEM (static)** | Downloaded once → PostGIS | 10 m | Static | Elevation, slope, aspect, hillshade |
+| **USGS DEM (static)** | Direct ingestion by ML pipeline (Vertex AI) | 10 m | Static | Elevation, slope, aspect, hillshade |
 | **NOAA / OpenWeather** | REST API | Point data | Daily | Wind speed, direction, temperature, humidity |
 | **NWS Red Flag Warnings** | NWS Alerts API | Polygon | On-event | Active warning zone geometry |
 
@@ -269,3 +269,5 @@ A: Yes. The backend will export a CSV from `BayAreaGrid` mapping: `grid_id, min_
 - **Backend (Earl Padron):** Slack / GitHub Issues on `CMPE295A-Project` repo
 - **Design Document:** [`docs/design-doc.md`](./design-doc.md)
 - **Architecture Components Guide:** [`docs/architecture-components-guide.md`](./architecture-components-guide.md)
+- **ML Implementation LLM Prompt:** [`docs/ml-implementation-prompt.md`](./ml-implementation-prompt.md)
+

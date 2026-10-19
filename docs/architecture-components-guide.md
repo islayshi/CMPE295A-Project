@@ -35,7 +35,7 @@ Celery is our asynchronous task queue. It handles all the slow, heavy, "backgrou
 
 ### Interactions
 * **Redis (Broker):** Celery Beat places task messages into Redis. Celery Workers pull tasks out of Redis to execute them.
-* **External APIs:** Workers fetch weather, terrain, and vegetation data.
+* **External APIs:** Workers fetch weather and vegetation data.
 * **Amazon S3:** Workers aggregate the harvested data into `.npz` feature arrays and upload them to a shared S3 bucket for the ML team to use in model training.
 * **FastAPI ML Adapter:** Workers trigger the ML inference by sending a `POST` request to FastAPI with the harvested data.
 * **PostgreSQL & Redis:** After inference completes, Celery saves the historical GeoJSON to the database and updates the fast cache in Redis.
@@ -85,7 +85,7 @@ PostgreSQL is our persistent relational database. PostGIS is an extension that t
 ### Why We Chose It
 * **Spatial Supremacy:** Standard databases only understand text and numbers. PostGIS understands coordinates. It allows us to ask questions like: *"Does this shelter location intersect with this fire risk polygon?"* directly in SQL.
 * **Grid Architecture:** Our entire system relies on a 1x1 km Bay Area grid. PostGIS natively handles the indexing and querying of these 18,000 spatial grid cells.
-* **Historical Permanence:** While Redis holds the *current* prediction, PostgreSQL stores the *entire history* of predictions, model performance metrics (ROC-AUC), and static terrain features (elevation, slope).
+* **Historical Permanence:** While Redis holds the *current* prediction, PostgreSQL stores the *entire history* of predictions, model performance metrics (ROC-AUC), and grid vegetation indices.
 
 ### Interactions
 * **Django:** Queries PostGIS to execute spatial queries and serve historical performance metrics.

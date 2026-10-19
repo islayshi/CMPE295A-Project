@@ -12,7 +12,7 @@ The frontend prototype serves as an interactive showcase of these capabilities, 
 The system utilizes a Modular Monolith architecture to minimize deployment overhead while maintaining strict separation of concerns. The system is strictly scoped to the 9-county **San Francisco Bay Area** bounding box using a 1km x 1km spatial grid. The system is deployed on **Google Cloud Platform (GCP)** to leverage native Google Earth Engine integration and Vertex AI for ML model hosting.
 
 **Revised Data Flow (Vertex Native Ingestion Architecture):**
-[Data Sources (GEE, NOAA, NWS, USGS)] → (Celery daily cron) → [Django Harvester] → HTTP POST (lightweight bbox + time_horizon + model_type payload) → [FastAPI ML Adapter (Cloud Run)] → Vertex AI model endpoints (U-Net / PINN / RL) → Unified GeoJSON FeatureCollection → [Django Database Engine] → PostGIS (Cloud SQL) + Redis (Memorystore) → [Django REST API (Cloud Run)] → REST Polling (every 5 min) → [React Frontend (Cloud CDN)]
+[Data Sources (GEE, NOAA, NWS)] → (Celery daily cron) → [Django Harvester] → HTTP POST (lightweight bbox + time_horizon + model_type payload) → [FastAPI ML Adapter (Cloud Run)] → Vertex AI model endpoints (U-Net / PINN / RL) → Unified GeoJSON FeatureCollection → [Django Database Engine] → PostGIS (Cloud SQL) + Redis (Memorystore) → [Django REST API (Cloud Run)] → REST Polling (every 5 min) → [React Frontend (Cloud CDN)]
 
 ---
 
@@ -72,8 +72,7 @@ This stack ensures total Python parity between the AI developers and the backend
 - **Database:** PostgreSQL (hosted on **GCP Cloud SQL**).
   - _Extension:_ `PostGIS` (Managed via **GeoDjango**. Contains only the Bay Area `.osm.pbf` extract to ensure A* pathfinding executes under 2.0 seconds).
 - **Caching & Message Broker:** Redis (hosted on **GCP Memorystore**). Serves dual-duty as the Celery task broker and the high-speed GeoJSON cache for the REST API.
-- **ML Inference Engine:** Python, FastAPI (hosted on **GCP Cloud Run**), TensorFlow/Keras (U-Net), PINN (TBD), RL Agent (DQN/PPO — extends Paper 2). Models hosted on **GCP Vertex AI** managed endpoints.
-- **Data & Storage:** Google Cloud Storage (GCS) for processed `.npz` feature files, trained model weights, and React build output. Google Earth Engine (GEE) for satellite imagery (GOES-18, VIIRS, Landsat 8/9).
+- **Data & Storage:** Google Cloud Storage (GCS) for trained model weights and React build output. Google Earth Engine (GEE) and NASA FIRMS for real-time fire detection and satellite imagery.
 - **API Documentation:** Auto-generated OpenAPI 3.0 via `drf-spectacular` at `/api/docs/`. FastAPI auto-generates Swagger at `/docs`.
 
 ---
@@ -86,7 +85,6 @@ This stack ensures total Python parity between the AI developers and the backend
 - **VIIRS via GEE:** Near-real-time active fire hotspots (`NASA/VIIRS/002/VNP09GA`). High-spatial (375 m), low-temporal (12–24 hr). Paired with GOES-18 for potential super-resolution training by the ML team.
 - **NOAA / OpenWeather:** Wind speed, direction, temperature, humidity for Deck.gl wind particles and ML features.
 - **NWS Alerts API:** Red Flag Warnings for map overlay polygons.
-- **USGS 3DEP DEM:** Static terrain data (elevation, slope, aspect, hillshade) — downloaded once, loaded into PostGIS.
 - **CA Energy Commission:** Static powerline GIS data — ignition risk feature from Paper 1.
 - **FEMA/CalOES shelter data:** Static emergency POIs loaded into PostGIS.
 - **CAL FIRE FRAP:** Historical fire perimeters for model validation and demo scenarios (CZU Lightning Complex, August 2020).
@@ -94,6 +92,7 @@ This stack ensures total Python parity between the AI developers and the backend
 - **OpenAQ / PurpleAir:** Live PM2.5 / AQI — *delayed but kept in plan* for future air quality overlay.
 
 ### Category B — ML Pipeline Sources (ML team-owned, backend provides data):
+- **USGS 3DEP DEM:** Static terrain data (elevation, slope, aspect, hillshade) ingested directly by the ML pipeline / Vertex AI during model training. Backend terrain extraction (`TerrainFeature` model and `load_terrain` command) has been retired.
 - **NOAA HRRR:** Short-range weather forecasts (if ML team requires forecast-horizon features).
 - **LANDFIRE fuel models:** Vegetation fuel type classification.
 - **Google Drive (free unlimited student storage):** Potential shared workspace for large training datasets between backend and ML teams. *Note: Google Drive has API rate limits and is not suitable for programmatic high-frequency access. Use GCS for production data and Google Drive as a secondary backup for large files the ML team needs to access manually.*
@@ -341,7 +340,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
   - **ML Model Hosting:** Trained U-Net, PINN, and RL models served via **Vertex AI** managed endpoints with automatic retraining support.
   - **Database:** **Cloud SQL** for PostgreSQL with PostGIS extension enabled.
   - **Cache/Broker:** **Memorystore** (Redis) for Celery task queuing and GeoJSON cache.
-  - **Object Storage:** **Google Cloud Storage (GCS)** for processed `.npz` feature files, model weights, and React build artifacts.
+  - **Object Storage:** **Google Cloud Storage (GCS)** for trained model weights and React build artifacts.
   - **Frontend:** Compiled React static assets hosted on **Cloud Storage** and distributed via **Cloud CDN**.
   - **Background Workers:** Celery Workers + Celery Beat running on a **Compute Engine** e2-micro instance (persistent — needs to stay alive for cron scheduling).
   - **Satellite Data:** **Google Earth Engine** (free academic tier) — natively integrated with GCP project.
@@ -356,9 +355,11 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 
 - **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter.
 - **Output Contract (ML Engine → Django Backend):** The exact GeoJSON FeatureCollection format including all field types (`fire_probability`, `geometry`, `timestamp`).
-- **Input Contract (Django → ML Engine):** PENDING — to be documented in `docs/ml-model-spec.md` once the ML team confirms required feature tensors and data sources.
+- **Input Contract (Django → ML Engine):** Finalized in [`docs/vertex-ai-endpoint-contract.md`](./vertex-ai-endpoint-contract.md). Django/Celery operates as an Active Fire Scout (querying NASA FIRMS), calculates a 1km x 1km bounding box, and submits a lightweight `PredictionRequest` JSON payload (`bbox`, `time_horizon`, `model_type`, `date`). The ML engine performs native ingestion internally.
 - **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
 - **Inference Cadence:** Daily Celery cron job (configurable via environment variable).
 - **Ensemble Models:** U-Net (spatial segmentation), PINN (physics-constrained spread), RL Agent DQN/PPO (dynamic progression). Ensemble combiner uses weighted voting / probability averaging.
 - **Research Lineage:** U-Net extends Paper 1 (Malik et al., 2021), RL extends Paper 2 (Adhikari et al., 2024), Ensemble extends Paper 3 (Malik et al., 2022).
+- **ML Black-Box Serving & LLM Implementation Prompt:** Formatted hand-off prompt and schema guide located at [`docs/ml-implementation-prompt.md`](./ml-implementation-prompt.md).
+
 

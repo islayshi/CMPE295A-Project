@@ -48,9 +48,9 @@ requests>=2.32,<3.0
 # --------------------------------------------------------------
 # Google Cloud + Earth Engine (Week 2 harvesters)
 # --------------------------------------------------------------
-# google-cloud-storage>=2.18       # GCS uploads for feature files
-# earthengine-api>=0.1.400         # GEE satellite data access
-# google-auth>=2.34                # GCP authentication
+google-cloud-storage>=3.14.0       # GCS uploads for feature files
+earthengine-api>=1.7.45             # GEE satellite data access
+google-auth>=2.34                  # GCP authentication
 
 # --------------------------------------------------------------
 # Production Server

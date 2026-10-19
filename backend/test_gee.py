@@ -8,8 +8,8 @@ try:
 
     # Use modern NASA DEM dataset
     dem = ee.Image('NASA/NASADEM_HGT/001')
-    print("✅ GEE Connection Successful!")
+    print("GEE Connection Successful!")
     print("Asset ID:", dem.get('system:id').getInfo())
 
 except Exception as e:
-    print("❌ GEE Initialization Error:", e)
+    print("GEE Initialization Error:", e)

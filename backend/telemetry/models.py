@@ -17,7 +17,7 @@ class EmergencyShelter(models.Model):
     """
     FEMA/CalOES emergency shelter location.
 
-    Loaded once via: `python manage.py load_shelters`
+    Loaded once via: `python manage.py seed_shelters`
     Served by: GET /api/telemetry/shelters/
     Rendered by: Custom Mapbox HTML markers on the React map.
 
