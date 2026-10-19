@@ -16,6 +16,7 @@ from rest_framework.response import Response
 import csv
 import requests
 import calendar
+import xml.etree.ElementTree as ET
 
 from .models import EmergencyShelter
 
@@ -451,3 +452,74 @@ def get_weather_telemetry(request):
 
 def idx_valid(lst, idx):
     return idx < len(lst) and lst[idx] is not None
+
+import re
+import requests
+from datetime import datetime, timedelta
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+
+@api_view(["GET"])
+def get_goes_fire_telemetry(request):
+    """
+    GET /api/telemetry/goes/?channel=07
+    Scrapes NOAA NESDIS STAR PSW directory directly for active image frames.
+    """
+    channel = request.GET.get('channel', '07')  # '07' (Shortwave IR) or 'GEOCOLOR'
+    sector = "psw"
+    base_url = f"https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/{sector}/{channel}/"
+    
+    today = datetime.utcnow().date()
+    available_dates = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(14)]
+    
+    try:
+        res = requests.get(base_url, timeout=6)
+        frames = []
+
+        if res.ok:
+            # Extract .jpg files from directory HTML
+            jpg_files = sorted(set(re.findall(r'href="([^"]+\.jpg)"', res.text)))
+            
+            # Filter for timestamped files (must start with digit year like 2026...) and a uniform resolution size
+            valid_jpgs = [
+                f for f in jpg_files 
+                if re.match(r'^\d{11}_', f) and "600x600" in f  # Uses fast 600x600 resolution snapshots
+            ]
+            
+            # If 600x600 isn't explicitly matched, fall back to any timestamped files
+            if not valid_jpgs:
+                valid_jpgs = [f for f in jpg_files if re.match(r'^\d{11}_', f)]
+
+            unique_frames = []
+            for fname in valid_jpgs:
+                # NOAA filename pattern: YYYYDDDHHMM_...
+                match = re.search(r'^\d{4}\d{3}(\d{2})(\d{2})_', fname)
+                if match:
+                    hour, minute = match.group(1), match.group(2)
+                    time_label = f"{hour}:{minute} UTC"
+                else:
+                    time_label = "Scan"
+                    
+                unique_frames.append({
+                    "time": time_label,
+                    "url": base_url + fname
+                })
+
+            # Subsample down to 12 frames spaced across the available sequence (~2 hour intervals)
+            if len(unique_frames) > 12:
+                step = max(1, len(unique_frames) // 12)
+                frames = unique_frames[::step][:12]
+            else:
+                frames = unique_frames
+
+        return JsonResponse({
+            "status": "success",
+            "date": available_dates[0],
+            "availableDates": available_dates,
+            "channel": channel,
+            "totalFrames": len(frames),
+            "frames": frames
+        })
+
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
+  const [activeDate, setActiveDate] = useState(selectedDate || new Date());
   const [weatherData, setWeatherData] = useState(null);
   const [selectedStationId, setSelectedStationId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -12,7 +15,7 @@ const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
       setError(null);
 
       try {
-        const dateStr = formatDateString(selectedDate);
+        const dateStr = formatDateString(activeDate);
         const res = await fetch(`http://127.0.0.1:8000/api/telemetry/weather/?date=${dateStr}`);
         const data = await res.json();
 
@@ -33,7 +36,7 @@ const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
     };
 
     fetchWeather();
-  }, [selectedDate, formatDateString]);
+  }, [activeDate, formatDateString]);
 
   if (isLoading) {
     return (
@@ -59,7 +62,7 @@ const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
   return (
     <div className="space-y-6">
       
-      {/* 1. Header & Red Flag Threat Banner */}
+      {/* 1. Header & Controls Bar */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div>
@@ -67,11 +70,24 @@ const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
               Surface Meteorology & Fire Weather
             </h2>
             <p className="text-sm text-gray-600">
-              Hourly surface wind vectors, relative humidity, and Red Flag threat indicators for {formatDateString(selectedDate)}.
+              Hourly surface wind vectors, relative humidity, and Red Flag threat indicators for {formatDateString(activeDate)}.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Target Date Picker Container */}
+            <div className="flex items-center gap-2 relative z-10">
+              <label className="text-xs font-semibold text-gray-600 uppercase">Target Date:</label>
+              <DatePicker
+                selected={activeDate}
+                onChange={(date) => setActiveDate(date)}
+                dateFormat="yyyy-MM-dd"
+                maxDate={new Date()}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Red Flag Warning Status Badge */}
             <span
               className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                 summary.isRedFlagCondition

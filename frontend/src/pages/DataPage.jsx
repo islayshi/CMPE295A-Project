@@ -8,10 +8,12 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import FirmsHotspotMap from '../components/FirmsHotspotMap';
 import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
+import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
   'NASA FIRMS', 
+  'GOES-18 FDCC Fire Telemetry',
   'Weather & Meteorology',
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
@@ -217,7 +219,6 @@ const DataPage = () => {
                 </p>
               </div>
 
-              {/* Fixed z-index for DatePicker overlap */}
               <div className="flex items-center gap-2 relative z-[1001]">
                 <label className="text-sm font-medium text-gray-700">Target Date:</label>
                 <DatePicker
@@ -284,6 +285,11 @@ const DataPage = () => {
           <FirmsHotspotMap
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'GOES-18 FDCC Fire Telemetry' ? (
+          <GoesFireTrackingPanel
+            selectedDate={selectedDate}
             formatDateString={formatDateString}
           />
         ) : selectedCategory === 'EPA AirNow / Open-Meteo' ? (
