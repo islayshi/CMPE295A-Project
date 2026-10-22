@@ -9,6 +9,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import FirmsHotspotMap from '../components/FirmsHotspotMap';
 import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
 import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
+import MtbsHistoricalPanel from '../components/MtbsHistoricalPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -17,6 +18,7 @@ const categories = [
   'Weather & Meteorology',
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
+  'MTBS Burn Severity',
 ];
 
 const bayAreaStations = [
@@ -219,7 +221,7 @@ const DataPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 relative z-[1001]">
+              <div className="flex items-center gap-2 relative z-10">
                 <label className="text-sm font-medium text-gray-700">Target Date:</label>
                 <DatePicker
                   selected={selectedDate}
@@ -320,6 +322,8 @@ const DataPage = () => {
             selectedDate={selectedDate}
             formatDateString={formatDateString}
           />
+        ) : selectedCategory === 'MTBS Burn Severity' ? (
+          <MtbsHistoricalPanel />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDatasets.map((data) => (

@@ -523,3 +523,99 @@ def get_goes_fire_telemetry(request):
 
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+import os
+import json
+from django.conf import settings
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+
+# Path to local MTBS GeoJSON dataset
+GEOJSON_FILE_PATH = os.path.join(
+    settings.BASE_DIR, 'telemetry', 'data', 'bay_area_mtbs.geojson'
+)
+
+
+@api_view(["GET"])
+def get_mtbs_historical_perimeters(request):
+    """
+    GET /api/telemetry/mtbs/?year_min=2010&year_max=2024
+    Reads historical MTBS fire perimeters directly from local static storage.
+    """
+    year_min = int(request.GET.get("year_min", 2010))
+    year_max = int(request.GET.get("year_max", 2024))
+
+    if not os.path.exists(GEOJSON_FILE_PATH):
+        return JsonResponse({
+            "status": "error",
+            "message": f"Dataset file not found at {GEOJSON_FILE_PATH}. Download bay_area_mtbs.geojson first."
+        }, status=404)
+
+    try:
+        with open(GEOJSON_FILE_PATH, 'r', encoding='utf-8') as f:
+            raw_geojson = json.load(f)
+
+        features = raw_geojson.get("features", [])
+        filtered_features = []
+        total_acres = 0
+        fire_summary_list = []
+
+        for idx, feat in enumerate(features):
+            props = feat.get("properties", {})
+            
+            # Robust property key extraction (handles schema variations)
+            fire_year = props.get("FIRE_YEAR") or props.get("year") or props.get("YEAR")
+            if fire_year:
+                try:
+                    fire_year = int(fire_year)
+                except ValueError:
+                    fire_year = None
+
+            # Filter by selected year range if year property is present
+            if fire_year and not (year_min <= fire_year <= year_max):
+                continue
+
+            acres = props.get("BurnBndAc") or props.get("acres") or props.get("ACRES") or 0
+            try:
+                acres = float(acres)
+            except ValueError:
+                acres = 0.0
+
+            total_acres += acres
+            fire_name = str(props.get("Incid_Name") or props.get("name") or "UNNAMED").title()
+            obj_id = feat.get("id") or props.get("OBJECTID") or idx
+
+            fire_summary_list.append({
+                "id": obj_id,
+                "fireName": fire_name,
+                "year": fire_year or "N/A",
+                "ignitionDate": props.get("Ig_Date") or props.get("date") or "N/A",
+                "acresBurned": round(acres, 1),
+                "incidentType": props.get("Incid_Type") or "Wildfire"
+            })
+
+            filtered_features.append(feat)
+
+        # Sort summary descending by acres burned
+        fire_summary_list.sort(key=lambda x: x["acresBurned"], reverse=True)
+
+        return JsonResponse({
+            "status": "success",
+            "filter": {
+                "yearMin": year_min,
+                "yearMax": year_max
+            },
+            "summary": {
+                "totalIncidents": len(filtered_features),
+                "totalAcresBurned": round(total_acres, 1),
+                "largestFire": fire_summary_list[0] if fire_summary_list else None
+            },
+            "incidents": fire_summary_list,
+            "geoJson": {
+                "type": "FeatureCollection",
+                "features": filtered_features
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
