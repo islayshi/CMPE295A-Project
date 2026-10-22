@@ -10,6 +10,7 @@ import FirmsHotspotMap from '../components/FirmsHotspotMap';
 import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
 import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
 import MtbsHistoricalPanel from '../components/MtbsHistoricalPanel';
+import GridmetPanel from '../components/GridmetPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -19,6 +20,7 @@ const categories = [
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
   'MTBS Burn Severity',
+  'GRIDMET Fire Weather Surface Meteorology',
 ];
 
 const bayAreaStations = [
@@ -324,6 +326,11 @@ const DataPage = () => {
           />
         ) : selectedCategory === 'MTBS Burn Severity' ? (
           <MtbsHistoricalPanel />
+        ) : selectedCategory === 'GRIDMET Fire Weather Surface Meteorology' ? (
+          <GridmetPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDatasets.map((data) => (

@@ -11,6 +11,7 @@ from .views import (
     nws_alerts,
     emergency_shelters,
     get_mtbs_historical_perimeters,
+    get_gridmet_telemetry,
 )
 
 urlpatterns = [
@@ -25,4 +26,5 @@ urlpatterns = [
     path("alerts/", nws_alerts, name="telemetry-alerts"),
     path("shelters/", emergency_shelters, name="telemetry-shelters"),
     path("mtbs/", get_mtbs_historical_perimeters, name="mtbs_perimeters"),
+    path("gridmet/", get_gridmet_telemetry, name="telemetry-gridmet"),
 ]

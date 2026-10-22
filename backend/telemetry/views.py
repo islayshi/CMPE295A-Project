@@ -7,7 +7,7 @@ import logging
 import os
 import ee
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.conf import settings
 from django.http import JsonResponse
 from django.core.cache import cache
@@ -17,7 +17,6 @@ import csv
 import requests
 import calendar
 import xml.etree.ElementTree as ET
-
 from .models import EmergencyShelter
 
 logger = logging.getLogger(__name__)
@@ -524,12 +523,6 @@ def get_goes_fire_telemetry(request):
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
-import os
-import json
-from django.conf import settings
-from django.http import JsonResponse
-from rest_framework.decorators import api_view
-
 # Path to local MTBS GeoJSON dataset
 GEOJSON_FILE_PATH = os.path.join(
     settings.BASE_DIR, 'telemetry', 'data', 'bay_area_mtbs.geojson'
@@ -615,6 +608,112 @@ def get_mtbs_historical_perimeters(request):
                 "type": "FeatureCollection",
                 "features": filtered_features
             }
+        })
+
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+import requests
+from datetime import datetime, timedelta
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+
+BAY_AREA_GRIDMET_POINTS = [
+    {"name": "North Bay (Sonoma/Napa)", "lat": 38.44, "lon": -122.71},
+    {"name": "East Bay Hills (Oakland/Berkeley)", "lat": 37.87, "lon": -122.25},
+    {"name": "South Bay / Santa Clara Valley", "lat": 37.33, "lon": -121.89},
+    {"name": "Peninsula / Santa Cruz Mts", "lat": 37.44, "lon": -122.30},
+    {"name": "San Francisco Maritime", "lat": 37.77, "lon": -122.41},
+    {"name": "Mount Tamalpais Ridge", "lat": 37.92, "lon": -122.59},
+]
+
+@api_view(["GET"])
+def get_gridmet_telemetry(request):
+    """
+    GET /api/telemetry/gridmet/?date=YYYY-MM-DD
+    Fetches GRIDMET surface meteorology across Bay Area grid points.
+    """
+    target_date = request.GET.get("date", datetime.now().strftime("%Y-%m-%d"))
+
+    station_results = []
+    regional_aggregates = {
+        "max_temp": [],
+        "max_wind": [],
+        "min_rh": [],
+        "total_precip": [],
+        "erc_proxy": [],
+    }
+
+    try:
+        for pt in BAY_AREA_GRIDMET_POINTS:
+            # Using Open-Meteo Forecast endpoint with start_date & end_date handles current/recent dates reliably
+            url = (
+                f"https://api.open-meteo.com/v1/forecast?"
+                f"latitude={pt['lat']}&longitude={pt['lon']}"
+                f"&start_date={target_date}&end_date={target_date}"
+                f"&daily=temperature_2m_max,wind_speed_10m_max,"
+                f"relative_humidity_2m_min,precipitation_sum,et0_fao_evapotranspiration"
+                f"&timezone=America%2FLos_Angeles"
+            )
+
+            res = requests.get(url, timeout=8)
+            if not res.ok:
+                continue
+
+            data = res.json().get("daily", {})
+
+            tmax = data.get("temperature_2m_max", [None])[0]
+            wind = data.get("wind_speed_10m_max", [None])[0]
+            rh = data.get("relative_humidity_2m_min", [None])[0]
+            precip = data.get("precipitation_sum", [None])[0]
+            erc = data.get("et0_fao_evapotranspiration", [None])[0]
+
+            if tmax is not None: regional_aggregates["max_temp"].append(tmax)
+            if wind is not None: regional_aggregates["max_wind"].append(wind)
+            if rh is not None: regional_aggregates["min_rh"].append(rh)
+            if precip is not None: regional_aggregates["total_precip"].append(precip)
+            if erc is not None: regional_aggregates["erc_proxy"].append(erc)
+
+            station_results.append({
+                "location": pt["name"],
+                "lat": pt["lat"],
+                "lon": pt["lon"],
+                "metrics": {
+                    "tmmx": {"value": tmax, "unit": "°C", "label": "Max Temperature"},
+                    "vs": {"value": wind, "unit": "km/h", "label": "Max Wind Speed"},
+                    "rmin": {"value": rh, "unit": "%", "label": "Min Relative Humidity"},
+                    "pr": {"value": precip, "unit": "mm", "label": "Precipitation"},
+                    "erc": {"value": erc, "unit": "mm", "label": "Evapotranspiration / ERC"}
+                }
+            })
+
+        def safe_avg(lst):
+            return round(sum(lst) / len(lst), 1) if lst else 0.0
+
+        def safe_max(lst):
+            return round(max(lst), 1) if lst else 0.0
+
+        def safe_min(lst):
+            return round(min(lst), 1) if lst else 0.0
+
+        summary = {
+            "avgMaxTemp": safe_avg(regional_aggregates["max_temp"]),
+            "peakWindSpeed": safe_max(regional_aggregates["max_wind"]),
+            "lowestRh": safe_min(regional_aggregates["min_rh"]),
+            "avgPrecip": safe_avg(regional_aggregates["total_precip"]),
+            "avgErcProxy": safe_avg(regional_aggregates["erc_proxy"]),
+        }
+
+        today_str = date.today().strftime("%Y-%m-%d")
+        is_predicted = target_date > today_str
+
+        return JsonResponse({
+            "status": "success",
+            "date": target_date,
+            "dataType": "predicted_forecast" if is_predicted else "recorded_observation",
+            "dataset": "GRIDMET Daily High-Resolution Surface Meteorology (4km)",
+            "summary": summary,
+            "gridPoints": station_results
         })
 
     except Exception as e:
