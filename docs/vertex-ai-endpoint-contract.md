@@ -61,7 +61,7 @@ The FastAPI adapter forwards a thin payload that tells the model which area and 
 | `bbox` | `float[]` (4) | ✅ | `[west, south, east, north]` in WGS‑84 degrees. Must exactly match the Bay Area bounding box used by the Django pipeline. |
 | `time_horizon` | `int` | ✅ | Hours from the start of the prediction (e.g., `0`, `1`, `3`, `6`). |
 | `model_type` | `string` | ✅ | One of `"unet"`, `"pinn"`, `"rl"`. Determines which Vertex AI endpoint to invoke. |
-| `date` | `string` (ISO‑8601) | ✅ | The **reference date** for the forecast (UTC). |
+| `date` | `string` (ISO‑8601) | Optional (defaults to now) | The **reference date/timestamp** for the forecast (UTC). When omitted or null, models evaluate against latest live satellite/weather data. |
 | `additional_params` | `object` | ❌ | Optional key‑value pairs for future extensions (e.g., custom thresholds). |
 
 ### Example JSON
