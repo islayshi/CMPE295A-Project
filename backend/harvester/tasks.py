@@ -239,6 +239,7 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
 
     import datetime as dt
 
+    target_timestamp = timestamp
     predictions_to_create = []
     for feature in features:
         props = feature.get("properties", {})

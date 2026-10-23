@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get(
     "django-insecure-fallback-key-replace-before-production"
 )
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
 
 # ---------------------------------------------------------------------------
 # Application Definition
@@ -229,7 +229,6 @@ VERTEX_RL_ENDPOINT_ID = os.environ.get("VERTEX_RL_ENDPOINT_ID", "")
 # External API Keys
 # ---------------------------------------------------------------------------
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
-FIRMS_MAP_KEY = os.environ.get("FIRMS_MAP_KEY", "")
 NWS_API_USER_AGENT = os.environ.get(
     "NWS_API_USER_AGENT",
     "FightFireWithAI/1.0 (contact@example.com)"
