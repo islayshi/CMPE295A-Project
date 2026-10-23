@@ -13,11 +13,18 @@ class TestModelArtifacts(unittest.TestCase):
     def test_static_cache_exists_and_valid(self):
         self.assertTrue(STATIC_CACHE_FILE.is_file(), f"Missing {STATIC_CACHE_FILE}")
         self.assertGreater(STATIC_CACHE_FILE.stat().st_size, 1_000_000, "static_ca_1km.npz is suspiciously small")
-        import numpy as np
-
-        data = np.load(STATIC_CACHE_FILE)
         expected_keys = {"x0", "y0", "res", "elevation", "slope", "NDVI"}
-        self.assertTrue(expected_keys.issubset(set(data.keys())), f"Missing keys in {STATIC_CACHE_FILE}")
+        try:
+            import numpy as np
+
+            data = np.load(STATIC_CACHE_FILE)
+            self.assertTrue(expected_keys.issubset(set(data.keys())), f"Missing keys in {STATIC_CACHE_FILE}")
+        except ImportError:
+            import zipfile
+
+            with zipfile.ZipFile(STATIC_CACHE_FILE, "r") as z:
+                keys = {name.replace(".npy", "") for name in z.namelist()}
+                self.assertTrue(expected_keys.issubset(keys), f"Missing keys in {STATIC_CACHE_FILE}")
 
     def test_models_directory_exists(self):
         self.assertTrue(MODELS_DIR.is_dir(), f"Missing {MODELS_DIR}")

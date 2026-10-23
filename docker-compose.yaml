@@ -53,6 +53,36 @@ services:
       timeout: 5s
       retries: 5
 
+  # ----------------------------------------------------------
+  # U-Net Inference Service (Port 8081)
+  # ----------------------------------------------------------
+  unet-service:
+    build:
+      context: ./ml_services/unet_service
+      dockerfile: Dockerfile
+    container_name: ffwai_unet_service
+    environment:
+      AIP_HTTP_PORT: 8081
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # PINN Inference Service (Port 8082)
+  # ----------------------------------------------------------
+  pinn-service:
+    build:
+      context: ./ml_services/ml_pinn_service
+      dockerfile: Dockerfile
+    container_name: ffwai_pinn_service
+    environment:
+      AIP_HTTP_PORT: 8082
+      INGESTION: ${PINN_INGESTION:-native}
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

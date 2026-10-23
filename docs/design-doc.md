@@ -356,11 +356,13 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 
 - **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter and containerized inference services (`ml_services/`).
 - **Inference Services Structure & Ports:**
+  - **FastAPI ML Adapter (`ml_adapter/`):** Listens on port 8001. Proxies requests to downstream containerized services (`UNET_SERVICE_URL=http://localhost:8081` and `PINN_SERVICE_URL=http://localhost:8082`), handles mock bypass (`MOCK_INFERENCE=true`), health probing (`GET /health`), and multi-model ensemble blending (`POST /predict/ensemble`).
   - **U-Net Service (`ml_services/unet_service/`):** Listens on port 8081 (`AIP_HTTP_PORT=8081`). Exposes `GET /health` and `POST /predict`. Bundles pre-trained weights (`models/goes_h1`, `models/goes_h3`, `models/goes_h6`) and California 1 km terrain cache (`static_ca_1km.npz`). Uses native NOAA GOES-18 ABI and Open-Meteo ingestion with isotonic calibration.
   - **PINN Service (`ml_services/ml_pinn_service/`):** Listens on port 8082 (`AIP_HTTP_PORT=8082`). Exposes `GET /health` and `POST /predict`. Implements calibrated physics fire spread simulation.
 - **Contract Interface:**
-  - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string), `time_horizon` (int hours: 0, 1, 3, 6, 24), and `model_type` ("unet" or "pinn").
+  - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string, optional — defaults to UTC now), `time_horizon` (int hours: 0, 1, 3, 6, 24), and `model_type` ("unet", "pinn", or "ensemble").
   - **Output Contract (ML Engine → Django Backend):** Standard unified GeoJSON `FeatureCollection` containing per-cell features with `grid_id`, `fire_probability` (0.0–1.0), `risk_label`, `horizon_hours`, `source_model`, `w_unet`, and `members`.
+  - **Ensemble Blending:** Combines U-Net and PINN predictions via spatial grid union: $P_{\text{ensemble}} = 0.6 \times P_{\text{unet}} + 0.4 \times P_{\text{pinn}}$ for overlapping cells; single-model scaled probabilities for non-overlapping cells. If one service fails, the ensemble gracefully degrades to the surviving service without failing the request.
 - **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
 - **Inference Cadence:** Daily Celery cron job (configurable via environment variable).
 - **Ensemble Models:** U-Net (spatial segmentation), PINN (physics-constrained spread), RL Agent DQN/PPO (dynamic progression). Ensemble combiner uses weighted voting / probability averaging.

@@ -17,13 +17,24 @@ FR-E09: Mock mode required for Month 1 development and CI/CD.
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from ml_adapter.services_client import (
+    call_unet,
+    call_pinn,
+    combine_ensemble_features,
+    probe_services_health,
+)
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # App initialisation
@@ -67,23 +78,26 @@ class PredictionRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:
     """
     GET /health
 
     Returns the operational status of the ML Adapter.
     Consumed by Django's GET /api/health/ endpoint (NFR-O02).
     """
-    return {
+    res = {
         "status": "ok",
         "mock": MOCK_INFERENCE,
         "models_loaded": not MOCK_INFERENCE,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    if not MOCK_INFERENCE:
+        res["downstream_services"] = await probe_services_health()
+    return res
 
 
 @app.post("/predict/progression")
-def predict_progression(request: PredictionRequest) -> JSONResponse:
+async def predict_progression(request: PredictionRequest) -> JSONResponse:
     """
     POST /predict/progression
 
@@ -91,7 +105,7 @@ def predict_progression(request: PredictionRequest) -> JSONResponse:
       Reads and normalizes the mock GeoJSONs.
 
     Month 2 (MOCK_INFERENCE=false):
-      Invokes the Vertex AI managed endpoints. Returns their combined GeoJSON.
+      Dispatches prediction requests to downstream inference services (U-Net, PINN, or Ensemble).
     """
     if MOCK_INFERENCE or request.mock:
         if request.model_type == 'unet':
@@ -108,41 +122,87 @@ def predict_progression(request: PredictionRequest) -> JSONResponse:
             "features": []
         })
 
-    # --- Month 2 placeholder ---
-    # TODO: Invoke Vertex AI endpoints with request.bbox and request.time_horizon
-    # from adapters.vertex import call_unet, call_pinn, call_rl_agent
-    # if request.model_type == 'unet':
-    #     geojson = call_unet(request.bbox, request.time_horizon)
-    # elif request.model_type == 'pinn':
-    #     geojson = call_pinn(request.bbox, request.time_horizon)
-    # else:
-    #     unet_output   = call_unet(request.bbox, request.time_horizon)
-    #     pinn_output   = call_pinn(request.bbox, request.time_horizon)
-    #     rl_output     = call_rl_agent(request.bbox, request.time_horizon)
-    #     geojson       = ensemble_combine(unet_output, pinn_output, rl_output)
-    # return JSONResponse(content=geojson)
-
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "Live Vertex AI inference is not yet implemented. "
-            "Set MOCK_INFERENCE=true to use the static fixture."
-        ),
-    )
+    try:
+        if request.model_type == 'unet':
+            geojson = await call_unet(
+                bbox=request.bbox,
+                time_horizon=request.time_horizon,
+                date=request.date,
+            )
+            return JSONResponse(content=geojson)
+        elif request.model_type == 'pinn':
+            geojson = await call_pinn(
+                bbox=request.bbox,
+                time_horizon=request.time_horizon,
+                date=request.date,
+            )
+            return JSONResponse(content=geojson)
+        elif request.model_type == 'ensemble':
+            return await predict_ensemble(request)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model_type: {request.model_type}. Allowed: unet, pinn, ensemble",
+            )
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as exc:
+        logger.error("Downstream service HTTP error: %s", exc)
+        raise HTTPException(
+            status_code=exc.response.status_code,
+            detail=f"Downstream service returned error: {exc.response.text}",
+        )
+    except Exception as exc:
+        logger.error("Failed to query %s service: %s", request.model_type, exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to communicate with {request.model_type} service: {exc}",
+        )
 
 
 @app.post("/predict/ensemble")
-def predict_ensemble(request: PredictionRequest) -> JSONResponse:
+async def predict_ensemble(request: PredictionRequest) -> JSONResponse:
     """
     POST /predict/ensemble
+
+    Queries both U-Net and PINN services and combines them using weighted union scaling.
+    Applies graceful degradation if one model fails.
     """
     if MOCK_INFERENCE or request.mock:
         return _serve_mock_fixture()
 
-    raise HTTPException(
-        status_code=501,
-        detail="Ensemble inference not yet implemented. Set MOCK_INFERENCE=true.",
-    )
+    notes: list[str] = []
+    unet_res = None
+    pinn_res = None
+
+    try:
+        unet_res = await call_unet(
+            bbox=request.bbox,
+            time_horizon=request.time_horizon,
+            date=request.date,
+        )
+    except Exception as exc:
+        logger.warning("U-Net query failed in ensemble: %s", exc)
+        notes.append(f"unet_error: {exc}")
+
+    try:
+        pinn_res = await call_pinn(
+            bbox=request.bbox,
+            time_horizon=request.time_horizon,
+            date=request.date,
+        )
+    except Exception as exc:
+        logger.warning("PINN query failed in ensemble: %s", exc)
+        notes.append(f"pinn_error: {exc}")
+
+    if unet_res is None and pinn_res is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"All ensemble services failed: {'; '.join(notes)}",
+        )
+
+    combined_fc = combine_ensemble_features(unet_res, pinn_res, notes=notes)
+    return JSONResponse(content=combined_fc)
 
 
 # ---------------------------------------------------------------------------
