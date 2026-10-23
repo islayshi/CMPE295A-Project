@@ -99,7 +99,7 @@ SERVICE_ACCOUNT_FILE = settings.BASE_DIR / 'gee_service_account.json'
 
 # Initialize GEE when module loads
 try:
-    credentials = ee.ServiceAccountCredentials(key_file=SERVICE_ACCOUNT_FILE)
+    credentials = ee.ServiceAccountCredentials(key_file=str(SERVICE_ACCOUNT_FILE))
     ee.Initialize(credentials)
 except Exception as e:
     print(f"GEE Initialization warning: {e}")
