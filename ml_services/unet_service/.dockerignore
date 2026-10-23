@@ -1,0 +1,12 @@
+# Exclude raw training files, tests, notebooks, and temporary files from the Docker image
+u_net_files
+tests
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.ipynb
+*.md
+*.txt
+.DS_Store
+.git

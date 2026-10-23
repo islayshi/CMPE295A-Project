@@ -1,0 +1,107 @@
+{
+ "created_utc": "2026-09-29T22:46:11+00:00",
+ "model_version": "unet-ndws-v3",
+ "target": "calibrated P(active fire in 1 km cell during the next UTC day)",
+ "horizon_hours": 24,
+ "resolution_m": 1000.0,
+ "crs": "EPSG:3310",
+ "lattice": {
+  "x0": -430000.0,
+  "y0": 480000.0,
+  "ncols": 1000
+ },
+ "features": [
+  "elevation",
+  "vs",
+  "wind_u",
+  "wind_v",
+  "tmmn",
+  "tmmx",
+  "sph",
+  "pr",
+  "pdsi",
+  "NDVI",
+  "population",
+  "erc",
+  "PrevFireMask"
+ ],
+ "filters": 32,
+ "pos_weight": 10.0,
+ "stats_version": "v3-physical-range",
+ "valid_range": {
+  "elevation": [
+   -100.0,
+   4500.0
+  ],
+  "th": [
+   0.0,
+   360.0
+  ],
+  "vs": [
+   0.0,
+   30.0
+  ],
+  "tmmn": [
+   230.0,
+   330.0
+  ],
+  "tmmx": [
+   230.0,
+   330.0
+  ],
+  "sph": [
+   0.0,
+   0.05
+  ],
+  "pr": [
+   0.0,
+   300.0
+  ],
+  "pdsi": [
+   -15.0,
+   15.0
+  ],
+  "NDVI": [
+   -10000.0,
+   10000.0
+  ],
+  "population": [
+   0.0,
+   100000.0
+  ],
+  "erc": [
+   0.0,
+   150.0
+  ]
+ },
+ "seeds": {
+  "0": 0.19778388738632202,
+  "1": 0.20040647685527802,
+  "2": 0.195021390914917
+ },
+ "selected_seed": 1,
+ "seed_std_val_pr_auc": 0.0026928458571518123,
+ "test_metrics_at_high_threshold": {
+  "all": {
+   "n_pos": 84331.0,
+   "precision": 0.28002095038567754,
+   "recall": 0.4881597514555739,
+   "f1": 0.3558927143443774,
+   "threshold": 0.157753124833107,
+   "pr_auc": 0.2467930164141822,
+   "roc_auc": 0.8652085400261955,
+   "brier": 0.010381639935076237
+  },
+  "new_fire": {
+   "n_pos": 60758.0,
+   "precision": 0.2148464302743438,
+   "recall": 0.3040587247769841,
+   "f1": 0.2517837064295206,
+   "threshold": 0.157753124833107,
+   "pr_auc": 0.1401510690283863,
+   "roc_auc": 0.8223628833081897,
+   "brier": 0.008375801146030426
+  }
+ },
+ "tensorflow": "2.20.0"
+}
