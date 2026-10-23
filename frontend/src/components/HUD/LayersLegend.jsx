@@ -1,9 +1,18 @@
 import { useState } from 'react';
-import { Layers, ShieldPlus, Activity, Map as MapIcon, X, Tent } from 'lucide-react';
+import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Sparkles, Cpu } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LayersLegend({ isAqiVisible, setIsAqiVisible, isSheltersVisible, setIsSheltersVisible }) {
+export default function LayersLegend({
+  isFireRiskVisible = true,
+  setIsFireRiskVisible = () => {},
+  isAqiVisible = false,
+  setIsAqiVisible = () => {},
+  isSheltersVisible = false,
+  setIsSheltersVisible = () => {},
+  selectedModel = 'ensemble',
+  setSelectedModel = () => {},
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   const aqiLegend = [
@@ -42,11 +51,54 @@ export default function LayersLegend({ isAqiVisible, setIsAqiVisible, isShelters
               </button>
             </div>
 
-            <div className="p-4 space-y-6">
+            <div className="p-4 space-y-5">
+              {/* Predictive Model Selector */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Predictive Model</h3>
+                <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                  {[
+                    { id: 'ensemble', label: 'Ensemble', icon: Sparkles },
+                    { id: 'unet', label: 'U-Net', icon: Cpu },
+                    { id: 'pinn', label: 'PINN', icon: Flame },
+                  ].map((m) => {
+                    const Icon = m.icon;
+                    const isActive = selectedModel === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedModel(m.id)}
+                        className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                          isActive
+                            ? 'bg-orange-600 text-white shadow-sm font-semibold'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Icon size={14} className={isActive ? 'text-white mb-1' : 'text-slate-500 mb-1'} />
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Layer Toggles */}
               <div>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Map Layers</h3>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Map Layers</h3>
                 <div className="space-y-2">
+                  <button
+                    onClick={() => setIsFireRiskVisible(!isFireRiskVisible)}
+                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Flame size={16} className={isFireRiskVisible ? 'text-orange-600' : 'text-slate-400'} />
+                      <span className="text-sm font-medium text-slate-800">Fire Probability</span>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isFireRiskVisible ? 'bg-orange-600' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isFireRiskVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                  </button>
+
                   <button
                     onClick={() => setIsAqiVisible(!isAqiVisible)}
                     className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
@@ -77,7 +129,7 @@ export default function LayersLegend({ isAqiVisible, setIsAqiVisible, isShelters
 
               {/* Map Legend */}
               <div>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Map Legend</h3>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Map Legend</h3>
                 <ul className="space-y-2.5 text-sm">
                   <li className="flex items-center gap-3">
                     <div className="w-4 h-3 bg-red-500/10 border border-dashed border-red-500 rounded-sm"></div>

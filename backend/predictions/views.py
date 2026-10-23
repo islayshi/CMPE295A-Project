@@ -38,61 +38,115 @@ def current_predictions(request):
 
     Returns the most recent complete fire risk prediction as a
     GeoJSON FeatureCollection. Fetches from Redis cache O(1).
+
+    Query params:
+      model   (optional): "ensemble" (default), "unet", "pinn", "rl"
+      horizon (optional): integer horizon hours (0, 1, 3, 6, 24)
     """
-    cached_data = cache.get("ffwai:predictions:current")
+    model_param = request.query_params.get("model", "ensemble").lower().strip()
+    horizon_param = request.query_params.get("horizon")
+
+    if model_param in ("unet", "pinn", "rl"):
+        cache_key = f"ffwai:predictions:current:{model_param}"
+    else:
+        cache_key = CURRENT_RISK_CACHE_KEY
+
+    feature_collection = None
+    cached_data = cache.get(cache_key)
     if cached_data:
         try:
-            return Response(json.loads(cached_data))
+            feature_collection = json.loads(cached_data)
         except (TypeError, ValueError):
-            pass
+            feature_collection = None
 
-    import datetime as dt
-    from predictions.models import FireIncident
+    if not feature_collection:
+        import datetime as dt
+        from predictions.models import FireIncident
 
-    # 1. Multi-incident aggregation: if active fire incidents exist with recent predictions
-    active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
-    if active_incidents:
-        six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
-        active_polygons = PredictionPolygon.objects.filter(
-            fire_incident_id__in=active_incidents,
-            timestamp__gte=six_hours_ago,
-        ).select_related("grid")
-        if active_polygons.exists():
-            serializer = PredictionPolygonGeoJSONSerializer(active_polygons, many=True)
+        # 1. Multi-incident aggregation: if active fire incidents exist with recent predictions
+        active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+        if active_incidents:
+            six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
+            active_polygons = PredictionPolygon.objects.filter(
+                fire_incident_id__in=active_incidents,
+                timestamp__gte=six_hours_ago,
+            ).select_related("grid")
+
+            if model_param in ("unet", "pinn", "rl"):
+                active_polygons = active_polygons.filter(source_model=model_param)
+            elif model_param == "ensemble":
+                ensemble_polygons = active_polygons.filter(source_model="ensemble")
+                if ensemble_polygons.exists():
+                    active_polygons = ensemble_polygons
+
+            if active_polygons.exists():
+                serializer = PredictionPolygonGeoJSONSerializer(active_polygons, many=True)
+                feature_collection = {
+                    "type": "FeatureCollection",
+                    "metadata": {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "total_cells": active_polygons.count(),
+                        "active_incidents": len(active_incidents),
+                        "source_model": model_param,
+                    },
+                    "features": serializer.data,
+                }
+                cache.set(cache_key, json.dumps(feature_collection), timeout=3600)
+
+        # 2. Single-batch fallback (baseline or mock)
+        if not feature_collection:
+            qs = PredictionPolygon.objects.filter(timestamp__lte=datetime.now(timezone.utc))
+            if model_param in ("unet", "pinn", "rl"):
+                qs = qs.filter(source_model=model_param)
+            elif model_param == "ensemble":
+                ensemble_qs = qs.filter(source_model="ensemble")
+                if ensemble_qs.exists():
+                    qs = ensemble_qs
+
+            latest_prediction = qs.order_by("-timestamp").first()
+            if latest_prediction:
+                valid_polygons = qs.filter(timestamp=latest_prediction.timestamp).select_related("grid")
+                serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
+                feature_collection = {
+                    "type": "FeatureCollection",
+                    "metadata": {
+                        "timestamp": latest_prediction.timestamp.isoformat(),
+                        "total_cells": valid_polygons.count(),
+                        "source_model": model_param,
+                    },
+                    "features": serializer.data,
+                }
+                cache.set(cache_key, json.dumps(feature_collection), timeout=3600)
+
+        if not feature_collection:
             feature_collection = {
                 "type": "FeatureCollection",
-                "metadata": {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "total_cells": active_polygons.count(),
-                    "active_incidents": len(active_incidents),
-                },
-                "features": serializer.data,
+                "metadata": {"source_model": model_param, "total_cells": 0},
+                "features": []
             }
-            cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
-            return Response(feature_collection)
 
-    # 2. Single-batch fallback (baseline or mock)
-    latest_prediction = PredictionPolygon.objects.filter(
-        timestamp__lte=datetime.now(timezone.utc)
-    ).order_by("-timestamp").first()
-    if latest_prediction:
-        valid_polygons = PredictionPolygon.objects.filter(timestamp=latest_prediction.timestamp).select_related("grid")
-        serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
-        feature_collection = {
-            "type": "FeatureCollection",
-            "metadata": {
-                "timestamp": latest_prediction.timestamp.isoformat(),
-                "total_cells": valid_polygons.count()
-            },
-            "features": serializer.data,
-        }
-        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
-        return Response(feature_collection)
+    # Optional horizon filtering
+    if horizon_param is not None:
+        try:
+            target_h = int(horizon_param)
+            filtered_features = [
+                f for f in feature_collection.get("features", [])
+                if f.get("properties", {}).get("horizon_hours") == target_h
+                or f.get("properties", {}).get("lead_time_hours") == target_h
+            ]
+            return Response({
+                **feature_collection,
+                "features": filtered_features,
+                "metadata": {
+                    **feature_collection.get("metadata", {}),
+                    "total_cells": len(filtered_features),
+                    "filtered_horizon": target_h,
+                }
+            })
+        except (ValueError, TypeError):
+            pass
 
-    return Response({
-        "type": "FeatureCollection",
-        "features": []
-    })
+    return Response(feature_collection)
 
 
 @api_view(["GET"])

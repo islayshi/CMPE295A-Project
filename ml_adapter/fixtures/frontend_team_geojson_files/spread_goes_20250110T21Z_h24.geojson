@@ -1,0 +1,221 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "timestamp": "2025-01-10T21:00:00Z",
+    "source": "Day-Ahead-Risk",
+    "model_version": "v1.0",
+    "mock": true
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.20, 37.00],
+            [-122.18, 37.00],
+            [-122.18, 37.02],
+            [-122.20, 37.02],
+            [-122.20, 37.00]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2101,
+        "fire_probability": 0.82,
+        "horizon_hours": 24,
+        "risk_label": "HIGH_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.18, 37.00],
+            [-122.16, 37.00],
+            [-122.16, 37.02],
+            [-122.18, 37.02],
+            [-122.18, 37.00]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2102,
+        "fire_probability": 0.78,
+        "horizon_hours": 24,
+        "risk_label": "HIGH_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.16, 37.00],
+            [-122.14, 37.00],
+            [-122.14, 37.02],
+            [-122.16, 37.02],
+            [-122.16, 37.00]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2103,
+        "fire_probability": 0.71,
+        "horizon_hours": 24,
+        "risk_label": "HIGH_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.22, 37.02],
+            [-122.20, 37.02],
+            [-122.20, 37.04],
+            [-122.22, 37.04],
+            [-122.22, 37.02]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2104,
+        "fire_probability": 0.65,
+        "horizon_hours": 24,
+        "risk_label": "MODERATE_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.20, 37.02],
+            [-122.18, 37.02],
+            [-122.18, 37.04],
+            [-122.20, 37.04],
+            [-122.20, 37.02]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2105,
+        "fire_probability": 0.88,
+        "horizon_hours": 24,
+        "risk_label": "EXTREME_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.18, 37.02],
+            [-122.16, 37.02],
+            [-122.16, 37.04],
+            [-122.18, 37.04],
+            [-122.18, 37.02]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2106,
+        "fire_probability": 0.85,
+        "horizon_hours": 24,
+        "risk_label": "EXTREME_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.16, 37.02],
+            [-122.14, 37.02],
+            [-122.14, 37.04],
+            [-122.16, 37.04],
+            [-122.16, 37.02]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2107,
+        "fire_probability": 0.62,
+        "horizon_hours": 24,
+        "risk_label": "MODERATE_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.20, 37.04],
+            [-122.18, 37.04],
+            [-122.18, 37.06],
+            [-122.20, 37.06],
+            [-122.20, 37.04]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2108,
+        "fire_probability": 0.74,
+        "horizon_hours": 24,
+        "risk_label": "HIGH_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.18, 37.04],
+            [-122.16, 37.04],
+            [-122.16, 37.06],
+            [-122.18, 37.06],
+            [-122.18, 37.04]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2109,
+        "fire_probability": 0.58,
+        "horizon_hours": 24,
+        "risk_label": "MODERATE_RISK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.14, 37.04],
+            [-122.12, 37.04],
+            [-122.12, 37.06],
+            [-122.14, 37.06],
+            [-122.14, 37.04]
+          ]
+        ]
+      },
+      "properties": {
+        "grid_id": 2110,
+        "fire_probability": 0.42,
+        "horizon_hours": 24,
+        "risk_label": "LOW_RISK"
+      }
+    }
+  ]
+}

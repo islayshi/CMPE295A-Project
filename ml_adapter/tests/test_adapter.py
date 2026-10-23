@@ -123,6 +123,23 @@ def test_predict_progression_mock():
     assert data["type"] == "FeatureCollection"
     assert "metadata" in data
     assert data["metadata"]["mock"] is True
+    assert any(f.get("properties", {}).get("horizon_hours") == 24 for f in data["features"])
+
+
+def test_predict_progression_mock_pinn():
+    payload = {
+        "bbox": [-122.9, 36.9, -121.5, 38.3],
+        "time_horizon": 24,
+        "model_type": "pinn",
+        "mock": True,
+    }
+    response = client.post("/predict/progression", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) > 0
+    assert data["metadata"]["source_model"] == "pinn"
+    assert all(f.get("properties", {}).get("source_model") == "pinn" for f in data["features"])
 
 
 @patch("ml_adapter.main.call_unet", new_callable=AsyncMock)

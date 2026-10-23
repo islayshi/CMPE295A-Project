@@ -108,19 +108,7 @@ async def predict_progression(request: PredictionRequest) -> JSONResponse:
       Dispatches prediction requests to downstream inference services (U-Net, PINN, or Ensemble).
     """
     if MOCK_INFERENCE or request.mock:
-        if request.model_type == 'unet':
-            return _serve_mock_fixture()
-        
-        # Placeholder for other model types (e.g., pinn, rl_agent)
-        return JSONResponse(content={
-            "type": "FeatureCollection",
-            "metadata": {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "mock": True,
-                "model_type": request.model_type
-            },
-            "features": []
-        })
+        return _serve_mock_fixture(model_type=request.model_type)
 
     try:
         if request.model_type == 'unet':
@@ -209,7 +197,7 @@ async def predict_ensemble(request: PredictionRequest) -> JSONResponse:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _serve_mock_fixture() -> JSONResponse:
+def _serve_mock_fixture(model_type: str = "ensemble") -> JSONResponse:
     """
     Loads and normalizes the raw GeoJSON schemas from frontend_team_geojson_files.
     Merges all horizon outputs into a single unified FeatureCollection.
@@ -225,7 +213,8 @@ def _serve_mock_fixture() -> JSONResponse:
         "current_fire_goes18_20250110T21Z.geojson",
         "spread_goes_20250110T21Z_h1.geojson",
         "spread_goes_20250110T21Z_h3.geojson",
-        "spread_goes_20250110T21Z_h6.geojson"
+        "spread_goes_20250110T21Z_h6.geojson",
+        "spread_goes_20250110T21Z_h24.geojson",
     ]
 
     all_features = []
@@ -238,6 +227,7 @@ def _serve_mock_fixture() -> JSONResponse:
         "mock": True,
         "grid_resolution_km": 1.0,
         "source": set(),
+        "source_model": model_type,
         "model_version": set()
     }
 
@@ -276,6 +266,17 @@ def _serve_mock_fixture() -> JSONResponse:
                 for k, v in root_ml_props.items():
                     if k not in feature["properties"]:
                         feature["properties"][k] = v
+                feature["properties"]["source_model"] = model_type
+                if model_type == "pinn":
+                    feature["properties"].setdefault("members", 10)
+                    feature["properties"].setdefault("w_pinn", 1.0)
+                elif model_type == "unet":
+                    feature["properties"].setdefault("members", 1)
+                    feature["properties"].setdefault("w_unet", 1.0)
+                else:  # ensemble
+                    feature["properties"].setdefault("members", 11)
+                    feature["properties"].setdefault("w_unet", 0.6)
+                    feature["properties"].setdefault("w_pinn", 0.4)
                 all_features.append(feature)
 
     metadata["source"] = list(metadata["source"])

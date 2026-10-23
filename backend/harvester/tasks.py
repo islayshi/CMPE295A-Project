@@ -289,6 +289,8 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
             "features": serializer.data,
         }
         cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+        if source_model and source_model in ("unet", "pinn", "rl"):
+            cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=3600)
 
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
 

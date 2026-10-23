@@ -5,12 +5,15 @@ import MapCanvas from '../components/Map/MapCanvas';
 import TelemetryWidget from '../components/HUD/TelemetryWidget';
 import LayersLegend from '../components/HUD/LayersLegend';
 import TimeScrubber from '../components/HUD/TimeScrubber';
+import ModelSelector from '../components/HUD/ModelSelector';
 import ChatDrawer from '../components/HUD/ChatDrawer';
 
 import { fetchCurrentPredictions } from '../api/predictions';
 import { fetchShelters, fetchWindData, fetchAqiData } from '../api/telemetry';
 
 export default function Dashboard() {
+  const [selectedModel, setSelectedModel] = useState('ensemble');
+  const [isFireRiskVisible, setIsFireRiskVisible] = useState(true);
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
   const [isSheltersVisible, setIsSheltersVisible] = useState(false);
@@ -47,10 +50,10 @@ export default function Dashboard() {
     }
   }, []);
   
-  // React Query - Poll predictions every 5 minutes (300,000 ms)
+  // React Query - Poll predictions every 5 minutes (300,000 ms), scoped by selected model
   const { data: predictions } = useQuery({
-    queryKey: ['predictions', 'current'],
-    queryFn: fetchCurrentPredictions,
+    queryKey: ['predictions', 'current', selectedModel],
+    queryFn: () => fetchCurrentPredictions({ model: selectedModel }),
     refetchInterval: 300000, 
   });
 
@@ -74,7 +77,7 @@ export default function Dashboard() {
   const parsedHorizons = predictions?.features 
     ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
     : [];
-  const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6];
+  const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6, 24];
   
   // Find the largest horizon that is <= the current slider value
   const activeHorizon = [...availableHorizons].reverse().find(h => h <= timeScrub) ?? 0;
@@ -88,17 +91,27 @@ export default function Dashboard() {
         shelters={shelters}
         windData={windData}
         userLocation={userLocation}
+        isFireRiskVisible={isFireRiskVisible}
         isAqiVisible={isAqiVisible}
         isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
         timeScrub={activeHorizon}
       />
+
+      {/* Model Selector Pill on HUD directly beside Layers button */}
+      <div className="absolute top-20 left-20 z-40">
+        <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
+      </div>
       
       <LayersLegend 
+        isFireRiskVisible={isFireRiskVisible}
+        setIsFireRiskVisible={setIsFireRiskVisible}
         isAqiVisible={isAqiVisible} 
         setIsAqiVisible={setIsAqiVisible} 
         isSheltersVisible={isSheltersVisible}
         setIsSheltersVisible={setIsSheltersVisible}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
       />
       
       <TelemetryWidget 

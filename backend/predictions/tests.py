@@ -90,3 +90,84 @@ def test_current_predictions_empty_cache(api_client, prediction_data):
         assert len(data["features"]) == 2
         mock_cache_get.assert_called_once_with("ffwai:predictions:current")
 
+
+def test_current_predictions_model_scoped_cache_keys(api_client, cached_prediction_data):
+    """
+    Verifies that model query parameter selects model-scoped Redis cache keys.
+    """
+    with patch("predictions.views.cache.get") as mock_cache_get:
+        mock_cache_get.return_value = json.dumps(cached_prediction_data)
+
+        # Default / ensemble
+        api_client.get("/api/predictions/current/")
+        mock_cache_get.assert_called_with("ffwai:predictions:current")
+
+        # U-Net
+        api_client.get("/api/predictions/current/?model=unet")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:unet")
+
+        # PINN
+        api_client.get("/api/predictions/current/?model=pinn")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
+
+
+def test_current_predictions_horizon_filtering(api_client):
+    """
+    Verifies that passing ?horizon=X filters features by horizon_hours.
+    """
+    multi_horizon_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"timestamp": "2026-10-04T00:00:00Z"},
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 1, "fire_probability": 0.8, "horizon_hours": 1},
+                "geometry": {"type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[1,0],[0,0]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 2, "fire_probability": 0.5, "horizon_hours": 6},
+                "geometry": {"type": "Polygon", "coordinates": [[[1,1],[1,2],[2,2],[2,1],[1,1]]]}
+            }
+        ]
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(multi_horizon_fc)):
+        response = api_client.get("/api/predictions/current/?horizon=6")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["features"]) == 1
+        assert data["features"][0]["properties"]["horizon_hours"] == 6
+
+
+@pytest.mark.django_db
+def test_current_predictions_db_fallback_by_model(api_client):
+    """
+    Verifies that DB fallback filters by source_model when specified.
+    """
+    from predictions.models import FireIncident
+
+    poly1 = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid1 = BayAreaGrid.objects.create(id=201, geometry=poly1, centroid=Point(10, 10, srid=4326), row=0, col=0)
+    poly2 = Polygon(((19, 19), (19, 21), (21, 21), (21, 19), (19, 19)), srid=4326)
+    grid2 = BayAreaGrid.objects.create(id=202, geometry=poly2, centroid=Point(20, 20, srid=4326), row=0, col=1)
+
+    now = timezone.now()
+    inc = FireIncident.objects.create(name="Model Filter Test Fire", start_time=now, is_active=True)
+
+    PredictionPolygon.objects.create(grid=grid1, fire_incident=inc, timestamp=now, source_model="unet", fire_probability=0.8, lead_time_hours=1)
+    PredictionPolygon.objects.create(grid=grid2, fire_incident=inc, timestamp=now, source_model="pinn", fire_probability=0.6, lead_time_hours=1)
+
+    with patch("predictions.views.cache.get", return_value=None):
+        resp_unet = api_client.get("/api/predictions/current/?model=unet")
+        assert resp_unet.status_code == 200
+        data_unet = resp_unet.json()
+        assert len(data_unet["features"]) == 1
+        assert data_unet["features"][0]["properties"]["source_model"] == "unet"
+
+        resp_pinn = api_client.get("/api/predictions/current/?model=pinn")
+        assert resp_pinn.status_code == 200
+        data_pinn = resp_pinn.json()
+        assert len(data_pinn["features"]) == 1
+        assert data_pinn["features"][0]["properties"]["source_model"] == "pinn"
+
+

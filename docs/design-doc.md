@@ -222,7 +222,7 @@ Given the timeline and academic constraints, the following features are explicit
 
 | Method | Endpoint | Purpose | Response |
 |---|---|---|---|
-| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache) | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
+| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache). Supports `?model=ensemble\|unet\|pinn` and `?horizon=0\|1\|3\|6\|24`. Uses model-scoped Redis cache keys (`ffwai:predictions:current[:model]`). | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
 | `GET` | `/api/predictions/history/` | Historical predictions with date range filter | Paginated GeoJSON FeatureCollection list |
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
@@ -284,10 +284,11 @@ To prevent visual clutter, the map employs a strict hierarchical rendering order
 6. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
 ### 9.3 HUD (Heads-Up Display) Components
-- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
-- **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
-- **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
-- **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Predicted Fire Spread") to their real-world meanings.
+- **Model Selector:** A segmented pill control on the HUD (`top-20 left-20`) and inside the Layers drawer allowing instant switching between **Ensemble** (blended 0.6 U-Net + 0.4 PINN), **U-Net** (deep learning spatial segmentation), and **PINN** (physics-constrained fire progression), querying `/api/predictions/current/?model={model}` with model-scoped Redis caching.
+- **Telemetry Card:** A dynamic floating panel displaying environmental telemetry (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow physically aligned with the animated wind field.
+- **Time Scrubber:** An interactive slider supporting 5 discrete horizons: `0h` (Current Observed Fire), `+1h`, `+3h`, `+6h`, and `24h` (Day-Ahead Regional Risk), filtering vector features client-side on the Mapbox GPU at 60 FPS (`filter: ['==', ['get', 'horizon_hours'], timeScrub]`) without network latency.
+- **Map Layers & Dynamic Legend:** A drawer providing toggles for **Fire Probability Polygons** (using WebGL `layout={{ visibility }}` to preserve GPU tessellation memory), **AQI Grid Layer**, and **Emergency Shelters**, with color ramp legends for fire probability and AQI scales.
+- **RAG Chatbot Drawer:** A floating action button (FAB) that opens an AI assistant interface that detects user inputs (e.g., evacuation routes, shelter capacity) and outputs localized advice citing NWS and CalOES.
 
 <!-- ### 9.4 Scenario Orchestration (The "Golden Path" Script)
 To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).

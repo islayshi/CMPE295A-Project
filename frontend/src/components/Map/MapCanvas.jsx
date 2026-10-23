@@ -7,7 +7,17 @@ import AQIGrid from './AQIGrid';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
 
-export default function MapCanvas({ predictions, shelters, windData, userLocation, isAqiVisible, isSheltersVisible, aqiData, timeScrub }) {
+export default function MapCanvas({
+  predictions,
+  shelters,
+  windData,
+  userLocation,
+  isFireRiskVisible = true,
+  isAqiVisible,
+  isSheltersVisible,
+  aqiData,
+  timeScrub,
+}) {
   const mapRef = useRef();
   const [selectedShelter, setSelectedShelter] = useState(null);
 
@@ -46,6 +56,7 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
             <Layer
               id="predictions-fill"
               type="fill"
+              layout={{ visibility: isFireRiskVisible ? 'visible' : 'none' }}
               filter={['==', ['coalesce', ['get', 'horizon_hours'], ['get', 'lead_time_hours'], 0], timeScrub]}
               paint={{
                 'fill-color': [
@@ -70,6 +81,7 @@ export default function MapCanvas({ predictions, shelters, windData, userLocatio
             <Layer
               id="predictions-outline"
               type="line"
+              layout={{ visibility: isFireRiskVisible ? 'visible' : 'none' }}
               filter={['==', ['coalesce', ['get', 'horizon_hours'], ['get', 'lead_time_hours'], 0], timeScrub]}
               paint={{
                 'line-color': [
