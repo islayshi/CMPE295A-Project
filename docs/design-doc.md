@@ -20,12 +20,17 @@ The system utilizes a Modular Monolith architecture to minimize deployment overh
 
 ### The Django Monolith (Web & Orchestration)
 
-**Module 1 (The Harvester)**
-The Harvester is redesigned as a **pluggable template** with the following structure:
-- A Celery beat **daily cron schedule** (cadence is daily; configurable in the future)
-- A `trigger_inference()` Celery task — fully implemented — that orchestrates the pipeline and POSTs the target spatial bounds to the FastAPI ML Adapter
-- A `store_geojson_result()` function that writes returned GeoJSON to PostGIS and Redis
-- Data source integration tasks (`fetch_weather_data()`, `fetch_fire_perimeter_update()`) are clearly labeled **PLACEHOLDER stubs** — their implementation is deferred until the ML team confirms required input features
+**Module 1 (The Harvester & Active Fire Scout)**
+The Harvester is designed with two complementary orchestration pipelines:
+- **Daily Baseline Orchestrator (`trigger_daily_inference`):** Scheduled daily at 06:00 UTC by Celery Beat for region-wide 24-hour day-ahead risk mapping.
+- **Active Fire Scout (`trigger_active_inference`):** Scheduled every 30 minutes by Celery Beat (`trigger-active-inference-30min`) for near-real-time active wildfire detection and dynamic spread prediction (+1, +3, +6 hours):
+  - Fetches VIIRS 375 m active fire detections from NASA FIRMS Area API (via `FIRMS_MAP_KEY`) with fallback to the keyless 24-hour VIIRS CSV.
+  - Filters low-confidence detections and applies spatial exclusion masks around known East Bay oil refineries (Richmond, Rodeo, Martinez, Benicia) to eliminate industrial flaring false alarms.
+  - Clusters remaining hotspots within 3 km into distinct fire envelopes, applying a +25 km simulation buffer.
+  - Upserts `FireIncident` records in PostGIS to track active incidents across runs.
+  - Dispatches parallel AI inference per incident using a Celery `chord` (`run_async_inference.s(...)`), requesting `model_type="ensemble"`, `time_horizon=6`, and current UTC `date`.
+  - Aggregates multi-incident predictions in `aggregate_active_predictions`, persisting `PredictionPolygon` rows linked to `FireIncident` and atomically updating the active Redis cache (`ffwai:predictions:current`).
+- A `store_geojson_result()` function that writes returned GeoJSON to PostGIS and Redis.
 
 *Note: Under the new Vertex Native Ingestion architecture, the backend no longer constructs massive NumPy array tensors. Instead, it passes lightweight bounding boxes to the ML Adapter.*
 
@@ -245,7 +250,7 @@ Given the timeline and academic constraints, the following features are explicit
 | Google Earth Engine | SDK | `NASA/VIIRS/002/VNP09GA` | VIIRS active fire hotspots (375 m) | Daily |
 | NOAA / OpenWeather | `GET` | `api.openweathermap.org/data/2.5/...` | Wind speed, direction, temperature, humidity | Daily |
 | NWS Alerts API | `GET` | `api.weather.gov/alerts/active` | Red Flag Warnings (Bay Area zone) | Every 6 hours |
-| NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/...` | Active fire data for validation | Daily |
+| NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/area/...` | VIIRS 375 m active fire hotspots for scout | Every 30 minutes |
 
 ---
 

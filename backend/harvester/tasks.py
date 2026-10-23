@@ -28,11 +28,16 @@ import time
 from datetime import datetime, timezone
 
 import requests
-from celery import shared_task
+from celery import chord, shared_task
 from celery.signals import worker_ready
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
+
+try:
+    from harvester.firms_client import fetch_bay_area_hotspots
+except ImportError:
+    from backend.harvester.firms_client import fetch_bay_area_hotspots
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +180,10 @@ def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
 # RESULT STORAGE
 # ===========================================================================
 
-def store_geojson_result(geojson: dict) -> int:
+def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
     """
     Parses the GeoJSON FeatureCollection from the ML Adapter and writes:
-      1. Individual PredictionPolygon rows to PostGIS (Cloud SQL)
+      1. Individual PredictionPolygon rows to PostGIS (Cloud SQL) linked to FireIncident
       2. Full GeoJSON to Redis cache (for fast REST polling — NFR-P01)
 
     ML Interface Contract §3.1: Expected GeoJSON structure.
@@ -256,6 +261,7 @@ def store_geojson_result(geojson: dict) -> int:
 
         predictions_to_create.append(PredictionPolygon(
             grid_id=grid_id,
+            fire_incident_id=incident_id,
             timestamp=timestamp,
             lead_time_hours=lead_time_hours,
             target_timestamp=target_timestamp,
@@ -762,95 +768,109 @@ def on_worker_ready(sender, **kwargs):
 
 
 @shared_task(name="harvester.tasks.run_async_inference", bind=True, max_retries=3, default_retry_delay=60)
-def run_async_inference(self, bbox, model_type="unet"):
+def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, time_horizon=6, date=None):
     """
     Async inference task decoupled from Django views.
-    Hits the FastAPI ML Adapter and writes results to PostGIS.
+    Hits the FastAPI ML Adapter and writes results to PostGIS linked to FireIncident.
     """
     try:
         url = f"{settings.ML_ADAPTER_URL}/predict/progression"
+        now_iso = date or datetime.now(timezone.utc).isoformat()
         payload = {
             "bbox": bbox,
-            "time_horizon": 24,
+            "time_horizon": time_horizon,
             "model_type": model_type,
+            "date": now_iso,
             "mock": settings.MOCK_INFERENCE
         }
-        logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s"}', url, model_type)
+        logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s", "incident_id": %s}', url, model_type, incident_id)
         
         response = requests.post(url, json=payload, timeout=120)
         response.raise_for_status()
         
         geojson_result = response.json()
         
-        predictions_written = store_geojson_result(geojson_result)
-        logger.info('{"event": "async_inference_complete", "predictions_written": %d}', predictions_written)
-        return {"status": "success", "predictions_written": predictions_written}
+        predictions_written = store_geojson_result(geojson_result, incident_id=incident_id)
+        logger.info('{"event": "async_inference_complete", "predictions_written": %d, "incident_id": %s}', predictions_written, incident_id)
+        return geojson_result
         
     except Exception as exc:
-        logger.error('{"event": "async_inference_error", "error": "%s"}', str(exc))
+        logger.error('{"event": "async_inference_error", "error": "%s", "incident_id": %s}', str(exc), incident_id)
         raise self.retry(exc=exc)
+
+
+@shared_task(name="harvester.tasks.aggregate_active_predictions")
+def aggregate_active_predictions(results):
+    """
+    Chord callback task: merges GeoJSON FeatureCollections from all active fire tasks
+    and writes the unified collection to Redis cache ('ffwai:predictions:current').
+    """
+    merged_features = []
+    timestamp = datetime.now(timezone.utc).isoformat()
+    for res in results:
+        if isinstance(res, dict):
+            features = res.get("features", [])
+            merged_features.extend(features)
+    
+    merged_fc = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": timestamp,
+            "total_cells": len(merged_features),
+            "source_model": "ensemble",
+        },
+        "features": merged_features,
+    }
+    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=3600)
+    logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(merged_features))
+    return {"status": "success", "total_cells": len(merged_features)}
 
 
 @shared_task(name="harvester.tasks.trigger_active_inference", bind=True, max_retries=3, default_retry_delay=60)
 def trigger_active_inference(self):
     """
-    Scout task: Queries NASA FIRMS public CSV for active fires.
-    Filters for San Francisco Bay Area bounds.
-    Calculates a 1x1km bounding box for each active fire.
-    Asynchronously fans out inference tasks.
+    Scout task: Fetches NASA FIRMS active fire hotspots for the Bay Area (VIIRS 375m).
+    Suppresses refinery flaring, clusters nearby hotspots into fire incident envelopes (+25km buffer),
+    upserts FireIncident records, and fans out async inference tasks via a Celery chord.
     """
-    import csv
-    from io import StringIO
-    
+    from predictions.models import FireIncident
+
     logger.info('{"event": "trigger_active_inference_start"}')
-    
-    # Bay Area Rough Bounding Box
-    lat_min, lat_max = 36.9, 38.3
-    lon_min, lon_max = -122.9, -121.5
-    
-    url = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.csv"
-    
-    active_fires = []
-    
+    firms_key = getattr(settings, "FIRMS_MAP_KEY", "")
+
     try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        csv_data = response.text
-        reader = csv.DictReader(StringIO(csv_data))
-        
-        if not reader.fieldnames or 'latitude' not in reader.fieldnames or 'longitude' not in reader.fieldnames:
-            raise ValueError("CSV is missing required 'latitude' or 'longitude' headers")
-            
-        for row in reader:
-            try:
-                lat = float(row['latitude'])
-                lon = float(row['longitude'])
-                if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
-                    active_fires.append((lat, lon))
-            except (ValueError, TypeError, KeyError):
-                continue
+        clusters = fetch_bay_area_hotspots(firms_map_key=firms_key)
     except Exception as exc:
-        logger.warning('{"event": "trigger_active_inference_fetch_error", "error": "%s", "action": "using_mock_data"}', str(exc))
-        # Fallback to mock data if network fails
-        active_fires = [
-            (37.3382, -121.8863),  # San Jose
-            (37.7749, -122.4194),  # San Francisco
-        ]
-        
-    logger.info('{"event": "trigger_active_inference_filtered", "fire_count": %d}', len(active_fires))
-    
-    # Calculate 1km x 1km bounding boxes and fan out
-    # 1 deg lat ~ 111 km -> 1km = 0.009 deg (half is 0.0045)
-    # 1 deg lon at 37 deg N ~ 88 km -> 1km = 0.011 deg (half is 0.0055)
-    for lat, lon in active_fires:
-        bbox = [
-            round(lon - 0.0055, 4), round(lat - 0.0045, 4),
-            round(lon + 0.0055, 4), round(lat + 0.0045, 4)
-        ]
-        # delay() fans out the async task
-        run_async_inference.delay(bbox, "unet")
-        
-    return {"status": "success", "fires_detected": len(active_fires)}
+        logger.error('{"event": "trigger_active_inference_fetch_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)
+
+    logger.info('{"event": "trigger_active_inference_clusters", "fire_clusters_detected": %d}', len(clusters))
+
+    if not clusters:
+        return {"status": "success", "fires_detected": 0}
+
+    header_tasks = []
+    now = datetime.now(timezone.utc)
+
+    for cluster in clusters:
+        incident_name = f"Wildfire Incident #{cluster.cluster_id} ({now.strftime('%m/%d %H:%M')})"
+        incident = FireIncident.objects.create(
+            name=incident_name,
+            start_time=now,
+            is_active=True,
+        )
+        task_sig = run_async_inference.s(
+            cluster.bbox,
+            model_type="ensemble",
+            incident_id=incident.id,
+            time_horizon=6,
+        )
+        header_tasks.append(task_sig)
+
+    # Fan out in parallel and aggregate via Celery chord
+    chord(header_tasks)(aggregate_active_predictions.s())
+
+    return {"status": "success", "fires_detected": len(clusters)}
 
 
 @shared_task(name="harvester.tasks.trigger_mock_inference", bind=True)

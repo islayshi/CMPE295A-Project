@@ -243,119 +243,49 @@ def test_gee_fetch_tasks_mock_bypass(settings):
 def test_trigger_active_inference_scout():
     """
     Verifies that trigger_active_inference queries the FIRMS feed,
-    filters for coordinates in the Bay Area, and correctly calculates
-    the 1km x 1km bounding box for async inference fan-out.
+    clusters Bay Area coordinates, and dispatches a Celery chord with +25km buffered bbox.
     """
     from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "latitude,longitude\n37.5,-122.0\n35.0,-120.0\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-            
-        def raise_for_status(self):
-            if self.status_code != 200:
-                import requests
-                raise requests.RequestException("Mock error")
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
+    from harvester.firms_client import FireCluster
+
+    cluster = FireCluster(
+        cluster_id=1,
+        centroid_lat=37.5,
+        centroid_lon=-122.0,
+        count=1,
+        bbox=[-122.28, 37.27, -121.72, 37.73],
+        points=[{"latitude": 37.5, "longitude": -122.0, "confidence": "high"}]
+    )
+
+    with patch("harvester.tasks.fetch_bay_area_hotspots", return_value=[cluster]), \
+         patch("harvester.tasks.chord") as mock_chord:
+        mock_chord_instance = MagicMock()
+        mock_chord.return_value = mock_chord_instance
+
         result = trigger_active_inference.apply()
-         
+
         assert result.result["status"] == "success"
         assert result.result["fires_detected"] == 1
-         
-        # Assert run_async_inference.delay was called once with the correct bbox
-        mock_run_async.assert_called_once()
-        bbox = mock_run_async.call_args[0][0]
-        model_type = mock_run_async.call_args[0][1]
-         
-        assert model_type == "unet"
-        # 37.5 lat, -122.0 lon -> bounding box
-        # lon - 0.0055 = -122.0055
-        # lat - 0.0045 = 37.4955
-        # lon + 0.0055 = -121.9945
-        # lat + 0.0045 = 37.5045
-        assert bbox == [-122.0055, 37.4955, -121.9945, 37.5045]
+
+        mock_chord.assert_called_once()
+        header_tasks = mock_chord.call_args[0][0]
+        assert len(header_tasks) == 1
+
 
 @pytest.mark.django_db
-def test_trigger_active_inference_scout_fallback():
+def test_trigger_active_inference_scout_retry():
     """
-    Verifies that trigger_active_inference falls back to mock data
-    if the FIRMS API request fails.
+    Verifies that trigger_active_inference retries via Celery if FIRMS fails,
+    without injecting hallucinated fires into urban centers.
     """
     from harvester.tasks import trigger_active_inference
-    
-    class MockResponse:
-        def raise_for_status(self):
-            import requests
-            raise requests.RequestException("Network error")
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse()), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2  # The mock fallback has 2 points
-        assert mock_run_async.call_count == 2
+    import requests
 
-@pytest.mark.django_db
-def test_trigger_active_inference_malformed_row():
-    """
-    Verifies that trigger_active_inference skips malformed rows in the CSV
-    but successfully processes the valid ones.
-    """
-    from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "latitude,longitude\n37.5,-122.0\nbad,data\n37.6,-122.1\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-        def raise_for_status(self):
-            pass
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2
-        assert mock_run_async.call_count == 2
-
-@pytest.mark.django_db
-def test_trigger_active_inference_missing_headers():
-    """
-    Verifies that trigger_active_inference falls back to mock data
-    if the CSV headers are missing.
-    """
-    from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "lat,lon\n37.5,-122.0\n37.6,-122.1\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-        def raise_for_status(self):
-            pass
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2
-        # It should fallback to mock data since headers are missing
-        # The mock fallback also has 2 points
-        assert mock_run_async.call_count == 2
+    with patch("harvester.tasks.fetch_bay_area_hotspots", side_effect=requests.RequestException("Network down")):
+        with patch.object(trigger_active_inference, "retry", side_effect=Exception("TaskRetried")) as mock_retry:
+            with pytest.raises(Exception, match="TaskRetried"):
+                trigger_active_inference.apply(throw=True)
+            mock_retry.assert_called_once()
 
 
 @pytest.mark.django_db

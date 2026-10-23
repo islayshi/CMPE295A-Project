@@ -213,6 +213,33 @@ def test_predict_ensemble_live_blending(mock_call_unet, mock_call_pinn):
 
 @patch("ml_adapter.main.call_pinn", new_callable=AsyncMock)
 @patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
+def test_predict_ensemble_unet_no_active_fire_promotes_pinn(mock_call_unet, mock_call_pinn):
+    mock_call_unet.return_value = {
+        "type": "FeatureCollection",
+        "metadata": {"status": "no_active_fire"},
+        "features": [],
+    }
+    mock_call_pinn.return_value = SAMPLE_PINN_FC
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.9, 36.9, -121.5, 38.3],
+            "time_horizon": 3,
+            "model_type": "ensemble",
+            "mock": False,
+        }
+        response = client.post("/predict/ensemble", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        features_by_id = {f["properties"]["grid_id"]: f["properties"] for f in data["features"]}
+        # PINN's fire probability must NOT be suppressed by 0.4
+        assert features_by_id[1001]["fire_probability"] == 0.6
+        assert features_by_id[1003]["fire_probability"] == 0.4
+        assert data["metadata"]["w_pinn"] == 1.0
+
+
+@patch("ml_adapter.main.call_pinn", new_callable=AsyncMock)
+@patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
 def test_predict_ensemble_graceful_degradation(mock_call_unet, mock_call_pinn):
     mock_call_unet.return_value = SAMPLE_UNET_FC
     mock_call_pinn.side_effect = Exception("PINN service connection refused")

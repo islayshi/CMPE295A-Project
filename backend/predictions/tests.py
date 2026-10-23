@@ -90,3 +90,33 @@ def test_current_predictions_empty_cache(api_client, prediction_data):
         assert len(data["features"]) == 2
         mock_cache_get.assert_called_once_with("ffwai:predictions:current")
 
+
+@pytest.mark.django_db
+def test_current_predictions_multi_incident_fallback(api_client):
+    """
+    Verifies that multiple active incidents are aggregated together on cache miss.
+    """
+    from predictions.models import FireIncident
+
+    poly1 = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid1 = BayAreaGrid.objects.create(id=101, geometry=poly1, centroid=Point(10, 10, srid=4326), row=0, col=0)
+    poly2 = Polygon(((19, 19), (19, 21), (21, 21), (21, 19), (19, 19)), srid=4326)
+    grid2 = BayAreaGrid.objects.create(id=102, geometry=poly2, centroid=Point(20, 20, srid=4326), row=0, col=1)
+
+    now = timezone.now()
+    inc1 = FireIncident.objects.create(name="Incident 1", start_time=now, is_active=True)
+    inc2 = FireIncident.objects.create(name="Incident 2", start_time=now, is_active=True)
+
+    PredictionPolygon.objects.create(grid=grid1, fire_incident=inc1, timestamp=now, source_model="ensemble", fire_probability=0.9)
+    # Inc 2 has slightly different timestamp (e.g. 5 minutes later)
+    PredictionPolygon.objects.create(grid=grid2, fire_incident=inc2, timestamp=now + datetime.timedelta(minutes=5), source_model="ensemble", fire_probability=0.7)
+
+    with patch("predictions.views.cache.get", return_value=None):
+        response = api_client.get("/api/predictions/current/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 2
+        assert data["metadata"]["active_incidents"] == 2
+
+

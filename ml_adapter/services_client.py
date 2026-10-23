@@ -36,6 +36,8 @@ async def call_unet(
     timeout: float = 120.0,
 ) -> dict[str, Any]:
     """Queries the U-Net inference service."""
+    if date is None:
+        date = datetime.now(timezone.utc).isoformat()
     payload: dict[str, Any] = {
         "bbox": list(bbox),
         "time_horizon": time_horizon,
@@ -52,6 +54,8 @@ async def call_pinn(
     timeout: float = 120.0,
 ) -> dict[str, Any]:
     """Queries the PINN inference service."""
+    if date is None:
+        date = datetime.now(timezone.utc).isoformat()
     payload: dict[str, Any] = {
         "bbox": list(bbox),
         "time_horizon": time_horizon,
@@ -110,20 +114,34 @@ def combine_ensemble_features(
             "features": [],
         }
 
-    # Normalize weights
-    total_w = w_unet + w_pinn
-    w_u = w_unet / total_w if total_w > 0 else 0.5
-    w_p = w_pinn / total_w if total_w > 0 else 0.5
+    unet_features = unet_fc.get("features", [])
+    pinn_features = pinn_fc.get("features", [])
+
+    # If U-Net returned empty features (e.g. status == "no_active_fire") but PINN has features,
+    # don't suppress PINN by 0.4 — promote PINN to full weight (1.0)!
+    if not unet_features and pinn_features:
+        w_u = 0.0
+        w_p = 1.0
+        notes.append("U-Net detected no active fire in GOES-18; promoted PINN to full weight (1.0)")
+    elif not pinn_features and unet_features:
+        w_u = 1.0
+        w_p = 0.0
+        notes.append("PINN detected no active fire; promoted U-Net to full weight (1.0)")
+    else:
+        # Normalize weights
+        total_w = w_unet + w_pinn
+        w_u = round(w_unet / total_w, 4) if total_w > 0 else 0.5
+        w_p = round(w_pinn / total_w, 4) if total_w > 0 else 0.5
 
     # Index by (grid_id, horizon_hours)
     unet_map: dict[tuple[int, int], dict[str, Any]] = {}
-    for feat in unet_fc.get("features", []):
+    for feat in unet_features:
         props = feat.get("properties", {})
         key = (props.get("grid_id"), props.get("horizon_hours", 0))
         unet_map[key] = feat
 
     pinn_map: dict[tuple[int, int], dict[str, Any]] = {}
-    for feat in pinn_fc.get("features", []):
+    for feat in pinn_features:
         props = feat.get("properties", {})
         key = (props.get("grid_id"), props.get("horizon_hours", 0))
         pinn_map[key] = feat
@@ -164,8 +182,8 @@ def combine_ensemble_features(
                 "horizon_hours": horizon,
                 "risk_label": _compute_risk_label(horizon, blended_p),
                 "source_model": "ensemble",
-                "w_unet": w_unet,
-                "w_pinn": w_pinn,
+                "w_unet": w_u,
+                "w_pinn": w_p,
                 "members": members,
             },
         })
@@ -176,8 +194,8 @@ def combine_ensemble_features(
         "model_version": "ensemble-v1.0",
         "grid_resolution_km": 1.0,
         "total_cells": len(combined_features),
-        "w_unet": w_unet,
-        "w_pinn": w_pinn,
+        "w_unet": w_u,
+        "w_pinn": w_p,
         "ensemble_notes": "; ".join(notes) if notes else "nominal",
     }
 

@@ -45,7 +45,33 @@ def current_predictions(request):
             return Response(json.loads(cached_data))
         except (TypeError, ValueError):
             pass
-            
+
+    import datetime as dt
+    from predictions.models import FireIncident
+
+    # 1. Multi-incident aggregation: if active fire incidents exist with recent predictions
+    active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+    if active_incidents:
+        six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
+        active_polygons = PredictionPolygon.objects.filter(
+            fire_incident_id__in=active_incidents,
+            timestamp__gte=six_hours_ago,
+        ).select_related("grid")
+        if active_polygons.exists():
+            serializer = PredictionPolygonGeoJSONSerializer(active_polygons, many=True)
+            feature_collection = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "total_cells": active_polygons.count(),
+                    "active_incidents": len(active_incidents),
+                },
+                "features": serializer.data,
+            }
+            cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+            return Response(feature_collection)
+
+    # 2. Single-batch fallback (baseline or mock)
     latest_prediction = PredictionPolygon.objects.filter(
         timestamp__lte=datetime.now(timezone.utc)
     ).order_by("-timestamp").first()
