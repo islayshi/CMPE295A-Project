@@ -22,6 +22,11 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load root .env file if present
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
