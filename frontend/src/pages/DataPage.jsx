@@ -11,6 +11,7 @@ import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
 import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
 import MtbsHistoricalPanel from '../components/MtbsHistoricalPanel';
 import GridmetPanel from '../components/GridmetPanel';
+import NdwsPanel from '../components/NDWSPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -21,6 +22,7 @@ const categories = [
   'EPA AirNow / Open-Meteo',
   'MTBS Burn Severity',
   'GRIDMET Fire Weather Surface Meteorology',
+  'NDWS Benchmark Tensor Layers',
 ];
 
 const bayAreaStations = [
@@ -328,6 +330,11 @@ const DataPage = () => {
           <MtbsHistoricalPanel />
         ) : selectedCategory === 'GRIDMET Fire Weather Surface Meteorology' ? (
           <GridmetPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'NDWS Benchmark Tensor Layers' ? (
+          <NdwsPanel
             selectedDate={selectedDate}
             formatDateString={formatDateString}
           />
