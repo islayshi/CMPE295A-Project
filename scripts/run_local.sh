@@ -11,13 +11,17 @@ PROJECT_ROOT=$(pwd)
 echo "1. Starting Docker containers (PostgreSQL/PostGIS, Redis, U-Net, PINN)..."
 docker compose up -d
 
-echo "2. Waiting for database and Redis..."
-sleep 2
+echo "2. Waiting for PostgreSQL and Redis to become healthy..."
+for i in {1..30}; do
+    if docker compose exec -T db pg_isready -U "${DB_USER:-ffwai_user}" -d "${DB_NAME:-ffwai_db}" > /dev/null 2>&1 && \
+       docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
+        echo "   ✔ Database and Redis are online and accepting connections."
+        break
+    fi
+    sleep 1
+done
 
-echo "3. Warming up Redis cache & PostGIS with live telemetry and fire predictions..."
-./.venv/bin/python scripts/seed_cache.py || true
-
-echo "4. Opening 5 Terminal windows for local services..."
+echo "3. Opening 5 Terminal windows for local services..."
 
 # Ensure Terminal is running on macOS
 open -a Terminal
@@ -37,6 +41,18 @@ osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_ROOT' &&
 
 # Terminal 5: React Frontend (port 5173)
 osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_ROOT' && cd frontend && npm run dev\""
+
+echo "4. Waiting for FastAPI ML Adapter (port 8001) to become ready..."
+for i in {1..30}; do
+    if curl -s http://localhost:8001/health | grep -q '"status":"ok"'; then
+        echo "   ✔ FastAPI ML Adapter is online and accepting requests!"
+        break
+    fi
+    sleep 1
+done
+
+echo "5. Warming up Redis cache & PostGIS with live telemetry and fire predictions..."
+./.venv/bin/python scripts/seed_cache.py || true
 
 echo ""
 echo "=== Development Environment Started ==="

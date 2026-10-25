@@ -46,6 +46,7 @@ WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
 CURRENT_RISK_CACHE_KEY = "ffwai:predictions:current"
 AQI_CACHE_KEY = "ffwai:aqi_data"
+FIRMS_HOTSPOTS_CACHE_KEY = "ffwai:telemetry:firms_hotspots"
 
 
 # ===========================================================================
@@ -523,93 +524,153 @@ def fetch_nws_alerts():
 
 import math
 
+def _interpolate_wind_grid(samples: list[dict], nx: int = 40, ny: int = 40,
+                           la1: float = 38.3, lo1: float = -122.9,
+                           la2: float = 36.9, lo2: float = -121.5) -> list[dict]:
+    """
+    Computes 40x40 Inverse Distance Weighting (IDW) interpolation from discrete
+    wind sample vectors into the standard GFS JSON payload required by WebGL wind libraries.
+    """
+    dx = (lo2 - lo1) / (nx - 1)
+    dy = (la2 - la1) / (ny - 1)
+    u_data, v_data = [], []
+
+    for j in range(ny):
+        lat = la1 + j * dy
+        for i in range(nx):
+            lon = lo1 + i * dx
+            num_u, num_v, den = 0.0, 0.0, 0.0
+            for s in samples:
+                dist_sq = (s["lon"] - lon) ** 2 + (s["lat"] - lat) ** 2
+                weight = 1e6 if dist_sq < 1e-6 else 1.0 / dist_sq
+                num_u += s["u"] * weight
+                num_v += s["v"] * weight
+                den += weight
+
+            u_data.append(round(num_u / den, 3))
+            v_data.append(round(num_v / den, 3))
+
+    return [
+        {
+            "header": {
+                "parameterCategory": 2, "parameterNumber": 2,
+                "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy
+            },
+            "data": u_data
+        },
+        {
+            "header": {
+                "parameterCategory": 2, "parameterNumber": 3,
+                "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy
+            },
+            "data": v_data
+        }
+    ]
+
+
+def _generate_fallback_wind_field(nx: int = 40, ny: int = 40) -> list[dict]:
+    """
+    Generates a realistic climatological Bay Area wind field (10-14 mph onshore
+    WNW breeze from ~285-295° azimuth) when upstream Open-Meteo API is unreachable,
+    satisfying NFR-R04 (High Availability & Graceful Degradation / AP architecture).
+    """
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+    samples = []
+    for lat in lats:
+        for lon in lons:
+            # Coastal coordinates have slightly stronger winds (~14 mph) than inland (~9 mph)
+            rel_x = (lon - (-122.9)) / (-121.5 - (-122.9))  # 0.0 (coast) to 1.0 (inland)
+            speed_mph = 14.0 - (5.0 * rel_x)
+            dir_deg = 285.0 + (10.0 * rel_x)
+            rad = dir_deg * (math.pi / 180.0)
+            samples.append({
+                "lat": lat, "lon": lon,
+                "u": -speed_mph * math.sin(rad),
+                "v": -speed_mph * math.cos(rad)
+            })
+    return _interpolate_wind_grid(samples, nx=nx, ny=ny)
+
+
 @shared_task(name="harvester.tasks.fetch_wind_data", bind=True, max_retries=3, default_retry_delay=300)
 def fetch_wind_data(self):
     """
     FR-E04: Wind data for animated particle vectors.
-    Queries 9 coordinates across the Bay Area from Open-Meteo and uses
-    Inverse Distance Weighting (IDW) interpolation to generate a true
-    continuous atmospheric vector field.
-    
-    Formats the output strictly to the GFS JSON standard required by
-    WebGL turn-key wind libraries.
+    Queries 25 coordinates covering the Bay Area from Open-Meteo in a single
+    batch request and uses Inverse Distance Weighting (IDW) interpolation
+    to generate a continuous atmospheric vector field (40x40 grid).
+
+    NFR-R04: On network read timeout or external API failure, gracefully falls back
+    to existing cached wind data or calibrated Bay Area climatological vectors so the UI
+    wind overlay is never unseeded or broken.
     """
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+
+    # Build coordinate pairs for single multi-point query to Open-Meteo
+    lat_pairs = [lat for lat in lats for lon in lons]
+    lon_pairs = [lon for lat in lats for lon in lons]
+    lats_str = ",".join(str(x) for x in lat_pairs)
+    lons_str = ",".join(str(x) for x in lon_pairs)
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={lats_str}&longitude={lons_str}"
+        "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
+    )
+
     try:
-        import time
-        # 3x3 Grid covering BayAreaGrid (38.3 to 36.9 lat, -122.9 to -121.5 lon)
-        lats = [38.3, 37.95, 37.6, 37.25, 36.9]
-        lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
-        
+        response = requests.get(url, timeout=12)
+        response.raise_for_status()
+        data = response.json()
+
         samples = []
-        for lat in lats:
-            import time
-            for lon in lons:
-                url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
-                try:
-                    res = requests.get(url, timeout=20)
-                except Exception:
-                    time.sleep(1)
-                    res = requests.get(url, timeout=20)
-                time.sleep(0.2) # Avoid Open-Meteo throttling
-                if res.status_code == 200:
-                    data = res.json()
-                    speed_mph = data.get("current", {}).get("wind_speed_10m", 0)
-                    dir_deg = data.get("current", {}).get("wind_direction_10m", 0)
-                    
+        if isinstance(data, list):
+            for item in data:
+                cur = item.get("current", {})
+                speed_mph = cur.get("wind_speed_10m", 0)
+                dir_deg = cur.get("wind_direction_10m", 0)
+                lat = item.get("latitude")
+                lon = item.get("longitude")
+                if lat is not None and lon is not None:
                     rad = dir_deg * (math.pi / 180.0)
                     samples.append({
                         "lat": lat, "lon": lon,
                         "u": -speed_mph * math.sin(rad),
                         "v": -speed_mph * math.cos(rad)
                     })
-                time.sleep(0.1) # Rate limit protection
-                
-        if not samples:
-            raise Exception("Open-Meteo returned no data for all 25 points")
+        elif isinstance(data, dict):
+            cur = data.get("current", {})
+            speed_mph = cur.get("wind_speed_10m", 0)
+            dir_deg = cur.get("wind_direction_10m", 0)
+            rad = dir_deg * (math.pi / 180.0)
+            samples.append({
+                "lat": data.get("latitude", 37.7),
+                "lon": data.get("longitude", -122.2),
+                "u": -speed_mph * math.sin(rad),
+                "v": -speed_mph * math.cos(rad)
+            })
 
-        # 40x40 IDW Interpolation
-        nx, ny = 40, 40
-        la1, lo1 = 38.3, -122.9
-        la2, lo2 = 36.9, -121.5
-        dx, dy = (lo2 - lo1) / (nx - 1), (la2 - la1) / (ny - 1)
-        
-        u_data, v_data = [], []
-        
-        for j in range(ny):
-            lat = la1 + j * dy
-            for i in range(nx):
-                lon = lo1 + i * dx
-                
-                num_u, num_v, den = 0, 0, 0
-                for s in samples:
-                    dist_sq = (s['lon'] - lon)**2 + (s['lat'] - lat)**2
-                    weight = 1e6 if dist_sq < 1e-6 else 1.0 / dist_sq
-                    num_u += s['u'] * weight
-                    num_v += s['v'] * weight
-                    den += weight
-                    
-                u_data.append(round(num_u / den, 3))
-                v_data.append(round(num_v / den, 3))
-                
-        # Export as GFS Wind JSON standard format
-        gfs_payload = [
-            {
-                "header": { "parameterCategory": 2, "parameterNumber": 2, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
-                "data": u_data
-            },
-            {
-                "header": { "parameterCategory": 2, "parameterNumber": 3, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
-                "data": v_data
-            }
-        ]
-        
+        if not samples:
+            raise ValueError("Open-Meteo returned no usable wind sample data")
+
+        gfs_payload = _interpolate_wind_grid(samples, nx=40, ny=40)
         cache.set(WIND_CACHE_KEY, json.dumps(gfs_payload), timeout=60 * 60 * 24)
-        logger.info('{"event": "fetch_wind_success", "grid_points": %d}', nx * ny)
-        return {"status": "success", "grid_points": nx * ny}
+        logger.info('{"event": "fetch_wind_success", "grid_points": 1600, "samples": %d}', len(samples))
+        return {"status": "success", "grid_points": 1600}
 
     except Exception as exc:
         logger.error('{"event": "fetch_wind_error", "error": "%s"}', str(exc))
-        raise self.retry(exc=exc)
+
+        # Check if Redis already has valid cached wind telemetry
+        existing_cached = cache.get(WIND_CACHE_KEY)
+        if existing_cached:
+            logger.info('{"event": "fetch_wind_fallback", "action": "retaining_cached_wind"}')
+            return {"status": "retained_cache", "grid_points": 1600}
+
+        # Fallback to calibrated synthetic Bay Area wind vectors so cache is never unseeded (NFR-R04)
+        logger.info('{"event": "fetch_wind_fallback", "action": "using_climatological_wind"}')
+        fallback_payload = _generate_fallback_wind_field(nx=40, ny=40)
+        cache.set(WIND_CACHE_KEY, json.dumps(fallback_payload), timeout=60 * 60 * 24)
+        return {"status": "fallback", "grid_points": 1600}
 
 
 def _pm25_to_aqi(pm25_raw: float):
@@ -848,6 +909,54 @@ def trigger_active_inference(self):
         raise self.retry(exc=exc)
 
     logger.info('{"event": "trigger_active_inference_clusters", "fire_clusters_detected": %d}', len(clusters))
+
+    # Cache raw satellite hotspots (both wildland detections and suppressed flares)
+    raw_hotspots = getattr(clusters, "raw_hotspots", [])
+    if not raw_hotspots and clusters:
+        for cl in clusters:
+            for pt in getattr(cl, "points", []):
+                raw_hotspots.append({
+                    "latitude": pt.get("latitude"),
+                    "longitude": pt.get("longitude"),
+                    "frp": pt.get("frp", 0.0),
+                    "confidence": pt.get("confidence", "nominal"),
+                    "satellite": pt.get("satellite", "VIIRS"),
+                    "is_industrial_flare": False,
+                    "flare_site_name": None,
+                })
+
+    hotspot_features = [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [pt["longitude"], pt["latitude"]],
+            },
+            "properties": {
+                "latitude": pt["latitude"],
+                "longitude": pt["longitude"],
+                "frp": pt.get("frp", 0.0),
+                "confidence": pt.get("confidence", "nominal"),
+                "satellite": pt.get("satellite", ""),
+                "is_industrial_flare": pt.get("is_industrial_flare", False),
+                "flare_site_name": pt.get("flare_site_name"),
+                "acq_date": pt.get("acq_date", ""),
+                "acq_time": pt.get("acq_time", ""),
+            },
+        }
+        for pt in raw_hotspots
+        if pt.get("latitude") is not None and pt.get("longitude") is not None
+    ]
+    hotspots_geojson = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_hotspots": len(hotspot_features),
+        },
+        "features": hotspot_features,
+    }
+    cache.set(FIRMS_HOTSPOTS_CACHE_KEY, json.dumps(hotspots_geojson), timeout=60 * 60 * 24)
+    logger.info('{"event": "trigger_active_inference_cached_hotspots", "total_hotspots": %d}', len(hotspot_features))
 
     if not clusters:
         return {"status": "success", "fires_detected": 0}

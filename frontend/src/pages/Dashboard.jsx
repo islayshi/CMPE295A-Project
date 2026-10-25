@@ -9,11 +9,12 @@ import ModelSelector from '../components/HUD/ModelSelector';
 import ChatDrawer from '../components/HUD/ChatDrawer';
 
 import { fetchCurrentPredictions } from '../api/predictions';
-import { fetchShelters, fetchWindData, fetchAqiData } from '../api/telemetry';
+import { fetchShelters, fetchWindData, fetchAqiData, fetchFirmsHotspots } from '../api/telemetry';
 
 export default function Dashboard() {
   const [selectedModel, setSelectedModel] = useState('ensemble');
   const [isFireRiskVisible, setIsFireRiskVisible] = useState(true);
+  const [isHotspotsVisible, setIsHotspotsVisible] = useState(true);
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
   const [isSheltersVisible, setIsSheltersVisible] = useState(false);
@@ -73,6 +74,12 @@ export default function Dashboard() {
     refetchInterval: 300000,  // Poll every 5 minutes
   });
 
+  const { data: hotspotsData } = useQuery({
+    queryKey: ['telemetry', 'hotspots'],
+    queryFn: fetchFirmsHotspots,
+    refetchInterval: 300000,  // Poll every 5 minutes
+  });
+
   // Calculate dynamic available horizons based on predictions data
   const parsedHorizons = predictions?.features 
     ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
@@ -90,8 +97,10 @@ export default function Dashboard() {
         predictions={predictions}
         shelters={shelters}
         windData={windData}
+        hotspotsData={hotspotsData}
         userLocation={userLocation}
         isFireRiskVisible={isFireRiskVisible}
+        isHotspotsVisible={isHotspotsVisible}
         isAqiVisible={isAqiVisible}
         isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
@@ -106,6 +115,8 @@ export default function Dashboard() {
       <LayersLegend 
         isFireRiskVisible={isFireRiskVisible}
         setIsFireRiskVisible={setIsFireRiskVisible}
+        isHotspotsVisible={isHotspotsVisible}
+        setIsHotspotsVisible={setIsHotspotsVisible}
         isAqiVisible={isAqiVisible} 
         setIsAqiVisible={setIsAqiVisible} 
         isSheltersVisible={isSheltersVisible}

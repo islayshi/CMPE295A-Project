@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Map, { Source, Layer, Marker, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import WindOverlay from './WindOverlay';
-import { Tent, MapPin, Users } from 'lucide-react';
+import { Tent, MapPin, Users, Factory, Flame } from 'lucide-react';
 import AQIGrid from './AQIGrid';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZXZlbiIsImEiOiJjbTFuMmluY3cwM2x3M2pyMGNvbzN2dngzIn0.mock';
@@ -11,8 +11,10 @@ export default function MapCanvas({
   predictions,
   shelters,
   windData,
+  hotspotsData,
   userLocation,
   isFireRiskVisible = true,
+  isHotspotsVisible = true,
   isAqiVisible,
   isSheltersVisible,
   aqiData,
@@ -20,6 +22,7 @@ export default function MapCanvas({
 }) {
   const mapRef = useRef();
   const [selectedShelter, setSelectedShelter] = useState(null);
+  const [selectedHotspot, setSelectedHotspot] = useState(null);
 
   return (
     <div className="relative w-full h-full">
@@ -100,6 +103,120 @@ export default function MapCanvas({
           </Source>
         )}
 
+        {/* Layer: NASA FIRMS Satellite Hotspots (ground truth across all time horizons) */}
+        {isHotspotsVisible && hotspotsData?.features?.map((feature, idx) => {
+          const coords = feature.geometry?.coordinates;
+          if (!coords || coords.length < 2 || typeof coords[0] !== 'number' || typeof coords[1] !== 'number' || isNaN(coords[0]) || isNaN(coords[1])) {
+            return null;
+          }
+          const isFlare = feature.properties?.is_industrial_flare;
+          const key = `firms-hotspot-${idx}-${coords[0]}-${coords[1]}`;
+
+          return (
+            <Marker
+              key={key}
+              longitude={coords[0]}
+              latitude={coords[1]}
+              anchor="center"
+            >
+              {isFlare ? (
+                <div
+                  className="flex items-center justify-center bg-slate-700 text-slate-100 rounded-full border border-slate-300 shadow-md hover:scale-125 hover:bg-slate-800 transition-all cursor-pointer p-1"
+                  onMouseEnter={() => {
+                    setSelectedShelter(null);
+                    setSelectedHotspot(feature);
+                  }}
+                  onMouseLeave={() => setSelectedHotspot(null)}
+                  onClick={(e) => {
+                    e.originalEvent?.stopPropagation();
+                    setSelectedShelter(null);
+                    setSelectedHotspot(feature);
+                  }}
+                >
+                  <Factory size={12} strokeWidth={2.2} />
+                </div>
+              ) : (
+                <div
+                  className="relative flex items-center justify-center cursor-pointer p-1"
+                  onMouseEnter={() => {
+                    setSelectedShelter(null);
+                    setSelectedHotspot(feature);
+                  }}
+                  onMouseLeave={() => setSelectedHotspot(null)}
+                  onClick={(e) => {
+                    e.originalEvent?.stopPropagation();
+                    setSelectedShelter(null);
+                    setSelectedHotspot(feature);
+                  }}
+                >
+                  <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-rose-500 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600 border border-white shadow-md"></span>
+                </div>
+              )}
+            </Marker>
+          );
+        })}
+
+        {/* Hotspot Hover Popup */}
+        {isHotspotsVisible && selectedHotspot && (
+          <Popup
+            longitude={selectedHotspot.geometry.coordinates[0]}
+            latitude={selectedHotspot.geometry.coordinates[1]}
+            anchor="bottom"
+            offset={15}
+            closeButton={false}
+            closeOnClick={false}
+            className="z-50 pointer-events-none"
+          >
+            <div className="flex flex-col min-w-[220px] -m-3">
+              <div className={`px-3 py-2 border-b rounded-t-lg backdrop-blur-sm ${
+                selectedHotspot.properties?.is_industrial_flare
+                  ? 'bg-slate-100 border-slate-200 text-slate-800'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}>
+                <h3 className="font-bold text-xs leading-tight flex items-center gap-1.5">
+                  {selectedHotspot.properties?.is_industrial_flare ? (
+                    <>
+                      <Factory size={13} className="text-slate-600 shrink-0" />
+                      <span>Industrial Heat Source (Suppressed)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Flame size={13} className="text-rose-600 shrink-0" />
+                      <span>Active Wildland Detection</span>
+                    </>
+                  )}
+                </h3>
+              </div>
+              <div className="p-3 bg-white/95 backdrop-blur-sm rounded-b-lg flex flex-col gap-1.5 text-xs text-slate-700">
+                {selectedHotspot.properties?.is_industrial_flare && (
+                  <div className="bg-slate-100 p-1.5 rounded text-[11px] text-slate-600 border border-slate-200">
+                    Suppressed: <span className="font-semibold text-slate-800">{selectedHotspot.properties?.flare_site_name || 'Industrial Facility'}</span> (Flaring Zone)
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Sensor / Satellite:</span>
+                  <span className="font-semibold">{selectedHotspot.properties?.satellite || 'VIIRS'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Fire Radiative Power:</span>
+                  <span className="font-semibold">{selectedHotspot.properties?.frp ? `${selectedHotspot.properties.frp} MW` : 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Confidence:</span>
+                  <span className="capitalize font-semibold">{selectedHotspot.properties?.confidence || 'Nominal'}</span>
+                </div>
+                {(selectedHotspot.properties?.acq_date || selectedHotspot.properties?.acq_time) && (
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                    <span>Acquisition:</span>
+                    <span>{selectedHotspot.properties.acq_date} {selectedHotspot.properties.acq_time ? `${selectedHotspot.properties.acq_time} UTC` : ''}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Popup>
+        )}
+
         {/* Layer 5: Evacuation Shelters */}
         {isSheltersVisible && shelters?.features?.map((shelter) => (
           <Marker
@@ -110,8 +227,16 @@ export default function MapCanvas({
           >
             <div 
               className="flex items-center justify-center bg-blue-500 text-white rounded-full border-2 border-white shadow-md hover:scale-110 hover:shadow-lg hover:bg-blue-600 transition-all cursor-pointer p-1.5"
-              onMouseEnter={() => setSelectedShelter(shelter)}
+              onMouseEnter={() => {
+                setSelectedHotspot(null);
+                setSelectedShelter(shelter);
+              }}
               onMouseLeave={() => setSelectedShelter(null)}
+              onClick={(e) => {
+                e.originalEvent?.stopPropagation();
+                setSelectedHotspot(null);
+                setSelectedShelter(shelter);
+              }}
             >
               <Tent size={14} strokeWidth={2.5} />
             </div>
@@ -119,7 +244,7 @@ export default function MapCanvas({
         ))}
 
         {/* Shelter Info Hover Popup */}
-        {selectedShelter && (
+        {isSheltersVisible && selectedShelter && (
           <Popup
             longitude={selectedShelter.geometry.coordinates[0]}
             latitude={selectedShelter.geometry.coordinates[1]}

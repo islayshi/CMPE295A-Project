@@ -24,9 +24,11 @@ The system utilizes a Modular Monolith architecture to minimize deployment overh
 The Harvester is designed with two complementary orchestration pipelines:
 - **Daily Baseline Orchestrator (`trigger_daily_inference`):** Scheduled daily at 06:00 UTC by Celery Beat for region-wide 24-hour day-ahead risk mapping.
 - **Active Fire Scout (`trigger_active_inference`):** Scheduled every 30 minutes by Celery Beat (`trigger-active-inference-30min`) for near-real-time active wildfire detection and dynamic spread prediction (+1, +3, +6 hours):
-  - Fetches VIIRS 375 m active fire detections from NASA FIRMS Area API (via `FIRMS_MAP_KEY`) with fallback to the keyless 24-hour VIIRS CSV.
-  - Filters low-confidence detections and applies spatial exclusion masks around known East Bay oil refineries (Richmond, Rodeo, Martinez, Benicia) to eliminate industrial flaring false alarms.
-  - Clusters remaining hotspots within 3 km into distinct fire envelopes, applying a +25 km simulation buffer.
+  - Fetches VIIRS 375 m active fire detections from all three operational sensors via NASA FIRMS Area API (`VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT` via `FIRMS_MAP_KEY`) with automatic failover to the public keyless 24-hour VIIRS CSVs if the keyed Area API is unreachable or returns invalid/error payloads (NFR-R04).
+  - Deduplicates overlapping detections across satellite orbits within 0.5 km (prioritizing higher Fire Radiative Power).
+  - Filters low-confidence detections and applies spatial exclusion masks around known East Bay and South Bay industrial flaring sites (Chevron Richmond Refinery, Phillips 66 Rodeo Refinery, Martinez Refining Co., Valero Benicia Refinery, and Newby Island Landfill in Alviso) to suppress refinery and landfill flare false alarms.
+  - Caches all raw satellite hotspots (active wildland detections and suppressed flares) in Redis under `ffwai:telemetry:firms_hotspots` with metadata (`latitude`, `longitude`, `frp`, `confidence`, `satellite`, `is_industrial_flare`, `flare_site_name`, `acq_date`, `acq_time`).
+  - Clusters remaining wildland hotspots within 3 km into distinct fire envelopes, applying a +25 km simulation buffer.
   - Upserts `FireIncident` records in PostGIS to track active incidents across runs.
   - Dispatches parallel AI inference per incident using a Celery `chord` (`run_async_inference.s(...)`), requesting `model_type="ensemble"`, `time_horizon=6`, and current UTC `date`.
   - Aggregates multi-incident predictions in `aggregate_active_predictions`, persisting `PredictionPolygon` rows linked to `FireIncident` and atomically updating the active Redis cache (`ffwai:predictions:current`).
@@ -89,7 +91,7 @@ This stack ensures total Python parity between the AI developers and the backend
 - **Google Earth Engine (GEE):** NDVI / EVI / NDWI vegetation indices from Landsat 8/9 (`LANDSAT/LC09/C02/T1_L2`). Critical ML training feature (used in all three advisor papers).
 - **GOES-18 via GEE:** Fire Detection & Characterization (`NOAA/GOES/18/FDCC`) and Cloud/Moisture Imagery (`NOAA/GOES/18/MCMIPC`). High-temporal (5 min), low-spatial (2 km) satellite imagery. Daily composite exported to GCS.
 - **VIIRS via GEE:** Near-real-time active fire hotspots (`NASA/VIIRS/002/VNP09GA`). High-spatial (375 m), low-temporal (12–24 hr). Paired with GOES-18 for potential super-resolution training by the ML team.
-- **NOAA / OpenWeather:** Wind speed, direction, temperature, humidity for Deck.gl wind particles and ML features.
+- **NOAA / Open-Meteo / OpenWeather:** Wind speed, direction, temperature, humidity for Deck.gl wind particles and ML features. Uses single-batch multi-coordinate querying and falls back gracefully to calibrated Bay Area climatological vectors on upstream network read timeout (NFR-R04).
 - **NWS Alerts API:** Red Flag Warnings for map overlay polygons.
 - **USGS 3DEP DEM:** Static terrain data (elevation, slope, aspect, hillshade) — downloaded once, loaded into PostGIS.
 - **CA Energy Commission:** Static powerline GIS data — ignition risk feature from Paper 1.
@@ -227,6 +229,7 @@ Given the timeline and academic constraints, the following features are explicit
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
 | `GET` | `/api/telemetry/alerts/` | Active NWS Red Flag Warnings | GeoJSON FeatureCollection (Polygons) |
+| `GET` | `/api/telemetry/hotspots/` | NASA FIRMS raw satellite hotspots (wildland detections & suppressed flares) | GeoJSON FeatureCollection (Points with FRP, confidence, satellite, flare metadata) |
 | `GET` | `/api/metrics/` | Model performance metrics (ROC-AUC, F1, accuracy) | JSON array of `ModelPerformanceMetric` records |
 | `GET` | `/api/health/` | System health check | JSON: `{db, redis, last_inference, staleness, workers}` |
 | `GET` | `/api/docs/` | Auto-generated OpenAPI 3.0 documentation | Swagger UI (via `drf-spectacular`) |
@@ -276,18 +279,19 @@ The frontend MVP was developed as a standalone showcase of the system's capabili
 
 ### 9.2 Map Layering & Visual Hierarchy (Strict Z-Index)
 To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
-1. **Base Topography:** Mapbox `dark-v11` base map with 1.5x 3D terrain exaggeration.
+1. **Base Topography:** Mapbox `dark-v11` / `outdoors-v12` base map with 3D terrain exaggeration.
 2. **Red Flag Warning Zone:** A static NWS environmental danger polygon rendered as a translucent red area.
-3. **Fire Detection (ML Engine):** Solid red circle layers representing initial thermal anomalies.
-4. **Predictive Spread (U-Net):** Semi-transparent orange (Day 0) and yellow (Day +1) polygons representing predicted fire progression.
-5. **Deck.gl Wind Particles:** An animated WebGL `TextLayer` of Unicode arrows (➔) calculating offset per frame to simulate continuous wind flow over the map.
-6. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
+3. **AQI 45-Mile Radial Grid:** Dynamic air quality mesh interpolated across regional reporting sensors.
+4. **Predictive Spread (U-Net / PINN / Ensemble):** Semi-transparent color ramp polygons representing predicted fire progression filtered by time horizon.
+5. **Deck.gl Wind Particles:** An animated WebGL vector field simulating continuous atmospheric breeze and gust patterns.
+6. **Satellite Hotspots (NASA FIRMS):** Ground-truth infrared detections persisting across all time horizons (pulsing red rings for active wildland detections, distinct grey factory pins for suppressed petrochemical/landfill flaring sites with interactive hover tooltips).
+7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
 ### 9.3 HUD (Heads-Up Display) Components
 - **Model Selector:** A segmented pill control on the HUD (`top-20 left-20`) and inside the Layers drawer allowing instant switching between **Ensemble** (blended 0.6 U-Net + 0.4 PINN), **U-Net** (deep learning spatial segmentation), and **PINN** (physics-constrained fire progression), querying `/api/predictions/current/?model={model}` with model-scoped Redis caching.
 - **Telemetry Card:** A dynamic floating panel displaying environmental telemetry (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow physically aligned with the animated wind field.
 - **Time Scrubber:** An interactive slider supporting 5 discrete horizons: `0h` (Current Observed Fire), `+1h`, `+3h`, `+6h`, and `24h` (Day-Ahead Regional Risk), filtering vector features client-side on the Mapbox GPU at 60 FPS (`filter: ['==', ['get', 'horizon_hours'], timeScrub]`) without network latency.
-- **Map Layers & Dynamic Legend:** A drawer providing toggles for **Fire Probability Polygons** (using WebGL `layout={{ visibility }}` to preserve GPU tessellation memory), **AQI Grid Layer**, and **Emergency Shelters**, with color ramp legends for fire probability and AQI scales.
+- **Map Layers & Dynamic Legend:** A drawer providing toggles for **Fire Probability Polygons** (using WebGL `layout={{ visibility }}` to preserve GPU tessellation memory), **Satellite Hotspots (NASA FIRMS)** (with active wildland and suppressed flare indicators), **AQI Grid Layer**, and **Emergency Shelters**, with color ramp legends for fire probability and AQI scales.
 - **RAG Chatbot Drawer:** A floating action button (FAB) that opens an AI assistant interface that detects user inputs (e.g., evacuation routes, shelter capacity) and outputs localized advice citing NWS and CalOES.
 
 <!-- ### 9.4 Scenario Orchestration (The "Golden Path" Script)
@@ -355,6 +359,18 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 ### 13.2 CI/CD Pipeline
 - **Continuous Integration (CI):** GitHub Actions automatically trigger on every Pull Request to run `eslint`, `pytest`, and build verifications.
 - **Continuous Deployment (CD):** Upon merging to the `main` branch, the CI/CD pipeline builds new Docker images, pushes them to **Google Artifact Registry**, and triggers a rolling update on the Cloud Run services.
+
+### 13.3 Local Development Stack & Lifecycle Ordering
+To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
+1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
+2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
+3. **Application Process Launch:** Spawns isolated terminals for Django (8000), Celery Worker, Celery Beat, FastAPI ML Adapter (8001), and React Frontend (5173).
+4. **Service Health Gate:** Actively polls FastAPI ML Adapter (`GET /health`) on port 8001 until HTTP 200 is confirmed.
+5. **Cache & Database Warmup (`scripts/seed_cache.py`):**
+   - Populates live wind vector telemetry (`ffwai:wind_current`) via single-batch Open-Meteo querying, with fallback to calibrated Bay Area climatological vectors on transient read timeouts.
+   - Populates AQI telemetry (`ffwai:aqi_data`) with fallback.
+   - Dispatches Active Fire Scout (NASA FIRMS VIIRS).
+   - Seeds baseline wildfire progression predictions via the verified FastAPI ML Adapter without connection refused errors.
 
 ---
 

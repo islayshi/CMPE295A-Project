@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Sparkles, Cpu } from 'lucide-react';
+import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Sparkles, Cpu, Satellite, Factory } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LayersLegend({
   isFireRiskVisible = true,
   setIsFireRiskVisible = () => {},
+  isHotspotsVisible = true,
+  setIsHotspotsVisible = () => {},
   isAqiVisible = false,
   setIsAqiVisible = () => {},
   isSheltersVisible = false,
@@ -100,6 +102,19 @@ export default function LayersLegend({
                   </button>
 
                   <button
+                    onClick={() => setIsHotspotsVisible(!isHotspotsVisible)}
+                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Satellite size={16} className={isHotspotsVisible ? 'text-rose-600' : 'text-slate-400'} />
+                      <span className="text-sm font-medium text-slate-800">Satellite Hotspots (NASA FIRMS)</span>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isHotspotsVisible ? 'bg-rose-600' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isHotspotsVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                  </button>
+
+                  <button
                     onClick={() => setIsAqiVisible(!isAqiVisible)}
                     className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
                   >
@@ -134,6 +149,19 @@ export default function LayersLegend({
                   <li className="flex items-center gap-3">
                     <div className="w-4 h-3 bg-red-500/10 border border-dashed border-red-500 rounded-sm"></div>
                     <span className="text-slate-800">Red Flag Warning Zone</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="relative flex items-center justify-center w-4 h-4 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600 border border-white"></span>
+                    </div>
+                    <span className="text-slate-800">Active Wildland Hotspot</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-700 text-slate-100 border border-slate-300 shadow-sm shrink-0">
+                      <Factory size={10} strokeWidth={2.2} />
+                    </div>
+                    <span className="text-slate-800">Suppressed Flare (Refinery / Landfill)</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <div className="px-2 py-0.5 bg-blue-500 text-white flex items-center justify-center rounded-full border border-blue-400 shadow-sm shrink-0">

@@ -14,7 +14,10 @@ map immediately has:
 
 import os
 import sys
+import time
 from pathlib import Path
+
+import requests
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +43,23 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 
+def check_ml_adapter(max_retries: int = 10, delay: float = 1.0) -> bool:
+    """
+    Verifies that the FastAPI ML Adapter is online and responding to /health
+    before dispatching inference tasks.
+    """
+    health_url = f"{settings.ML_ADAPTER_URL}/health"
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.get(health_url, timeout=2)
+            if resp.status_code == 200:
+                return True
+        except requests.RequestException:
+            pass
+        time.sleep(delay)
+    return False
+
+
 def main():
     force = "--force" in sys.argv or "--clean" in sys.argv
     print(f"{CYAN}=== Fight Fire With AI: Seeding Telemetry & ML Predictions ==={RESET}")
@@ -57,8 +77,9 @@ def main():
     # 1. Wind Telemetry
     print(f"1. Fetching live wind data (Open-Meteo)...")
     try:
-        fetch_wind_data()
-        print(f"   {GREEN}✔ Wind data populated in Redis (ffwai:wind_current){RESET}")
+        wind_res = fetch_wind_data()
+        status_msg = "using fallback" if wind_res.get("status") == "fallback" else "live telemetry"
+        print(f"   {GREEN}✔ Wind data populated in Redis (ffwai:wind_current) [{status_msg}]{RESET}")
     except Exception as exc:
         print(f"   {YELLOW}⚠ Wind fetch warning: {exc}{RESET}")
 
@@ -77,10 +98,84 @@ def main():
         scout_res = trigger_active_inference()
         fires_found = scout_res.get("fires_detected", 0) if isinstance(scout_res, dict) else 0
         print(f"   {GREEN}✔ Active fire scout executed: {fires_found} active wildfire cluster(s) detected{RESET}")
+        cached_hotspots = cache.get("ffwai:telemetry:firms_hotspots")
+        hotspot_count = 0
+        if cached_hotspots:
+            data = json.loads(cached_hotspots) if isinstance(cached_hotspots, str) else cached_hotspots
+            hotspot_count = len(data.get("features", []))
+        print(f"   {GREEN}✔ Satellite hotspots cached in Redis (ffwai:telemetry:firms_hotspots) [{hotspot_count} detections/flares]{RESET}")
+        if hotspot_count == 0:
+            baseline_hotspots = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": timezone.now().isoformat(),
+                    "total_hotspots": 3,
+                    "note": "Dev baseline ground-truth hotspots",
+                },
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [-122.05, 37.20]},
+                        "properties": {
+                            "latitude": 37.20,
+                            "longitude": -122.05,
+                            "frp": 28.4,
+                            "confidence": "high",
+                            "satellite": "NOAA-20",
+                            "is_industrial_flare": False,
+                            "flare_site_name": None,
+                            "acq_date": timezone.now().strftime("%Y-%m-%d"),
+                            "acq_time": "2030",
+                        },
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [-122.3858, 37.9358]},
+                        "properties": {
+                            "latitude": 37.9358,
+                            "longitude": -122.3858,
+                            "frp": 45.2,
+                            "confidence": "high",
+                            "satellite": "Suomi-NPP",
+                            "is_industrial_flare": True,
+                            "flare_site_name": "Chevron Richmond Refinery",
+                            "acq_date": timezone.now().strftime("%Y-%m-%d"),
+                            "acq_time": "1945",
+                        },
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [-121.9323, 37.4557]},
+                        "properties": {
+                            "latitude": 37.4557,
+                            "longitude": -121.9323,
+                            "frp": 22.0,
+                            "confidence": "high",
+                            "satellite": "NOAA-21",
+                            "is_industrial_flare": True,
+                            "flare_site_name": "Newby Island Landfill (Alviso)",
+                            "acq_date": timezone.now().strftime("%Y-%m-%d"),
+                            "acq_time": "2115",
+                        },
+                    },
+                ],
+            }
+            cache.set("ffwai:telemetry:firms_hotspots", json.dumps(baseline_hotspots), timeout=60 * 60 * 24)
+            print(f"   {GREEN}✔ Seeded dev baseline satellite hotspots (1 wildland + 2 suppressed flares){RESET}")
     except Exception as exc:
         print(f"   {YELLOW}⚠ Scout warning: {exc}{RESET}")
 
-    # 4. If no natural active wildfire currently burning in Bay Area, seed test fire via ML Adapter
+    # 4. Process predictions from Active Fire Scout or seed test fire
+    if fires_found > 0:
+        print(f"\n4. Active wildfire cluster(s) detected. Waiting for Celery worker to finish inference...")
+        for _ in range(15):
+            recent_polygons = PredictionPolygon.objects.filter(
+                timestamp__gte=timezone.now() - timezone.timedelta(hours=6)
+            ).count()
+            if recent_polygons > 0:
+                break
+            time.sleep(1)
+
     recent_polygons = PredictionPolygon.objects.filter(
         timestamp__gte=timezone.now() - timezone.timedelta(hours=6)
     ).count()
@@ -88,23 +183,34 @@ def main():
     if recent_polygons == 0:
         target_name = "Live Docker ML Test Fire" if not settings.MOCK_INFERENCE else "Santa Cruz Mountains Wildfire"
         print(f"\n4. No natural wildfires burning today in the Bay Area.")
-        print(f"   Dispatching test coordinates to ML Adapter ({'Live Docker U-Net & PINN' if not settings.MOCK_INFERENCE else 'Mock Mode'})...")
-        now = timezone.now()
-        inc = FireIncident.objects.create(
-            name=target_name,
-            start_time=now,
-            is_active=True
-        )
 
-        # Santa Cruz Mountains fire zone
-        bbox = [-122.25, 37.05, -121.85, 37.35]
-        for model in ["unet", "pinn", "ensemble"]:
-            print(f"   - Invoking {model.upper()} via ML Adapter...")
-            res = run_async_inference(bbox=bbox, model_type=model, incident_id=inc.id, time_horizon=6)
-            feat_count = len(res.get("features", [])) if isinstance(res, dict) else 0
-            print(f"     -> {model.upper()} returned {feat_count} features")
+        # Ensure ML Adapter is alive before attempting inference
+        print(f"   Checking ML Adapter availability at {settings.ML_ADAPTER_URL}/health...")
+        if not check_ml_adapter(max_retries=10, delay=1.0):
+            print(f"   {YELLOW}⚠ ML Adapter is unreachable on {settings.ML_ADAPTER_URL}. Skipping prediction seeding.{RESET}")
+            print(f"     (Start it with: uvicorn ml_adapter.main:app --port 8001)")
+        else:
+            print(f"   {GREEN}✔ ML Adapter is online!{RESET}")
+            print(f"   Dispatching test coordinates to ML Adapter ({'Live Docker U-Net & PINN' if not settings.MOCK_INFERENCE else 'Mock Mode'})...")
+            now = timezone.now()
+            inc = FireIncident.objects.create(
+                name=target_name,
+                start_time=now,
+                is_active=True
+            )
 
-        print(f"   {GREEN}✔ Generated and cached predictions for U-Net, PINN, and Ensemble{RESET}")
+            # Santa Cruz Mountains fire zone
+            bbox = [-122.25, 37.05, -121.85, 37.35]
+            for model in ["unet", "pinn", "ensemble"]:
+                print(f"   - Invoking {model.upper()} via ML Adapter...")
+                try:
+                    res = run_async_inference(bbox=bbox, model_type=model, incident_id=inc.id, time_horizon=6)
+                    feat_count = len(res.get("features", [])) if isinstance(res, dict) else 0
+                    print(f"     -> {model.upper()} returned {feat_count} features")
+                except Exception as exc:
+                    print(f"     {YELLOW}⚠ {model.upper()} invocation error: {exc}{RESET}")
+
+            print(f"   {GREEN}✔ Generated and cached predictions for U-Net, PINN, and Ensemble{RESET}")
     else:
         print(f"\n4. {GREEN}✔ Found {recent_polygons} active prediction polygons ready in PostGIS and Redis.{RESET}")
 

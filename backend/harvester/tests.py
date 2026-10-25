@@ -334,3 +334,101 @@ def test_archive_old_predictions():
     assert result.result["status"] == "success"
     assert result.result["deleted_count"] == 1
     assert PredictionPolygon.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_success():
+    """
+    Verifies that fetch_wind_data queries Open-Meteo with a single batch request
+    for Bay Area coordinates, computes IDW interpolation, and populates Redis cache.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+
+    # Generate mock 25-point batch response from Open-Meteo
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+    mock_batch_data = []
+    for lat in lats:
+        for lon in lons:
+            mock_batch_data.append({
+                "latitude": lat,
+                "longitude": lon,
+                "current": {
+                    "time": "2026-10-24T20:00",
+                    "wind_speed_10m": 12.5,
+                    "wind_direction_10m": 270.0,
+                }
+            })
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = mock_batch_data
+
+    with patch("requests.get", return_value=mock_resp) as mock_get, \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "success"
+        assert result["grid_points"] == 1600
+        # Verify single batch call was made instead of 25 serial calls
+        assert mock_get.call_count == 1
+
+        # Verify cached GFS structure
+        mock_cache_set.assert_called_once()
+        args, kwargs = mock_cache_set.call_args
+        assert args[0] == WIND_CACHE_KEY
+        cached_gfs = json.loads(args[1])
+        assert len(cached_gfs) == 2
+        assert cached_gfs[0]["header"]["parameterNumber"] == 2  # U-component
+        assert cached_gfs[1]["header"]["parameterNumber"] == 3  # V-component
+        assert len(cached_gfs[0]["data"]) == 1600
+        assert len(cached_gfs[1]["data"]) == 1600
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_timeout_fallback():
+    """
+    Verifies that when Open-Meteo experiences a network read timeout,
+    fetch_wind_data falls back to a calibrated Bay Area wind field
+    rather than crashing or leaving Redis cache empty.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+    import requests
+
+    with patch("requests.get", side_effect=requests.exceptions.ReadTimeout("Read timed out")), \
+         patch("harvester.tasks.cache.get", return_value=None), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "fallback"
+        assert result["grid_points"] == 1600
+        mock_cache_set.assert_called_once()
+        args, kwargs = mock_cache_set.call_args
+        assert args[0] == WIND_CACHE_KEY
+        cached_gfs = json.loads(args[1])
+        assert len(cached_gfs) == 2
+        assert len(cached_gfs[0]["data"]) == 1600
+        assert len(cached_gfs[1]["data"]) == 1600
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_existing_cache_retained():
+    """
+    Verifies that if Redis already holds valid wind data and Open-Meteo times out,
+    the existing cache is retained and not overwritten with fallback data.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+    import requests
+
+    existing_payload = json.dumps([{"header": {}, "data": [1, 2, 3]}])
+
+    with patch("requests.get", side_effect=requests.exceptions.ReadTimeout("Read timed out")), \
+         patch("harvester.tasks.cache.get", return_value=existing_payload), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "retained_cache"
+        assert result["grid_points"] == 1600
+        mock_cache_set.assert_not_called()
+
+
