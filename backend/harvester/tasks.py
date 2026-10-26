@@ -295,9 +295,9 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
             },
             "features": serializer.data,
         }
-        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=21600)
         if source_model and source_model in ("unet", "pinn", "rl", "ensemble"):
-            cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=3600)
+            cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=21600)
 
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
 
@@ -838,7 +838,7 @@ def on_worker_ready(sender, **kwargs):
 
 
 @shared_task(name="harvester.tasks.run_async_inference", bind=True, max_retries=3, default_retry_delay=60)
-def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, time_horizon=6, date=None):
+def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, time_horizon=6, date=None, seed_points=None):
     """
     Async inference task decoupled from Django views.
     Hits the FastAPI ML Adapter and writes results to PostGIS linked to FireIncident.
@@ -851,8 +851,10 @@ def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, tim
             "time_horizon": time_horizon,
             "model_type": model_type,
             "date": now_iso,
-            "mock": settings.MOCK_INFERENCE
+            "mock": settings.MOCK_INFERENCE,
         }
+        if seed_points:
+            payload["seed_points"] = seed_points
         logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s", "incident_id": %s}', url, model_type, incident_id)
         
         response = requests.post(url, json=payload, timeout=120)
@@ -874,6 +876,8 @@ def aggregate_active_predictions(results):
     """
     Chord callback task: merges GeoJSON FeatureCollections from all active fire tasks
     and writes the unified collection to Redis cache ('ffwai:predictions:current').
+    Guards against overwriting populated cache with empty features if an asynchronous scan sees zero new burns.
+    Sets Redis TTL to 6 hours (21600 seconds).
     """
     merged_features = []
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -881,7 +885,19 @@ def aggregate_active_predictions(results):
         if isinstance(res, dict):
             features = res.get("features", [])
             merged_features.extend(features)
-    
+
+    # Empty overwrite guard: do not overwrite a populated cache with features: []
+    if not merged_features:
+        existing_cached = cache.get(CURRENT_RISK_CACHE_KEY) or cache.get("ffwai:predictions:current:ensemble")
+        if existing_cached:
+            try:
+                data = json.loads(existing_cached) if isinstance(existing_cached, str) else existing_cached
+                if data.get("features"):
+                    logger.info('{"event": "aggregate_active_predictions_skip_empty_overwrite", "reason": "existing cache has features"}')
+                    return {"status": "skipped_empty_overwrite", "total_cells": len(data.get("features", []))}
+            except Exception:
+                pass
+
     merged_fc = {
         "type": "FeatureCollection",
         "metadata": {
@@ -891,8 +907,8 @@ def aggregate_active_predictions(results):
         },
         "features": merged_features,
     }
-    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=3600)
-    cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=3600)
+    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
+    cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=21600)
     logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(merged_features))
     return {"status": "success", "total_cells": len(merged_features)}
 
@@ -978,11 +994,19 @@ def trigger_active_inference(self):
             start_time=now,
             is_active=True,
         )
+        seed_points = [
+            [pt["longitude"], pt["latitude"]]
+            for pt in getattr(cluster, "points", [])
+            if pt.get("latitude") is not None and pt.get("longitude") is not None
+        ]
+        if not seed_points and getattr(cluster, "centroid_lon", None) is not None and getattr(cluster, "centroid_lat", None) is not None:
+            seed_points = [[cluster.centroid_lon, cluster.centroid_lat]]
         task_sig = run_async_inference.s(
             cluster.bbox,
             model_type="ensemble",
             incident_id=incident.id,
             time_horizon=6,
+            seed_points=seed_points,
         )
         header_tasks.append(task_sig)
 
@@ -1007,14 +1031,102 @@ def trigger_mock_inference(self):
 @shared_task(name="harvester.tasks.archive_old_predictions")
 def archive_old_predictions():
     """
-    Deletes PredictionPolygon records older than 30 days to prevent database bloat.
+    Automated Incident Containment & Cleanup:
+    - Automatically marks active incidents as contained (is_active=False, containment_time=now)
+      when 24 consecutive hours elapse without any satellite hotspot detections within their bounding box.
+    - Purges their active prediction keys from Redis while keeping historical PostGIS rows permanently intact.
     """
-    from predictions.models import PredictionPolygon
     from datetime import timedelta
-    
-    threshold_date = datetime.now(timezone.utc) - timedelta(days=30)
-    old_predictions = PredictionPolygon.objects.filter(timestamp__lt=threshold_date)
-    deleted_count, _ = old_predictions.delete()
-    
-    logger.info('{"event": "archive_old_predictions", "deleted_count": %d, "threshold_date": "%s"}', deleted_count, threshold_date.isoformat())
-    return {"status": "success", "deleted_count": deleted_count}
+    from django.utils import timezone
+    from django.contrib.gis.db.models import Extent
+    from predictions.models import FireIncident, PredictionPolygon
+
+    now = timezone.now()
+    twenty_four_hours_ago = now - timedelta(hours=24)
+    active_incidents = FireIncident.objects.filter(is_active=True)
+
+    # Fetch cached satellite hotspots (NASA FIRMS)
+    cached_hotspots = cache.get(FIRMS_HOTSPOTS_CACHE_KEY)
+    raw_hotspot_coords = []
+    if cached_hotspots:
+        try:
+            data = json.loads(cached_hotspots) if isinstance(cached_hotspots, str) else cached_hotspots
+            for feat in data.get("features", []):
+                props = feat.get("properties", {})
+                if props.get("is_industrial_flare"):
+                    continue
+                geom = feat.get("geometry", {})
+                coords = geom.get("coordinates")
+                if coords and len(coords) >= 2:
+                    raw_hotspot_coords.append((coords[0], coords[1]))
+        except Exception as exc:
+            logger.warning('{"event": "archive_hotspots_parse_error", "error": "%s"}', str(exc))
+
+    contained_incidents_count = 0
+    for incident in active_incidents:
+        latest_pred = incident.predictions.order_by("-timestamp").first()
+        last_activity_time = latest_pred.timestamp if latest_pred else incident.start_time
+
+        extent = incident.predictions.aggregate(ext=Extent('grid__geometry'))['ext']
+        has_recent_hotspots = False
+        if extent and raw_hotspot_coords:
+            min_lon, min_lat, max_lon, max_lat = extent
+            for lon, lat in raw_hotspot_coords:
+                if min_lon <= lon <= max_lon and min_lat <= lat <= max_lat:
+                    has_recent_hotspots = True
+                    break
+
+        if not has_recent_hotspots and last_activity_time < twenty_four_hours_ago:
+            incident.is_active = False
+            incident.containment_time = now
+            incident.save(update_fields=["is_active", "end_time"])
+            contained_incidents_count += 1
+            logger.info('{"event": "incident_auto_contained", "incident_id": %d, "name": "%s"}', incident.id, incident.name)
+
+    remaining_active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+    remaining_active_count = len(remaining_active_incidents)
+    if contained_incidents_count > 0:
+        active_keys = [
+            CURRENT_RISK_CACHE_KEY,
+            "ffwai:predictions:current:ensemble",
+            "ffwai:predictions:current:unet",
+            "ffwai:predictions:current:pinn",
+            "ffwai:predictions:current:rl",
+        ]
+        if remaining_active_count == 0:
+            for key in active_keys:
+                cache.delete(key)
+            logger.info('{"event": "purged_active_prediction_keys", "contained_count": %d}', contained_incidents_count)
+        else:
+            # Refresh active prediction cache to exclude contained incident polygons
+            active_polys = PredictionPolygon.objects.filter(
+                fire_incident_id__in=remaining_active_incidents,
+                timestamp__gte=now - timedelta(hours=6),
+            ).select_related("grid")
+            from predictions.serializers import PredictionPolygonGeoJSONSerializer
+            serializer = PredictionPolygonGeoJSONSerializer(active_polys, many=True)
+            merged_fc = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": now.isoformat(),
+                    "total_cells": active_polys.count(),
+                    "active_incidents": len(remaining_active_incidents),
+                    "source_model": "ensemble",
+                },
+                "features": serializer.data,
+            }
+            cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
+            cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=21600)
+            logger.info('{"event": "refreshed_active_prediction_keys", "contained_count": %d, "remaining_active": %d}', contained_incidents_count, remaining_active_count)
+
+    # Clean up orphaned/unlinked test predictions older than 30 days while retaining all incident predictions permanently
+    thirty_days_ago = now - timedelta(days=30)
+    old_unlinked = PredictionPolygon.objects.filter(fire_incident__isnull=True, timestamp__lt=thirty_days_ago)
+    deleted_count, _ = old_unlinked.delete()
+
+    return {
+        "status": "success",
+        "deleted_count": deleted_count,
+        "contained_incidents": contained_incidents_count,
+        "remaining_active": remaining_active_count,
+    }

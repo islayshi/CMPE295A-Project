@@ -262,3 +262,157 @@ def test_aggregate_active_predictions_populates_ensemble_cache():
         assert "ffwai:predictions:current" in cached_keys
         assert "ffwai:predictions:current:ensemble" in cached_keys
 
+
+def test_aggregate_active_predictions_guards_against_empty_overwrite():
+    """Verify that aggregate_active_predictions does not overwrite populated Redis cache with empty features."""
+    from harvester.tasks import aggregate_active_predictions, CURRENT_RISK_CACHE_KEY
+
+    existing_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 1},
+        "features": [{"type": "Feature", "properties": {"grid_id": 101, "horizon_hours": 1}}],
+    }
+
+    with patch("harvester.tasks.cache.get", return_value=json.dumps(existing_fc)), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        res = aggregate_active_predictions([])
+        assert res["status"] in ("skipped_empty_overwrite", "ignored")
+        # cache.set must NOT have been called with empty features!
+        assert not any(call[0][0] == CURRENT_RISK_CACHE_KEY for call in mock_cache_set.call_args_list)
+
+
+@pytest.mark.django_db
+def test_archive_old_predictions_contains_incidents_after_24h_inactivity():
+    """
+    Verify that archive_old_predictions automatically marks active incidents as contained
+    when 24 hours elapse without satellite hotspot detections within their bounding box,
+    purging active Redis keys while retaining historical PostGIS PredictionPolygon rows.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.contrib.gis.geos import Polygon, Point
+    from grid.models import BayAreaGrid
+    from predictions.models import FireIncident, PredictionPolygon
+    from harvester.tasks import archive_old_predictions, CURRENT_RISK_CACHE_KEY
+
+    now = timezone.now()
+    twenty_five_hours_ago = now - timedelta(hours=25)
+
+    poly = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid = BayAreaGrid.objects.create(id=501, geometry=poly, centroid=Point(10, 10, srid=4326), row=0, col=0)
+
+    incident = FireIncident.objects.create(
+        name="Contained Test Fire",
+        start_time=twenty_five_hours_ago,
+        is_active=True,
+    )
+    pred = PredictionPolygon.objects.create(
+        grid=grid,
+        fire_incident=incident,
+        timestamp=twenty_five_hours_ago,
+        source_model="ensemble",
+        fire_probability=0.85,
+        lead_time_hours=1,
+    )
+
+    fake_cache = {
+        CURRENT_RISK_CACHE_KEY: json.dumps({"type": "FeatureCollection", "features": [{"type": "Feature"}]}),
+        "ffwai:predictions:current:ensemble": "data",
+    }
+
+    def fake_cache_delete(key):
+        fake_cache.pop(key, None)
+
+    with patch("harvester.tasks.cache.get", return_value=None), \
+         patch("harvester.tasks.cache.delete", side_effect=fake_cache_delete):
+        res = archive_old_predictions()
+        assert res["status"] == "success"
+
+        incident.refresh_from_db()
+        assert incident.is_active is False
+        assert incident.end_time is not None
+
+        # Historical PostGIS rows must be preserved permanently!
+        assert PredictionPolygon.objects.filter(id=pred.id).exists()
+
+        # Active Redis prediction keys must be purged
+        assert CURRENT_RISK_CACHE_KEY not in fake_cache
+        assert "ffwai:predictions:current:ensemble" not in fake_cache
+
+
+@pytest.mark.django_db
+def test_archive_old_predictions_partial_containment_refreshes_cache_for_remaining_active():
+    """
+    Verify that when one incident is contained but other incidents remain active,
+    archive_old_predictions refreshes the active Redis prediction cache to exclude
+    the contained incident's polygons while retaining remaining active incidents.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.contrib.gis.geos import Polygon, Point
+    from grid.models import BayAreaGrid
+    from predictions.models import FireIncident, PredictionPolygon
+    from harvester.tasks import archive_old_predictions, CURRENT_RISK_CACHE_KEY
+
+    now = timezone.now()
+    twenty_five_hours_ago = now - timedelta(hours=25)
+    one_hour_ago = now - timedelta(hours=1)
+
+    poly1 = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid1 = BayAreaGrid.objects.create(id=601, geometry=poly1, centroid=Point(10, 10, srid=4326), row=0, col=0)
+    poly2 = Polygon(((12, 12), (12, 14), (14, 14), (14, 12), (12, 12)), srid=4326)
+    grid2 = BayAreaGrid.objects.create(id=602, geometry=poly2, centroid=Point(13, 13, srid=4326), row=1, col=1)
+
+    inc_contained = FireIncident.objects.create(
+        name="Contained Fire",
+        start_time=twenty_five_hours_ago,
+        is_active=True,
+    )
+    PredictionPolygon.objects.create(
+        grid=grid1,
+        fire_incident=inc_contained,
+        timestamp=twenty_five_hours_ago,
+        source_model="ensemble",
+        fire_probability=0.85,
+        lead_time_hours=1,
+    )
+
+    inc_active = FireIncident.objects.create(
+        name="Active Fire",
+        start_time=one_hour_ago,
+        is_active=True,
+    )
+    pred_active = PredictionPolygon.objects.create(
+        grid=grid2,
+        fire_incident=inc_active,
+        timestamp=one_hour_ago,
+        source_model="ensemble",
+        fire_probability=0.92,
+        lead_time_hours=1,
+    )
+
+    fake_cache = {}
+
+    def fake_cache_set(key, val, timeout=None):
+        fake_cache[key] = val
+
+    with patch("harvester.tasks.cache.get", return_value=None), \
+         patch("harvester.tasks.cache.set", side_effect=fake_cache_set):
+        res = archive_old_predictions()
+        assert res["status"] == "success"
+        assert res["contained_incidents"] == 1
+        assert res["remaining_active"] == 1
+
+        inc_contained.refresh_from_db()
+        assert inc_contained.is_active is False
+        inc_active.refresh_from_db()
+        assert inc_active.is_active is True
+
+        # Cache should have been updated to only include the active incident
+        assert CURRENT_RISK_CACHE_KEY in fake_cache
+        cached_fc = json.loads(fake_cache[CURRENT_RISK_CACHE_KEY])
+        assert len(cached_fc["features"]) == 1
+        assert cached_fc["features"][0]["properties"]["grid_id"] == 602
+
+
+

@@ -246,3 +246,111 @@ def test_predict_ensemble_graceful_degradation(mock_call_unet, mock_call_pinn):
         assert data["type"] == "FeatureCollection"
         assert len(data["features"]) == 2
         assert "pinn_error" in data["metadata"].get("ensemble_notes", "").lower()
+
+
+def test_serve_mock_fixture_spatial_colocation():
+    """
+    Verifies that _serve_mock_fixture translates polygon coordinates
+    according to (delta_lon, delta_lat) when target_bbox is provided.
+    """
+    # Target center: (-122.0, 37.25)
+    # Ref center: (-122.15, 37.05)
+    # delta_lon: +0.15, delta_lat: +0.20
+    target_bbox = [-122.05, 37.20, -121.95, 37.30]
+    payload = {
+        "bbox": target_bbox,
+        "time_horizon": 24,
+        "model_type": "ensemble",
+        "mock": True,
+    }
+    response = client.post("/predict/progression", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type"] == "FeatureCollection"
+    assert "spatial_colocation" in data["metadata"]
+    assert data["metadata"]["spatial_colocation"]["delta"] == [0.15, 0.2]
+
+    # Verify translated coordinates
+    coords = data["features"][0]["geometry"]["coordinates"][0]
+    # In base fixture (current_fire_goes18), first ring coord is [-122.15, 37.05]
+    # Translated: [-122.15 + 0.15, 37.05 + 0.20] = [-122.0, 37.25]
+    assert round(coords[0][0], 2) == -122.00
+    assert round(coords[0][1], 2) == 37.25
+
+
+@patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
+def test_predict_progression_unet_live_with_seed_points(mock_call_unet):
+    """
+    Verifies that seed_points in PredictionRequest are forwarded to call_unet.
+    """
+    mock_call_unet.return_value = SAMPLE_UNET_FC
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.25, 37.05, -121.65, 37.35],
+            "time_horizon": 6,
+            "model_type": "unet",
+            "mock": False,
+            "seed_points": [[-122.05, 37.20], [-121.72, 37.17]],
+        }
+        response = client.post("/predict/progression", json=payload)
+        assert response.status_code == 200
+        mock_call_unet.assert_awaited_once_with(
+            bbox=(-122.25, 37.05, -121.65, 37.35),
+            time_horizon=6,
+            date=None,
+            seed_points=[[-122.05, 37.2], [-121.72, 37.17]],
+        )
+
+
+@patch("ml_adapter.main.call_pinn", new_callable=AsyncMock)
+@patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
+def test_predict_ensemble_live_with_seed_points(mock_call_unet, mock_call_pinn):
+    """
+    Verifies that seed_points in PredictionRequest are forwarded to both call_unet and call_pinn
+    when requesting ensemble prediction.
+    """
+    mock_call_unet.return_value = SAMPLE_UNET_FC
+    mock_call_pinn.return_value = SAMPLE_PINN_FC
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.25, 37.05, -121.65, 37.35],
+            "time_horizon": 6,
+            "model_type": "ensemble",
+            "mock": False,
+            "seed_points": [[-122.05, 37.20], [-121.72, 37.17]],
+        }
+        response = client.post("/predict/ensemble", json=payload)
+        assert response.status_code == 200
+        mock_call_unet.assert_awaited_once_with(
+            bbox=(-122.25, 37.05, -121.65, 37.35),
+            time_horizon=6,
+            date=None,
+            seed_points=[[-122.05, 37.2], [-121.72, 37.17]],
+        )
+        mock_call_pinn.assert_awaited_once_with(
+            bbox=(-122.25, 37.05, -121.65, 37.35),
+            time_horizon=6,
+            date=None,
+            seed_points=[[-122.05, 37.2], [-121.72, 37.17]],
+        )
+
+
+def test_serve_mock_fixture_deterministic_grid_id_offset():
+    """
+    Verifies that _serve_mock_fixture produces identical, deterministic grid_ids
+    for repeated requests with the same target_bbox.
+    """
+    target_bbox = [-122.05, 37.20, -121.95, 37.30]
+    payload = {
+        "bbox": target_bbox,
+        "time_horizon": 24,
+        "model_type": "ensemble",
+        "mock": True,
+    }
+    r1 = client.post("/predict/progression", json=payload).json()
+    r2 = client.post("/predict/progression", json=payload).json()
+    ids1 = [f["properties"]["grid_id"] for f in r1["features"]]
+    ids2 = [f["properties"]["grid_id"] for f in r2["features"]]
+    assert ids1 == ids2
+
+

@@ -195,3 +195,84 @@ def test_current_predictions_db_fallback_by_model(api_client):
         assert data_pinn["features"][0]["properties"]["source_model"] == "pinn"
 
 
+@pytest.mark.django_db
+def test_current_predictions_falls_back_when_cache_has_empty_features(api_client, prediction_data):
+    """
+    Verifies that when Redis cache contains a FeatureCollection with empty features ([]),
+    the current_predictions endpoint falls back to active PostGIS PredictionPolygon records.
+    """
+    empty_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 0, "timestamp": "2026-10-26T00:00:00Z"},
+        "features": [],
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(empty_fc)):
+        response = api_client.get("/api/predictions/current/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 2
+
+
+@pytest.mark.django_db
+def test_current_predictions_falls_back_when_cache_returns_dict_with_empty_features(api_client, prediction_data):
+    """
+    Verifies that when Redis cache returns a Python dict with empty features (e.g. LocMemCache),
+    the endpoint falls back to active PostGIS PredictionPolygon records without TypeError.
+    """
+    empty_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 0, "timestamp": "2026-10-26T00:00:00Z"},
+        "features": [],
+    }
+    with patch("predictions.views.cache.get", return_value=empty_fc):
+        response = api_client.get("/api/predictions/current/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 2
+
+
+@pytest.mark.django_db
+def test_current_predictions_horizon_filter_robustness(api_client, prediction_data):
+    """
+    Verifies that the horizon filter handles integer, float, and string representations
+    correctly when filtering GeoJSON features.
+    """
+    cached_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 3},
+        "features": [
+            {"type": "Feature", "properties": {"grid_id": 1, "horizon_hours": 1}},
+            {"type": "Feature", "properties": {"grid_id": 2, "lead_time_hours": "1"}},
+            {"type": "Feature", "properties": {"grid_id": 3, "horizon_hours": 3}},
+        ],
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(cached_fc)):
+        response = api_client.get("/api/predictions/current/?horizon=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["features"]) == 2
+        assert {f["properties"]["grid_id"] for f in data["features"]} == {1, 2}
+
+
+@pytest.mark.django_db
+def test_current_predictions_bidirectional_cache_sync_on_fallback(api_client, prediction_data):
+    """
+    Verifies that when current_predictions falls back to PostGIS, it populates both
+    ffwai:predictions:current and ffwai:predictions:current:ensemble.
+    """
+    cached_writes = {}
+
+    def fake_cache_set(key, val, timeout=None):
+        cached_writes[key] = val
+
+    with patch("predictions.views.cache.get", return_value=None), \
+         patch("predictions.views.cache.set", side_effect=fake_cache_set):
+        response = api_client.get("/api/predictions/current/?model=ensemble")
+        assert response.status_code == 200
+        assert "ffwai:predictions:current:ensemble" in cached_writes
+        assert "ffwai:predictions:current" in cached_writes
+
+
+

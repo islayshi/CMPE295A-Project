@@ -34,6 +34,14 @@ class FireIncident(models.Model):
     is_active = models.BooleanField(default=True, db_index=True, help_text="Whether the fire is currently active")
     containment_status = models.FloatField(null=True, blank=True, help_text="Containment percentage (0.0 to 100.0)")
 
+    @property
+    def containment_time(self):
+        return self.end_time
+
+    @containment_time.setter
+    def containment_time(self, value):
+        self.end_time = value
+
     class Meta:
         verbose_name = "Fire Incident"
         verbose_name_plural = "Fire Incidents"

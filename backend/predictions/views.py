@@ -55,16 +55,19 @@ def current_predictions(request):
 
     feature_collection = None
     cached_data = cache.get(cache_key)
-    if not cached_data and cache_key == "ffwai:predictions:current:ensemble":
+    if (not cached_data or (isinstance(cached_data, str) and '"features": []' in cached_data)) and cache_key == "ffwai:predictions:current:ensemble":
         cached_data = cache.get(CURRENT_RISK_CACHE_KEY)
 
     if cached_data:
-        try:
-            feature_collection = json.loads(cached_data)
-        except (TypeError, ValueError):
-            feature_collection = None
+        if isinstance(cached_data, dict):
+            feature_collection = cached_data
+        else:
+            try:
+                feature_collection = json.loads(cached_data)
+            except (TypeError, ValueError):
+                feature_collection = None
 
-    if not feature_collection:
+    if not feature_collection or not feature_collection.get("features"):
         import datetime as dt
         from predictions.models import FireIncident
 
@@ -96,10 +99,14 @@ def current_predictions(request):
                     },
                     "features": serializer.data,
                 }
-                cache.set(cache_key, json.dumps(feature_collection), timeout=3600)
+                cache.set(cache_key, json.dumps(feature_collection), timeout=21600)
+                if cache_key == "ffwai:predictions:current:ensemble":
+                    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(feature_collection), timeout=21600)
+                elif cache_key == CURRENT_RISK_CACHE_KEY:
+                    cache.set("ffwai:predictions:current:ensemble", json.dumps(feature_collection), timeout=21600)
 
         # 2. Single-batch fallback (baseline or mock)
-        if not feature_collection:
+        if not feature_collection or not feature_collection.get("features"):
             qs = PredictionPolygon.objects.filter(timestamp__lte=datetime.now(timezone.utc))
             if model_param in ("unet", "pinn", "rl"):
                 qs = qs.filter(source_model=model_param)
@@ -121,7 +128,11 @@ def current_predictions(request):
                     },
                     "features": serializer.data,
                 }
-                cache.set(cache_key, json.dumps(feature_collection), timeout=3600)
+                cache.set(cache_key, json.dumps(feature_collection), timeout=21600)
+                if cache_key == "ffwai:predictions:current:ensemble":
+                    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(feature_collection), timeout=21600)
+                elif cache_key == CURRENT_RISK_CACHE_KEY:
+                    cache.set("ffwai:predictions:current:ensemble", json.dumps(feature_collection), timeout=21600)
 
         if not feature_collection:
             feature_collection = {
@@ -134,10 +145,21 @@ def current_predictions(request):
     if horizon_param is not None:
         try:
             target_h = int(horizon_param)
+            def _matches_horizon(feat, target):
+                props = feat.get("properties", {})
+                h = props.get("horizon_hours")
+                if h is None:
+                    h = props.get("lead_time_hours")
+                if h is None:
+                    return target == 0
+                try:
+                    return int(float(h)) == target
+                except (ValueError, TypeError):
+                    return False
+
             filtered_features = [
                 f for f in feature_collection.get("features", [])
-                if f.get("properties", {}).get("horizon_hours") == target_h
-                or f.get("properties", {}).get("lead_time_hours") == target_h
+                if _matches_horizon(f, target_h)
             ]
             return Response({
                 **feature_collection,

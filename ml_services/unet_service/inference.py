@@ -50,9 +50,52 @@ def fuse(p_unet, p_pinn=None, w_unet=W_UNET):
     return np.clip(p, 0.0, 1.0)
 
 
-def goes_forecast(grid, t, bundles):
+def parse_seed_points(raw_points):
+    points = []
+    if not raw_points:
+        return points
+    for pt in raw_points:
+        if isinstance(pt, dict):
+            lat = pt.get('latitude', pt.get('lat'))
+            lon = pt.get('longitude', pt.get('lon'))
+            if lat is not None and lon is not None:
+                points.append((float(lon), float(lat)))
+        elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+            a, b = float(pt[0]), float(pt[1])
+            if a < 0 and b > 0:  # (lon, lat)
+                points.append((a, b))
+            elif a > 0 and b < 0:  # (lat, lon)
+                points.append((b, a))
+            else:
+                points.append((a, b))
+    return points
+
+
+def rasterize_seed_points(seed_points, grid):
+    mask = np.zeros((grid.h, grid.w), np.float32)
+    if not seed_points:
+        return mask
+    lons = [p[0] for p in seed_points]
+    lats = [p[1] for p in seed_points]
+    xs, ys = _to_grid.transform(lons, lats)
+    xs, ys = np.asarray(xs), np.asarray(ys)
+    col = np.floor((xs - grid.x0) / grid.res).astype(int)
+    row = np.floor((grid.y0 - ys) / grid.res).astype(int)
+    ok = (row >= 0) & (row < grid.h) & (col >= 0) & (col < grid.w)
+    mask[row[ok], col[ok]] = 1.0
+    return mask
+
+
+def goes_forecast(grid, t, bundles, seed_points=None):
     """Runs the +1/+3/+6 h models. Returns the model inputs, the 'burned in the last 24 h' mask and {h: (p, None, p)}."""
     x, burned = hourly_inputs(grid, t)
+    if seed_points:
+        seed_mask = rasterize_seed_points(seed_points, grid)
+        if seed_mask.any():
+            x[..., 0] = np.maximum(x[..., 0], seed_mask)
+            x[..., 1] = np.maximum(x[..., 1], seed_mask)
+            x[..., 2] = np.maximum(x[..., 2], seed_mask)
+            burned = np.logical_or(burned, seed_mask > 0)
     out = {}
     for h, b in bundles.items():
         p = b['model'](goes_normalize(x, b['mu'], b['sd'])[None], training=False).numpy()[0, :, :, 0]
@@ -274,15 +317,27 @@ def predict_contract(req):
     w, s, e, n = bbox
     radius = float(haversine_km(s, w, n, e)) / 2 + FIRE_SEARCH_PAD_KM
     check = fire_check((s + n) / 2, (w + e) / 2, t, radius_km=radius)
+    seed_pts = parse_seed_points(req.get('seed_points') or req.get('ignition_points'))
     meta = {'requested_model_type': model_type, 'time_clamped_to_latest_hour': clamped,
             'active_fires_nearby': int(len(check['fires'])), 'nearest_fire_km': check['nearest_km']}
+
+    if not check['active'] and seed_pts:
+        check = {
+            'active': True,
+            'nearest_km': 0.0,
+            'fires': pd.DataFrame([{'lat': p[1], 'lon': p[0]} for p in seed_pts]),
+        }
+        meta['active_fires_nearby'] = len(seed_pts)
+        meta['nearest_fire_km'] = 0.0
+        meta['viirs_seed_fallback'] = True
+
     if not check['active'] or not horizons:
         return unified_feature_collection([], bbox, t, p_min, status='no_active_fire' if not check['active'] else 'ok',
                                           extra_metadata=meta)
     bundles = get_hourly_bundles()
     if not bundles:
         raise ContractError('the hourly models are not loaded on this server', status=503)
-    x, burned, out = goes_forecast(grid, t, bundles)
+    x, burned, out = goes_forecast(grid, t, bundles, seed_points=seed_pts)
     layers = []
     if 0 in horizons:      # current state: cells GOES-18 saw burning in the last hour
         layers.append({'h': 0, 'p': np.full(burned.shape, np.nan), 'grid': grid,

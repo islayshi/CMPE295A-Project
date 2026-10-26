@@ -15,6 +15,7 @@ NFR References:
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from celery.schedules import crontab
@@ -123,6 +124,14 @@ DATABASES = {
     }
 }
 
+if os.environ.get("USE_SPATIALITE") == "1" or "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.contrib.gis.db.backends.spatialite",
+            "NAME": ":memory:",
+        }
+    }
+
 # ---------------------------------------------------------------------------
 # Redis Cache — GeoJSON cache + Celery broker
 # Design Doc §2: Memorystore (Redis) in production
@@ -138,6 +147,14 @@ CACHES = {
         "KEY_PREFIX": "ffwai",
     }
 }
+
+if os.environ.get("USE_SPATIALITE") == "1" or "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ffwai-test-cache",
+        }
+    }
 
 # ---------------------------------------------------------------------------
 # Celery — Task queue for data harvesting and ML inference

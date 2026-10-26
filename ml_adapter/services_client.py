@@ -33,6 +33,7 @@ async def call_unet(
     bbox: tuple[float, float, float, float] | list[float],
     time_horizon: int = 6,
     date: str | None = None,
+    seed_points: list[tuple[float, float]] | list[list[float]] | None = None,
     timeout: float = 120.0,
 ) -> dict[str, Any]:
     """Queries the U-Net inference service."""
@@ -44,6 +45,8 @@ async def call_unet(
         "model_type": "unet",
         "date": date,
     }
+    if seed_points is not None:
+        payload["seed_points"] = seed_points
     return await call_inference_service(UNET_SERVICE_URL, payload, timeout=timeout)
 
 
@@ -51,6 +54,7 @@ async def call_pinn(
     bbox: tuple[float, float, float, float] | list[float],
     time_horizon: int = 6,
     date: str | None = None,
+    seed_points: list[tuple[float, float]] | list[list[float]] | None = None,
     timeout: float = 120.0,
 ) -> dict[str, Any]:
     """Queries the PINN inference service."""
@@ -62,6 +66,8 @@ async def call_pinn(
         "model_type": "pinn",
         "date": date,
     }
+    if seed_points is not None:
+        payload["seed_points"] = seed_points
     return await call_inference_service(PINN_SERVICE_URL, payload, timeout=timeout)
 
 
