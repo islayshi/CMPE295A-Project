@@ -48,11 +48,16 @@ def current_predictions(request):
 
     if model_param in ("unet", "pinn", "rl"):
         cache_key = f"ffwai:predictions:current:{model_param}"
+    elif request.query_params.get("model"):
+        cache_key = f"ffwai:predictions:current:{model_param}"
     else:
         cache_key = CURRENT_RISK_CACHE_KEY
 
     feature_collection = None
     cached_data = cache.get(cache_key)
+    if not cached_data and cache_key == "ffwai:predictions:current:ensemble":
+        cached_data = cache.get(CURRENT_RISK_CACHE_KEY)
+
     if cached_data:
         try:
             feature_collection = json.loads(cached_data)

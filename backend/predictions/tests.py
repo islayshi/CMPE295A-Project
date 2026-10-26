@@ -98,9 +98,13 @@ def test_current_predictions_model_scoped_cache_keys(api_client, cached_predicti
     with patch("predictions.views.cache.get") as mock_cache_get:
         mock_cache_get.return_value = json.dumps(cached_prediction_data)
 
-        # Default / ensemble
+        # Default / ensemble (no model param)
         api_client.get("/api/predictions/current/")
         mock_cache_get.assert_called_with("ffwai:predictions:current")
+
+        # Explicit ensemble
+        api_client.get("/api/predictions/current/?model=ensemble")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:ensemble")
 
         # U-Net
         api_client.get("/api/predictions/current/?model=unet")
@@ -109,6 +113,26 @@ def test_current_predictions_model_scoped_cache_keys(api_client, cached_predicti
         # PINN
         api_client.get("/api/predictions/current/?model=pinn")
         mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
+
+
+@pytest.mark.django_db
+def test_store_geojson_result_populates_ensemble_cache(cached_prediction_data):
+    """
+    Verifies that store_geojson_result populates both ffwai:predictions:current
+    and ffwai:predictions:current:ensemble when source_model='ensemble'.
+    """
+    from harvester.tasks import store_geojson_result
+    data = dict(cached_prediction_data)
+    data["metadata"]["source_model"] = "ensemble"
+    for f in data["features"]:
+        f["properties"]["source_model"] = "ensemble"
+        f["properties"]["horizon_hours"] = 1
+
+    with patch("harvester.tasks.cache.set") as mock_cache_set:
+        store_geojson_result(data)
+        keys_set = [call[0][0] for call in mock_cache_set.call_args_list]
+        assert "ffwai:predictions:current" in keys_set
+        assert "ffwai:predictions:current:ensemble" in keys_set
 
 
 def test_current_predictions_horizon_filtering(api_client):

@@ -12,6 +12,7 @@ map immediately has:
    supported horizons.
 """
 
+import json
 import os
 import sys
 import time
@@ -33,7 +34,13 @@ django.setup()
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
-from harvester.tasks import fetch_wind_data, fetch_aqi_data, trigger_active_inference, run_async_inference
+from harvester.tasks import (
+    fetch_wind_data,
+    fetch_aqi_data,
+    trigger_active_inference,
+    run_async_inference,
+    store_geojson_result,
+)
 from predictions.models import FireIncident, PredictionPolygon
 
 GREEN = "\033[92m"
@@ -41,6 +48,8 @@ CYAN = "\033[96m"
 YELLOW = "\033[93m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
+
+BENCHMARK_TIMESTAMP = "2025-01-10T21:00:00Z"
 
 
 def check_ml_adapter(max_retries: int = 10, delay: float = 1.0) -> bool:
@@ -71,6 +80,7 @@ def main():
         PredictionPolygon.objects.all().delete()
         FireIncident.objects.all().delete()
         cache.delete("ffwai:predictions:current")
+        cache.delete("ffwai:predictions:current:ensemble")
         cache.delete("ffwai:predictions:current:unet")
         cache.delete("ffwai:predictions:current:pinn")
 
@@ -180,9 +190,18 @@ def main():
         timestamp__gte=timezone.now() - timezone.timedelta(hours=6)
     ).count()
 
-    if recent_polygons == 0:
+    cached_ensemble = cache.get("ffwai:predictions:current:ensemble") or cache.get("ffwai:predictions:current")
+    cached_unet = cache.get("ffwai:predictions:current:unet")
+    cached_pinn = cache.get("ffwai:predictions:current:pinn")
+
+    needs_seeding = (
+        recent_polygons == 0
+        or not (cached_ensemble and cached_unet and cached_pinn)
+    )
+
+    if needs_seeding:
         target_name = "Live Docker ML Test Fire" if not settings.MOCK_INFERENCE else "Santa Cruz Mountains Wildfire"
-        print(f"\n4. No natural wildfires burning today in the Bay Area.")
+        print(f"\n4. Seeding fire predictions (Los Gatos & Morgan Hill test corridor)...")
 
         # Ensure ML Adapter is alive before attempting inference
         print(f"   Checking ML Adapter availability at {settings.ML_ADAPTER_URL}/health...")
@@ -199,16 +218,84 @@ def main():
                 is_active=True
             )
 
-            # Santa Cruz Mountains fire zone
-            bbox = [-122.25, 37.05, -121.85, 37.35]
+            # Santa Cruz Mountains fire zone (Los Gatos & Morgan Hill corridor)
+            bbox = [-122.25, 37.05, -121.65, 37.35]
             for model in ["unet", "pinn", "ensemble"]:
                 print(f"   - Invoking {model.upper()} via ML Adapter...")
+                feat_count = 0
                 try:
                     res = run_async_inference(bbox=bbox, model_type=model, incident_id=inc.id, time_horizon=6)
                     feat_count = len(res.get("features", [])) if isinstance(res, dict) else 0
-                    print(f"     -> {model.upper()} returned {feat_count} features")
+                    print(f"     -> {model.upper()} returned {feat_count} features (date=now)")
                 except Exception as exc:
                     print(f"     {YELLOW}⚠ {model.upper()} invocation error: {exc}{RESET}")
+
+                # If live Docker inference returned 0 features (no active wildfire burning today),
+                # automatically fall back to querying the ML adapter with benchmark wildfire timestamp
+                if feat_count == 0:
+                    print(f"     -> No active fire at current time. Querying benchmark replay ({BENCHMARK_TIMESTAMP})...")
+                    try:
+                        url = f"{settings.ML_ADAPTER_URL}/predict/progression"
+                        payload = {
+                            "bbox": bbox,
+                            "time_horizon": 6,
+                            "model_type": model,
+                            "date": BENCHMARK_TIMESTAMP,
+                            "mock": settings.MOCK_INFERENCE,
+                        }
+                        resp = requests.post(url, json=payload, timeout=120)
+                        resp.raise_for_status()
+                        benchmark_fc = resp.json()
+                        b_features = benchmark_fc.get("features", [])
+                        feat_count = len(b_features)
+
+                        # If live container sees 0 features in this specific bbox on benchmark date (e.g. U-Net checking GOES-18 ABI),
+                        # fall back to calibrated Bay Area benchmark fixture so the model cache is never unseeded
+                        if feat_count == 0 and not settings.MOCK_INFERENCE:
+                            print(f"     -> Live {model.upper()} saw 0 features on benchmark date. Using calibrated benchmark fixture...")
+                            payload["mock"] = True
+                            resp = requests.post(url, json=payload, timeout=120)
+                            resp.raise_for_status()
+                            benchmark_fc = resp.json()
+                            b_features = benchmark_fc.get("features", [])
+                            feat_count = len(b_features)
+
+                        print(f"     -> Benchmark {model.upper()} returned {feat_count} features")
+
+                        if feat_count > 0:
+                            # Replay at current time so PostGIS queries and frontend time scrubber recognize them as active
+                            now_iso = timezone.now().isoformat()
+                            benchmark_fc.setdefault("metadata", {})
+                            benchmark_fc["metadata"]["timestamp"] = now_iso
+                            benchmark_fc["metadata"]["source_model"] = model
+                            benchmark_fc["metadata"]["benchmark_replay"] = True
+                            benchmark_fc["metadata"]["benchmark_date"] = BENCHMARK_TIMESTAMP
+
+                            store_geojson_result(benchmark_fc, incident_id=inc.id)
+                    except Exception as exc:
+                        print(f"     {YELLOW}⚠ {model.upper()} benchmark replay error: {exc}{RESET}")
+
+            # Ensure bidirectional sync between ffwai:predictions:current and ffwai:predictions:current:ensemble
+            curr = cache.get("ffwai:predictions:current")
+            curr_ens = cache.get("ffwai:predictions:current:ensemble")
+            if not curr and curr_ens:
+                cache.set("ffwai:predictions:current", curr_ens, timeout=3600)
+            elif not curr_ens and curr:
+                cache.set("ffwai:predictions:current:ensemble", curr, timeout=3600)
+
+            # Verify and report Redis cache keys
+            for key_suffix in ["", ":ensemble", ":unet", ":pinn"]:
+                cache_key = f"ffwai:predictions:current{key_suffix}"
+                cached = cache.get(cache_key)
+                if cached:
+                    try:
+                        data = json.loads(cached) if isinstance(cached, str) else cached
+                        c_count = len(data.get("features", []))
+                        print(f"   {GREEN}✔ Redis key '{cache_key}' cached ({c_count} features){RESET}")
+                    except Exception:
+                        pass
+                else:
+                    print(f"   {YELLOW}⚠ Redis key '{cache_key}' not populated{RESET}")
 
             print(f"   {GREEN}✔ Generated and cached predictions for U-Net, PINN, and Ensemble{RESET}")
     else:

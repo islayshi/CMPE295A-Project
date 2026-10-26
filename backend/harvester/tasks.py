@@ -282,15 +282,21 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
     # Query the database for the batch polygons and assemble into a FeatureCollection
     if timestamp:
         valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
+        if source_model:
+            valid_polygons = valid_polygons.filter(source_model=source_model)
         from predictions.serializers import PredictionPolygonGeoJSONSerializer
         serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
         feature_collection = {
             "type": "FeatureCollection",
-            "metadata": {"timestamp": target_timestamp.isoformat(), "total_cells": valid_polygons.count()},
+            "metadata": {
+                "timestamp": target_timestamp.isoformat(),
+                "total_cells": valid_polygons.count(),
+                "source_model": source_model,
+            },
             "features": serializer.data,
         }
         cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
-        if source_model and source_model in ("unet", "pinn", "rl"):
+        if source_model and source_model in ("unet", "pinn", "rl", "ensemble"):
             cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=3600)
 
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
@@ -886,6 +892,7 @@ def aggregate_active_predictions(results):
         "features": merged_features,
     }
     cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=3600)
+    cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=3600)
     logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(merged_features))
     return {"status": "success", "total_cells": len(merged_features)}
 

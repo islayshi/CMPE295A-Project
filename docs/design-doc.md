@@ -369,8 +369,13 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
 5. **Cache & Database Warmup (`scripts/seed_cache.py`):**
    - Populates live wind vector telemetry (`ffwai:wind_current`) via single-batch Open-Meteo querying, with fallback to calibrated Bay Area climatological vectors on transient read timeouts.
    - Populates AQI telemetry (`ffwai:aqi_data`) with fallback.
-   - Dispatches Active Fire Scout (NASA FIRMS VIIRS).
-   - Seeds baseline wildfire progression predictions via the verified FastAPI ML Adapter without connection refused errors.
+   - Dispatches Active Fire Scout (NASA FIRMS VIIRS 375m) to detect and cluster satellite fire hotspots.
+   - **Historical Replay Seeding for Live Docker Testing:**
+     - In live Docker mode (`MOCK_INFERENCE=false`), live GOES-18 ABI and PINN vegetation layers inspect real-time observations for `date=now`. On normal days with no active wildfire burning in the Bay Area, live models return 0 features (`features: []`).
+     - To enable genuine local testing of containerized U-Net and PINN services without waiting for a real-world wildfire, `seed_cache.py` expands the active fire bounding box to cover both Los Gatos and Morgan Hill (`[-122.25, 37.05, -121.65, 37.35]`).
+     - If live inference at `date=now` yields 0 features, `seed_cache.py` automatically falls back to querying the ML adapter with benchmark wildfire timestamp `2025-01-10T21:00:00Z` (Palisades benchmark fire).
+     - The benchmark predictions are replayed at the current timestamp (`now_iso`) and stored in PostGIS via `store_geojson_result`, caching the unified FeatureCollections in Redis under `ffwai:predictions:current`, `ffwai:predictions:current:ensemble`, `ffwai:predictions:current:unet`, and `ffwai:predictions:current:pinn`.
+     - This immediately populates 0h, +1h, +3h, and +6h fire spread polygons on the frontend Mapbox/Deck.gl canvas.
 
 ---
 
@@ -385,8 +390,10 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
   - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string, optional — defaults to UTC now), `time_horizon` (int hours: 0, 1, 3, 6, 24), and `model_type` ("unet", "pinn", or "ensemble").
   - **Output Contract (ML Engine → Django Backend):** Standard unified GeoJSON `FeatureCollection` containing per-cell features with `grid_id`, `fire_probability` (0.0–1.0), `risk_label`, `horizon_hours`, `source_model`, `w_unet`, and `members`.
   - **Ensemble Blending:** Combines U-Net and PINN predictions via spatial grid union: $P_{\text{ensemble}} = 0.6 \times P_{\text{unet}} + 0.4 \times P_{\text{pinn}}$ for overlapping cells; single-model scaled probabilities for non-overlapping cells. If one service fails, the ensemble gracefully degrades to the surviving service without failing the request.
-- **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
-- **Inference Cadence:** Daily Celery cron job (configurable via environment variable).
+- **Mock Fixture & Local Benchmark Replay:**
+  - When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
+  - When `MOCK_INFERENCE=false` (Live Docker microservices), `scripts/seed_cache.py` queries live U-Net and PINN containers. If `date=now` detects no active fire in real-world satellite feeds, the seeding pipeline automatically triggers Historical Replay using benchmark fire timestamp `2025-01-10T21:00:00Z`, verifying actual containerized model execution while ensuring active spread polygons appear for frontend UI validation.
+- **Inference Cadence:** Daily Celery cron job (`harvester.tasks.trigger_daily_inference` at 06:00 UTC) plus 30-minute Active Fire Scout (`harvester.tasks.trigger_active_inference`).
 - **Ensemble Models:** U-Net (spatial segmentation), PINN (physics-constrained spread), RL Agent DQN/PPO (dynamic progression). Ensemble combiner uses weighted voting / probability averaging.
 - **Research Lineage:** U-Net extends Paper 1 (Malik et al., 2021), RL extends Paper 2 (Adhikari et al., 2024), Ensemble extends Paper 3 (Malik et al., 2022).
 

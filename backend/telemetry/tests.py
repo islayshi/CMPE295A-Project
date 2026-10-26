@@ -83,3 +83,25 @@ def test_hotspots_telemetry_corrupt_cache(api_client):
         assert data["features"] == []
 
 
+def test_hotspots_telemetry_with_cached_list(api_client):
+    """GET /api/telemetry/hotspots/ returns GeoJSON FeatureCollection when cached as raw point list."""
+    mock_list = [
+        {
+            "latitude": 37.19,
+            "longitude": -121.68,
+            "frp": 18.0,
+            "confidence": "high",
+            "satellite": "VIIRS_NOAA20_NRT",
+            "is_industrial_flare": False,
+        }
+    ]
+    with patch("telemetry.views.cache.get", return_value=json.dumps(mock_list)):
+        response = api_client.get("/api/telemetry/hotspots/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 1
+        assert data["features"][0]["geometry"]["coordinates"] == [-121.68, 37.19]
+        assert data["features"][0]["properties"]["frp"] == 18.0
+
+

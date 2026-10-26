@@ -237,3 +237,28 @@ def test_fetch_bay_area_hotspots_keyed_failure_falls_back_to_keyless():
         assert len(result.raw_hotspots) >= 1
         assert result.raw_hotspots[0]["latitude"] == 37.22
 
+
+def test_aggregate_active_predictions_populates_ensemble_cache():
+    """Verify that aggregate_active_predictions caches merged results in both current and current:ensemble keys."""
+    from harvester.tasks import aggregate_active_predictions
+
+    mock_results = [
+        {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "properties": {"grid_id": 101, "horizon_hours": 1}}],
+        },
+        {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "properties": {"grid_id": 102, "horizon_hours": 3}}],
+        },
+    ]
+
+    with patch("harvester.tasks.cache.set") as mock_cache_set:
+        res = aggregate_active_predictions(mock_results)
+        assert res["status"] == "success"
+        assert res["total_cells"] == 2
+
+        cached_keys = [call[0][0] for call in mock_cache_set.call_args_list]
+        assert "ffwai:predictions:current" in cached_keys
+        assert "ffwai:predictions:current:ensemble" in cached_keys
+
