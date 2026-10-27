@@ -13,6 +13,7 @@ from .views import (
     get_mtbs_historical_perimeters,
     get_gridmet_telemetry,
     get_ndws_telemetry,
+    get_gpw_telemetry,
 )
 
 urlpatterns = [
@@ -29,4 +30,5 @@ urlpatterns = [
     path("mtbs/", get_mtbs_historical_perimeters, name="mtbs_perimeters"),
     path("gridmet/", get_gridmet_telemetry, name="telemetry-gridmet"),
     path("ndws/", get_ndws_telemetry, name="telemetry-ndws"),
+    path("gpw/", get_gpw_telemetry, name="telemetry-gpw"),
 ]

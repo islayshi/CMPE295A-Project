@@ -884,3 +884,67 @@ def get_ndws_telemetry(request):
         "event": event
     }
     return JsonResponse(payload)
+
+# Historical GPWv4.11 regional data benchmarks for SF Bay Area / California
+
+# NASA SEDAC GPWv4.11 STAC API endpoint for Cloud-Optimized GeoTIFFs (US GHG / Earthdata)
+SEDAC_STAC_BASE = "https://earth.gov/ghgcenter/api/stac/collections/sedac-popdensity-yeargrid5yr-v4.11/items"
+
+# Pre-defined regional spatial bounds (e.g., SF Bay Area, CA)
+BAY_AREA_BBOX = [-122.55, 37.20, -121.50, 38.60]
+
+@api_view(["GET"])
+def get_gpw_telemetry(request):
+    """
+    GET /api/telemetry/gpw/?year=2020
+    Queries live NASA SEDAC GPWv4.11 raster metadata dynamically from NASA STAC / Earthdata.
+    """
+    year = request.GET.get("year", "2020")
+    
+    # Ensure year is a valid 5-year benchmark epoch
+    valid_epochs = ["2000", "2005", "2010", "2015", "2020"]
+    if year not in valid_epochs:
+        year = "2020"
+
+    try:
+        # Query NASA's STAC item API for the specific year's raster granule
+        stac_item_url = f"{SEDAC_STAC_BASE}/sedac-popdensity-yeargrid5yr-v4.11-{year}"
+        response = requests.get(stac_item_url, timeout=8)
+
+        if response.status_code == 200:
+            stac_data = response.json()
+            assets = stac_data.get("assets", {})
+            cog_asset = assets.get("cog", {}) or assets.get("data", {})
+
+            payload = {
+                "status": "success",
+                "source": "Live NASA SEDAC STAC API (GPWv4.11)",
+                "data": {
+                    "year": year,
+                    "dataset_id": stac_data.get("id", f"sedac-popdensity-{year}"),
+                    "title": stac_data.get("properties", {}).get("title", f"Gridded Population of the World v4.11 ({year})"),
+                    "raster_url": cog_asset.get("href", ""),
+                    "spatial_resolution": "30 arc-seconds (~1 km)",
+                    "bounding_box": stac_data.get("bbox", BAY_AREA_BBOX),
+                    "datetime": stac_data.get("properties", {}).get("datetime", f"{year}-01-01T00:00:00Z"),
+                    "license": stac_data.get("properties", {}).get("license", "CC-BY-4.0"),
+                    "live_stac_endpoint": stac_item_url
+                }
+            }
+            return JsonResponse(payload)
+        else:
+            # Fallback to WMS tile layer if STAC item format varies
+            return JsonResponse({
+                "status": "success",
+                "source": "NASA SEDAC WMS Direct Service",
+                "data": {
+                    "year": year,
+                    "title": f"GPWv4.11 Population Density ({year})",
+                    "wms_url": f"https://sedac.ciesin.columbia.edu/geoserver/wms",
+                    "layer_name": f"gpw-v4:gpw-v4-population-density-rev11_{year}",
+                    "spatial_resolution": "30 arc-seconds (~1 km)"
+                }
+            })
+
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"status": "error", "message": f"Failed to contact NASA SEDAC: {str(e)}"}, status=502)

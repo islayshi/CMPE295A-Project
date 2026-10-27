@@ -12,6 +12,7 @@ import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
 import MtbsHistoricalPanel from '../components/MtbsHistoricalPanel';
 import GridmetPanel from '../components/GridmetPanel';
 import NdwsPanel from '../components/NDWSPanel';
+import GpwPanel from '../components/GpwPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -23,6 +24,7 @@ const categories = [
   'MTBS Burn Severity',
   'GRIDMET Fire Weather Surface Meteorology',
   'NDWS Benchmark Tensor Layers',
+  'GPW Population Density',
 ];
 
 const bayAreaStations = [
@@ -335,6 +337,11 @@ const DataPage = () => {
           />
         ) : selectedCategory === 'NDWS Benchmark Tensor Layers' ? (
           <NdwsPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'GPW Population Density' ? (
+          <GpwPanel
             selectedDate={selectedDate}
             formatDateString={formatDateString}
           />
