@@ -382,13 +382,15 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
 2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
 3. **Application Process Launch:** Spawns isolated terminals for Django (8000), Celery Worker, Celery Beat, FastAPI ML Adapter (8001), and React Frontend (5173).
 4. **Service Health Gate:** Actively polls FastAPI ML Adapter (`GET /health`) on port 8001 until HTTP 200 is confirmed.
-5. **Automated Cache & Database Warmup (`@worker_ready.connect`):**
-   - Retires the need to manually invoke `scripts/seed_cache.py` during stack startup.
+5. **Automated Cache, Database Warmup & Incident Containment (`@worker_ready.connect`):**
+   - Retires the need to manually invoke `scripts/seed_cache.py` or any manual cleanup script.
    - Celery worker startup signal hook (`harvester.signals.on_worker_ready`) automatically dispatches:
+     - `archive_old_predictions.delay()` (evaluates PostgreSQL incidents, automatically containing any with no recent detections)
      - `fetch_wind_data.delay()` (live wind vector telemetry)
      - `fetch_airnow_aqi.delay()` (live PM2.5 / AQI telemetry)
-     - `trigger_active_inference.delay()` (NASA FIRMS VIIRS 375m active fire scout)
+     - `trigger_active_inference.delay()` (NASA FIRMS VIIRS 375m active fire scout using 2-day rolling window)
    - Automatically pre-warms Redis and PostGIS across strictly supported forecast horizons (`0h`, `1h`, `3h`, `6h`).
+   - Incident containment runs continuously on Celery Beat every 30 minutes (`archive-old-predictions-30min`).
 
 ---
 
@@ -407,8 +409,9 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
 - **Mock Fixture Purge & Clean Empty Output:**
   - Mock GeoJSON fixture files and synthetic coordinate translations have been purged.
   - When live models detect 0 features, the adapter cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"`, avoiding any fallback or translation of pre-recorded Santa Cruz files onto the map.
-- **Inference Cadence:** Daily Celery cron job (`harvester.tasks.trigger_daily_inference` at 06:00 UTC) plus 30-minute Active Fire Scout (`harvester.tasks.trigger_active_inference`).
+- **Inference Cadence:** Daily Celery cron job (`harvester.tasks.trigger_daily_inference` at 06:00 UTC) plus 30-minute Active Fire Scout (`harvester.tasks.trigger_active_inference`). Uses NASA FIRMS Area API rolling 2-day window (`/2`) filtered to the last 24 hours, guaranteeing uninterrupted detection telemetry across UTC calendar rollover.
 - **Active Models:** U-Net (spatial segmentation), PIML (Physics-Informed Machine Learning spread), RL Agent DQN/PPO (dynamic progression).
+- **Incident Lifecycle Guard:** Current risk endpoint (`/api/predictions/current/`) strictly rejects contained or historical incidents (>6h old). When no active wildland fires are burning, it returns `features: []` with `status: "no_active_fire"`, preventing resurrection of past incidents.
 
 - **Research Lineage:** U-Net extends Paper 1 (Malik et al., 2021), RL extends Paper 2 (Adhikari et al., 2024), Ensemble extends Paper 3 (Malik et al., 2022).
 

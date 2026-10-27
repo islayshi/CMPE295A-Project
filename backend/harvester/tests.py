@@ -445,13 +445,15 @@ def test_worker_ready_startup_warmup_signals():
 
     with patch("harvester.signals.fetch_wind_data.delay") as mock_wind, \
          patch("harvester.signals.fetch_airnow_aqi.delay") as mock_aqi, \
-         patch("harvester.signals.trigger_active_inference.delay") as mock_inference:
+         patch("harvester.signals.trigger_active_inference.delay") as mock_inference, \
+         patch("harvester.signals.archive_old_predictions.delay") as mock_archive:
 
         worker_ready.send(sender=None)
 
         mock_wind.assert_called_once()
         mock_aqi.assert_called_once()
         mock_inference.assert_called_once()
+        mock_archive.assert_called_once()
 
 
 @pytest.mark.django_db

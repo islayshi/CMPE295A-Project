@@ -1121,8 +1121,9 @@ def archive_old_predictions():
 
         if not has_recent_hotspots and last_activity_time < twenty_four_hours_ago:
             incident.is_active = False
-            incident.containment_time = now
-            incident.save(update_fields=["is_active", "end_time"])
+            incident.end_time = now
+            incident.containment_status = 100.0
+            incident.save(update_fields=["is_active", "end_time", "containment_status"])
             contained_incidents_count += 1
             logger.info('{"event": "incident_auto_contained", "incident_id": %d, "name": "%s"}', incident.id, incident.name)
 

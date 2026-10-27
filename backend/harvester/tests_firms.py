@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 import pytest
 from django.conf import settings
@@ -62,9 +63,10 @@ def test_deduplicate_hotspots():
 
 def test_fetch_bay_area_hotspots_queries_all_three_sensors():
     """Verify that fetch_bay_area_hotspots queries Suomi-NPP, NOAA-20, and NOAA-21 when key is provided."""
-    sample_csv_snpp = "latitude,longitude,frp,confidence,acq_date,acq_time\n37.20,-121.70,12.0,nominal,2026-10-25,1800\n"
-    sample_csv_noaa20 = "latitude,longitude,frp,confidence,acq_date,acq_time\n37.25,-121.80,18.0,high,2026-10-25,1900\n"
-    sample_csv_noaa21 = "latitude,longitude,frp,confidence,acq_date,acq_time\n37.4557,-121.9323,30.0,high,2026-10-25,2000\n"
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    sample_csv_snpp = f"latitude,longitude,frp,confidence,acq_date,acq_time\n37.20,-121.70,12.0,nominal,{today_str},1800\n"
+    sample_csv_noaa20 = f"latitude,longitude,frp,confidence,acq_date,acq_time\n37.25,-121.80,18.0,high,{today_str},1900\n"
+    sample_csv_noaa21 = f"latitude,longitude,frp,confidence,acq_date,acq_time\n37.4557,-121.9323,30.0,high,{today_str},2000\n"
 
     def mock_get(url, *args, **kwargs):
         mock_resp = MagicMock()
@@ -216,7 +218,8 @@ def test_fetch_bay_area_hotspots_keyed_failure_falls_back_to_keyless():
     Verify that if the keyed Area API fails (e.g. invalid map key, 403, 500, or 'Invalid MAP_KEY' 200 text),
     fetch_bay_area_hotspots gracefully falls back to the public keyless CSVs.
     """
-    keyless_csv = "latitude,longitude,frp,confidence,acq_date,acq_time\n37.22,-121.72,16.0,high,2026-10-25,1830\n"
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    keyless_csv = f"latitude,longitude,frp,confidence,acq_date,acq_time\n37.22,-121.72,16.0,high,{today_str},1830\n"
 
     def mock_get(url, *args, **kwargs):
         mock_resp = MagicMock()
@@ -506,6 +509,64 @@ def test_aggregate_active_predictions_populates_unet_and_pinn_caches():
 
         assert len(cached_entries["ffwai:predictions:current:pinn"]["features"]) == 1
         assert cached_entries["ffwai:predictions:current:pinn"]["features"][0]["properties"]["grid_id"] == 201
+
+
+def test_firms_area_api_queries_rolling_2day_window():
+    """Verify that VIIRS_AREA_API_URL_TEMPLATE uses day_range=2 (rolling 24-48h) to prevent early-morning dropouts."""
+    from harvester.firms_client import VIIRS_AREA_API_URL_TEMPLATE
+
+    assert VIIRS_AREA_API_URL_TEMPLATE.endswith("/2"), (
+        f"Expected URL template to end with /2 (rolling 2-day window), got {VIIRS_AREA_API_URL_TEMPLATE}"
+    )
+
+
+def test_process_hotspots_filters_detections_older_than_24h():
+    """Verify that process_hotspots_for_telemetry_and_clustering filters out detections older than 24 hours."""
+    from datetime import datetime, timezone, timedelta
+    from harvester.firms_client import process_hotspots_for_telemetry_and_clustering
+
+    now = datetime.now(timezone.utc)
+    recent_time = now - timedelta(hours=2)
+    stale_time = now - timedelta(hours=36)
+
+    raw_rows = [
+        {
+            "latitude": 38.20,
+            "longitude": -122.00,
+            "confidence": "high",
+            "frp": 15.0,
+            "acq_date": recent_time.strftime("%Y-%m-%d"),
+            "acq_time": recent_time.strftime("%H%M"),
+        },
+        {
+            "latitude": 38.22,
+            "longitude": -122.02,
+            "confidence": "high",
+            "frp": 25.0,
+            "acq_date": stale_time.strftime("%Y-%m-%d"),
+            "acq_time": stale_time.strftime("%H%M"),
+        },
+    ]
+
+    wildland, all_hotspots = process_hotspots_for_telemetry_and_clustering(raw_rows)
+    assert len(all_hotspots) == 1
+    assert all_hotspots[0]["latitude"] == 38.20
+
+
+def test_on_worker_ready_dispatches_archive_old_predictions():
+    """Verify that worker_ready signal automatically dispatches archive_old_predictions."""
+    from harvester.signals import on_worker_ready
+
+    with patch("harvester.signals.fetch_wind_data.delay") as mock_wind, \
+         patch("harvester.signals.fetch_airnow_aqi.delay") as mock_aqi, \
+         patch("harvester.signals.trigger_active_inference.delay") as mock_scout, \
+         patch("harvester.signals.archive_old_predictions.delay") as mock_archive:
+        on_worker_ready(sender=None)
+        mock_wind.assert_called_once()
+        mock_aqi.assert_called_once()
+        mock_scout.assert_called_once()
+        mock_archive.assert_called_once()
+
 
 
 

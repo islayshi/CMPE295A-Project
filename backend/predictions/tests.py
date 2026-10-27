@@ -325,5 +325,47 @@ def test_current_predictions_piml_alias_resolves_to_pinn(api_client, cached_pred
         mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
 
 
+@pytest.mark.django_db
+def test_current_predictions_does_not_resurrect_stale_or_inactive_incidents(api_client):
+    """
+    Verifies that current_predictions never returns polygons from inactive incidents
+    or predictions older than 6 hours when the Redis cache is empty.
+    """
+    from datetime import datetime, timezone, timedelta
+    from predictions.models import FireIncident, PredictionPolygon
+    from grid.models import BayAreaGrid
+
+    poly = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid = BayAreaGrid.objects.create(id=9991, geometry=poly, centroid=Point(10, 10, srid=4326), row=0, col=0)
+
+    now = datetime.now(timezone.utc)
+    ten_hours_ago = now - timedelta(hours=10)
+
+    # Inactive incident from 10 hours ago (e.g. historical Morgan Hill incident)
+    inc_inactive = FireIncident.objects.create(
+        name="Historical Contained Fire",
+        start_time=ten_hours_ago,
+        end_time=ten_hours_ago,
+        is_active=False,
+    )
+    PredictionPolygon.objects.create(
+        grid=grid,
+        fire_incident=inc_inactive,
+        timestamp=ten_hours_ago,
+        source_model="pinn",
+        fire_probability=0.9,
+    )
+
+    with patch("predictions.views.cache.get", return_value=None):
+        response = api_client.get("/api/predictions/current/?model=pinn")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        # Must return empty features — NEVER resurrect the inactive incident!
+        assert len(data["features"]) == 0
+        assert data.get("status") == "no_active_fire"
+
+
+
 
 

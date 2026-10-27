@@ -107,9 +107,16 @@ def current_predictions(request):
                 elif cache_key == CURRENT_RISK_CACHE_KEY:
                     cache.set("ffwai:predictions:current:ensemble", json.dumps(feature_collection), timeout=21600)
 
-        # 2. Single-batch fallback (baseline or mock)
+        # 2. Recent predictions fallback (unlinked incidents or recent active runs)
         if not feature_collection or not feature_collection.get("features"):
-            qs = PredictionPolygon.objects.filter(timestamp__lte=datetime.now(timezone.utc))
+            from django.db.models import Q
+            six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
+            qs = PredictionPolygon.objects.filter(
+                timestamp__gte=six_hours_ago,
+                timestamp__lte=datetime.now(timezone.utc),
+            ).filter(
+                Q(fire_incident__isnull=True) | Q(fire_incident__is_active=True)
+            )
             if raw_model and model_param in ("unet", "pinn", "rl"):
                 qs = qs.filter(source_model=model_param)
             elif raw_model and model_param == "ensemble":
@@ -136,10 +143,16 @@ def current_predictions(request):
                 elif cache_key == CURRENT_RISK_CACHE_KEY:
                     cache.set("ffwai:predictions:current:ensemble", json.dumps(feature_collection), timeout=21600)
 
-        if not feature_collection:
+        if not feature_collection or not feature_collection.get("features"):
             feature_collection = {
                 "type": "FeatureCollection",
-                "metadata": {"source_model": model_param, "total_cells": 0},
+                "status": "no_active_fire",
+                "metadata": {
+                    "source_model": model_param,
+                    "total_cells": 0,
+                    "status": "no_active_fire",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
                 "features": []
             }
 

@@ -12,7 +12,7 @@ import io
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import requests
@@ -33,8 +33,8 @@ REFINERY_ZONES: list[tuple[str, float, float, float]] = [
 
 VIIRS_SOURCES = ["VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT"]
 
-VIIRS_AREA_API_URL_TEMPLATE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/{source}/{bbox}/1"
-VIIRS_AREA_API_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/VIIRS_SNPP_NRT/{bbox}/1"
+VIIRS_AREA_API_URL_TEMPLATE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/{source}/{bbox}/2"
+VIIRS_AREA_API_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/VIIRS_SNPP_NRT/{bbox}/2"
 
 VIIRS_KEYLESS_CSV_URLS = {
     "VIIRS_SNPP_NRT": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_USA_contiguous_and_Hawaii_24h.csv",
@@ -226,6 +226,8 @@ def process_hotspots_for_telemetry_and_clustering(
     min_lon, min_lat, max_lon, max_lat = bbox
     wildland_points: list[dict[str, Any]] = []
     all_hotspots: list[dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    twenty_four_hours_ago = now - timedelta(hours=24)
 
     for pt in rows:
         lat = pt["latitude"]
@@ -234,6 +236,18 @@ def process_hotspots_for_telemetry_and_clustering(
         # Geographic bounds check
         if not (min_lat <= lat <= max_lat and min_lon <= lon <= max_lon):
             continue
+
+        # 24-hour rolling window check
+        acq_date = pt.get("acq_date")
+        acq_time = pt.get("acq_time")
+        if acq_date and acq_time:
+            try:
+                time_str = f"{acq_date} {str(acq_time).zfill(4)}"
+                dt = datetime.strptime(time_str, "%Y-%m-%d %H%M").replace(tzinfo=timezone.utc)
+                if dt < twenty_four_hours_ago:
+                    continue
+            except Exception:
+                pass
 
         # Confidence check (reject low confidence)
         conf = pt.get("confidence", "nominal")

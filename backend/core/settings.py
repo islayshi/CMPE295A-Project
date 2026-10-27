@@ -187,9 +187,9 @@ CELERY_BEAT_SCHEDULE = {
         "task": "harvester.tasks.fetch_nws_alerts",
         "schedule": 900,  # 15 minutes in seconds
     },
-    "archive-old-predictions-nightly": {
+    "archive-old-predictions-30min": {
         "task": "harvester.tasks.archive_old_predictions",
-        "schedule": crontab(minute=0, hour=0),
+        "schedule": 1800,  # 30 minutes in seconds
     },
     "trigger-active-inference-30min": {
         "task": "harvester.tasks.trigger_active_inference",
