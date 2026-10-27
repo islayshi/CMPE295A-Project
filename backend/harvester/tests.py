@@ -269,7 +269,7 @@ def test_trigger_active_inference_scout():
 
         mock_chord.assert_called_once()
         header_tasks = mock_chord.call_args[0][0]
-        assert len(header_tasks) == 1
+        assert len(header_tasks) == 2
 
 
 @pytest.mark.django_db

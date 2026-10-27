@@ -415,4 +415,98 @@ def test_archive_old_predictions_partial_containment_refreshes_cache_for_remaini
         assert cached_fc["features"][0]["properties"]["grid_id"] == 602
 
 
+def test_bay_area_bbox_includes_sacramento_delta_and_solano():
+    """
+    Verify that BAY_AREA_BBOX northern latitude extends to at least 38.50
+    so northern Solano County and Sacramento Delta (Courtland, Rio Vista, Fairfield)
+    hotspots are not excluded from telemetry pins.
+    """
+    from harvester.firms_client import BAY_AREA_BBOX
+
+    min_lon, min_lat, max_lon, max_lat = BAY_AREA_BBOX
+    assert max_lat >= 38.50, f"Expected max_lat >= 38.50, got {max_lat}"
+    assert min_lat <= 36.90
+    assert min_lon <= -122.90
+    assert max_lon >= -121.50
+
+
+@pytest.mark.django_db
+def test_trigger_active_inference_dispatches_unet_and_pinn_tasks():
+    """
+    Verify that trigger_active_inference dispatches individual inference tasks for both
+    U-Net and PINN (PIML) for each detected fire cluster.
+    """
+    from harvester.tasks import trigger_active_inference
+    from harvester.firms_client import FireCluster
+
+    cluster = FireCluster(
+        cluster_id=1,
+        centroid_lat=37.5,
+        centroid_lon=-122.0,
+        count=1,
+        bbox=[-122.28, 37.27, -121.72, 37.73],
+        points=[{"latitude": 37.5, "longitude": -122.0, "confidence": "high"}]
+    )
+
+    with patch("harvester.tasks.fetch_bay_area_hotspots", return_value=[cluster]), \
+         patch("harvester.tasks.chord") as mock_chord:
+        mock_chord_instance = MagicMock()
+        mock_chord.return_value = mock_chord_instance
+
+        result = trigger_active_inference.apply()
+
+        assert result.result["status"] == "success"
+        assert result.result["fires_detected"] == 1
+
+        mock_chord.assert_called_once()
+        header_tasks = mock_chord.call_args[0][0]
+        # Must dispatch 2 tasks per cluster: one for U-Net, one for PINN/PIML
+        assert len(header_tasks) == 2
+        models = [t.args[1] if len(t.args) > 1 else t.kwargs.get("model_type") for t in header_tasks]
+        assert "unet" in models
+        assert "pinn" in models
+
+
+def test_aggregate_active_predictions_populates_unet_and_pinn_caches():
+    """
+    Verify that aggregate_active_predictions aggregates features per model
+    and caches them into ffwai:predictions:current:unet, ffwai:predictions:current:pinn,
+    and ffwai:predictions:current.
+    """
+    from harvester.tasks import aggregate_active_predictions
+
+    mock_results = [
+        {
+            "type": "FeatureCollection",
+            "metadata": {"source_model": "unet"},
+            "features": [{"type": "Feature", "properties": {"grid_id": 101, "source_model": "unet"}}],
+        },
+        {
+            "type": "FeatureCollection",
+            "metadata": {"source_model": "pinn"},
+            "features": [{"type": "Feature", "properties": {"grid_id": 201, "source_model": "pinn"}}],
+        },
+    ]
+
+    cached_entries = {}
+
+    def mock_set(key, val, timeout=None):
+        cached_entries[key] = json.loads(val) if isinstance(val, str) else val
+
+    with patch("harvester.tasks.cache.set", side_effect=mock_set):
+        res = aggregate_active_predictions(mock_results)
+        assert res["status"] == "success"
+
+        assert "ffwai:predictions:current:unet" in cached_entries
+        assert "ffwai:predictions:current:pinn" in cached_entries
+        assert "ffwai:predictions:current" in cached_entries
+
+        assert len(cached_entries["ffwai:predictions:current:unet"]["features"]) == 1
+        assert cached_entries["ffwai:predictions:current:unet"]["features"][0]["properties"]["grid_id"] == 101
+
+        assert len(cached_entries["ffwai:predictions:current:pinn"]["features"]) == 1
+        assert cached_entries["ffwai:predictions:current:pinn"]["features"][0]["properties"]["grid_id"] == 201
+
+
+
 

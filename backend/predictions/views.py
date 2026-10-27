@@ -43,14 +43,16 @@ def current_predictions(request):
       model   (optional): "ensemble" (default), "unet", "pinn", "rl"
       horizon (optional): integer horizon hours (0, 1, 3, 6)
     """
-    model_param = request.query_params.get("model", "ensemble").lower().strip()
+    raw_model = request.query_params.get("model")
     horizon_param = request.query_params.get("horizon")
 
-    if model_param in ("unet", "pinn", "rl"):
-        cache_key = f"ffwai:predictions:current:{model_param}"
-    elif request.query_params.get("model"):
+    if raw_model:
+        model_param = raw_model.lower().strip()
+        if model_param == "piml":
+            model_param = "pinn"
         cache_key = f"ffwai:predictions:current:{model_param}"
     else:
+        model_param = "pinn"
         cache_key = CURRENT_RISK_CACHE_KEY
 
     feature_collection = None
@@ -80,9 +82,9 @@ def current_predictions(request):
                 timestamp__gte=six_hours_ago,
             ).select_related("grid")
 
-            if model_param in ("unet", "pinn", "rl"):
+            if raw_model and model_param in ("unet", "pinn", "rl"):
                 active_polygons = active_polygons.filter(source_model=model_param)
-            elif model_param == "ensemble":
+            elif raw_model and model_param == "ensemble":
                 ensemble_polygons = active_polygons.filter(source_model="ensemble")
                 if ensemble_polygons.exists():
                     active_polygons = ensemble_polygons
@@ -95,7 +97,7 @@ def current_predictions(request):
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "total_cells": active_polygons.count(),
                         "active_incidents": len(active_incidents),
-                        "source_model": model_param,
+                        "source_model": model_param if raw_model else "ensemble",
                     },
                     "features": serializer.data,
                 }
@@ -108,9 +110,9 @@ def current_predictions(request):
         # 2. Single-batch fallback (baseline or mock)
         if not feature_collection or not feature_collection.get("features"):
             qs = PredictionPolygon.objects.filter(timestamp__lte=datetime.now(timezone.utc))
-            if model_param in ("unet", "pinn", "rl"):
+            if raw_model and model_param in ("unet", "pinn", "rl"):
                 qs = qs.filter(source_model=model_param)
-            elif model_param == "ensemble":
+            elif raw_model and model_param == "ensemble":
                 ensemble_qs = qs.filter(source_model="ensemble")
                 if ensemble_qs.exists():
                     qs = ensemble_qs

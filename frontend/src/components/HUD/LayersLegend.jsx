@@ -59,24 +59,29 @@ export default function LayersLegend({
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Predictive Model</h3>
                 <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-slate-200">
                   {[
-                    { id: 'ensemble', label: 'Ensemble', icon: Sparkles },
+                    { id: 'pinn', label: 'PIML', icon: Flame },
                     { id: 'unet', label: 'U-Net', icon: Cpu },
-                    { id: 'pinn', label: 'PINN', icon: Flame },
+                    { id: 'ensemble', label: 'Ensemble', icon: Sparkles, disabled: true },
                   ].map((m) => {
                     const Icon = m.icon;
                     const isActive = selectedModel === m.id;
+                    const isDisabled = Boolean(m.disabled);
                     return (
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setSelectedModel(m.id)}
+                        disabled={isDisabled}
+                        title={m.disabled ? 'Pending AI/ML Team Specification' : m.label}
+                        onClick={() => !isDisabled && setSelectedModel(m.id)}
                         className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all ${
-                          isActive
+                          isDisabled
+                            ? 'opacity-40 cursor-not-allowed text-slate-400'
+                            : isActive
                             ? 'bg-orange-600 text-white shadow-sm font-semibold'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }`}
                       >
-                        <Icon size={14} className={isActive ? 'text-white mb-1' : 'text-slate-500 mb-1'} />
+                        <Icon size={14} className={isActive ? 'text-white mb-1' : isDisabled ? 'text-slate-400 mb-1' : 'text-slate-500 mb-1'} />
                         <span>{m.label}</span>
                       </button>
                     );

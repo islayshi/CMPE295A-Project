@@ -1,9 +1,9 @@
 import { Sparkles, Cpu, Flame } from 'lucide-react';
 
 const MODELS = [
-  { id: 'ensemble', label: 'Ensemble', icon: Sparkles, hint: 'Blended 0.6 U-Net + 0.4 PINN' },
+  { id: 'pinn', label: 'PIML', icon: Flame, hint: 'Physics-Informed Machine Learning (v0.3.1 Spread)' },
   { id: 'unet', label: 'U-Net', icon: Cpu, hint: 'Spatial Segmentation' },
-  { id: 'pinn', label: 'PINN', icon: Flame, hint: 'Physics-Informed Spread' },
+  { id: 'ensemble', label: 'Ensemble', icon: Sparkles, hint: 'Pending AI/ML Team Specification', disabled: true },
 ];
 
 export default function ModelSelector({ selectedModel, onSelectModel, className = '' }) {
@@ -16,21 +16,25 @@ export default function ModelSelector({ selectedModel, onSelectModel, className 
       {MODELS.map((model) => {
         const Icon = model.icon;
         const isActive = selectedModel === model.id;
+        const isDisabled = Boolean(model.disabled);
         return (
           <button
             key={model.id}
             type="button"
             role="radio"
+            disabled={isDisabled}
             aria-checked={isActive}
             title={model.hint}
-            onClick={() => onSelectModel(model.id)}
+            onClick={() => !isDisabled && onSelectModel(model.id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
-              isActive
+              isDisabled
+                ? 'opacity-40 cursor-not-allowed text-slate-400'
+                : isActive
                 ? 'bg-orange-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            <Icon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
+            <Icon size={14} className={isActive ? 'text-white' : isDisabled ? 'text-slate-400' : 'text-slate-500'} />
             <span>{model.label}</span>
           </button>
         );

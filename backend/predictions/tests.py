@@ -313,4 +313,17 @@ def test_current_predictions_bidirectional_cache_sync_on_fallback(api_client, pr
         assert "ffwai:predictions:current" in cached_writes
 
 
+def test_current_predictions_piml_alias_resolves_to_pinn(api_client, cached_prediction_data):
+    """
+    Verifies that querying ?model=piml aliases to ?model=pinn and checks the
+    ffwai:predictions:current:pinn cache key.
+    """
+    with patch("predictions.views.cache.get") as mock_cache_get:
+        mock_cache_get.return_value = json.dumps(cached_prediction_data)
+        response = api_client.get("/api/predictions/current/?model=piml")
+        assert response.status_code == 200
+        mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
+
+
+
 

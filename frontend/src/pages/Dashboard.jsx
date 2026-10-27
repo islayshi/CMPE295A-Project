@@ -12,7 +12,7 @@ import { fetchCurrentPredictions } from '../api/predictions';
 import { fetchShelters, fetchWindData, fetchAqiData, fetchFirmsHotspots } from '../api/telemetry';
 
 export default function Dashboard() {
-  const [selectedModel, setSelectedModel] = useState('ensemble');
+  const [selectedModel, setSelectedModel] = useState('pinn');
   const [isFireRiskVisible, setIsFireRiskVisible] = useState(true);
   const [isHotspotsVisible, setIsHotspotsVisible] = useState(true);
   const [timeScrub, setTimeScrub] = useState(0);

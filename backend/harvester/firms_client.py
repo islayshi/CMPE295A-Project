@@ -19,7 +19,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-BAY_AREA_BBOX = (-122.9, 36.9, -121.5, 38.3)
+BAY_AREA_BBOX = (-122.9, 36.9, -121.5, 38.5)
 CALIFORNIA_BOUNDS = (-124.5, 32.5, -114.0, 42.1)
 
 # Known East Bay and South Bay industrial flaring sites (name, lat, lon, exclusion radius km)
@@ -261,7 +261,7 @@ def process_hotspots_for_telemetry_and_clustering(
 def cluster_hotspots(
     points: list[dict[str, Any]],
     radius_km: float = 3.0,
-    buffer_km: float = 25.0,
+    buffer_km: float = 20.0,
 ) -> list[FireCluster]:
     """
     Clusters nearby hotspot points into distinct fire incidents and calculates

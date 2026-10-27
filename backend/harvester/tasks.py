@@ -878,20 +878,35 @@ def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, tim
 def aggregate_active_predictions(results):
     """
     Chord callback task: merges GeoJSON FeatureCollections from all active fire tasks
-    and writes the unified collection to Redis cache ('ffwai:predictions:current').
+    and writes model-scoped collections to Redis cache ('ffwai:predictions:current:unet',
+    'ffwai:predictions:current:pinn', and default 'ffwai:predictions:current').
     Guards against overwriting populated cache with empty features if an asynchronous scan sees zero new burns.
     Sets Redis TTL to 6 hours (21600 seconds).
     """
-    merged_features = []
+    features_by_model: dict[str, list[dict]] = {"unet": [], "pinn": []}
     timestamp = datetime.now(timezone.utc).isoformat()
+    all_features = []
+
     for res in results:
         if isinstance(res, dict):
+            model = res.get("metadata", {}).get("source_model", "")
             features = res.get("features", [])
-            merged_features.extend(features)
+            all_features.extend(features)
+            if model in features_by_model:
+                features_by_model[model].extend(features)
+            elif model:
+                features_by_model[model] = list(features)
+
+    # If results did not tag source_model in metadata, check individual feature properties
+    if not features_by_model["unet"] and not features_by_model["pinn"] and all_features:
+        for f in all_features:
+            m = f.get("properties", {}).get("source_model")
+            if m in features_by_model:
+                features_by_model[m].append(f)
 
     # Empty overwrite guard: do not overwrite a populated cache with features: []
-    if not merged_features:
-        existing_cached = cache.get(CURRENT_RISK_CACHE_KEY) or cache.get("ffwai:predictions:current:ensemble")
+    if not all_features:
+        existing_cached = cache.get(CURRENT_RISK_CACHE_KEY) or cache.get("ffwai:predictions:current:pinn")
         if existing_cached:
             try:
                 data = json.loads(existing_cached) if isinstance(existing_cached, str) else existing_cached
@@ -901,19 +916,43 @@ def aggregate_active_predictions(results):
             except Exception:
                 pass
 
+    for model_name, feats in features_by_model.items():
+        if feats or not cache.get(f"ffwai:predictions:current:{model_name}"):
+            fc = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": timestamp,
+                    "total_cells": len(feats),
+                    "source_model": model_name,
+                },
+                "features": feats,
+            }
+            cache.set(f"ffwai:predictions:current:{model_name}", json.dumps(fc), timeout=21600)
+
+    # Primary model for default view is pinn (PIML), falling back to unet
+    primary_model = "pinn" if features_by_model["pinn"] else ("unet" if features_by_model["unet"] else "pinn")
+    primary_feats = features_by_model[primary_model] if features_by_model[primary_model] else all_features
     merged_fc = {
         "type": "FeatureCollection",
         "metadata": {
             "timestamp": timestamp,
-            "total_cells": len(merged_features),
-            "source_model": "ensemble",
+            "total_cells": len(primary_feats),
+            "source_model": primary_model,
         },
-        "features": merged_features,
+        "features": primary_feats,
     }
     cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
-    cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=21600)
-    logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(merged_features))
-    return {"status": "success", "total_cells": len(merged_features)}
+    cache.set("ffwai:predictions:current:ensemble", json.dumps({
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": timestamp,
+            "total_cells": len(all_features),
+            "source_model": "ensemble",
+        },
+        "features": all_features,
+    }), timeout=21600)
+    logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(all_features))
+    return {"status": "success", "total_cells": len(all_features)}
 
 
 @shared_task(name="harvester.tasks.trigger_active_inference", bind=True, max_retries=3, default_retry_delay=60)
@@ -1004,14 +1043,15 @@ def trigger_active_inference(self):
         ]
         if not seed_points and getattr(cluster, "centroid_lon", None) is not None and getattr(cluster, "centroid_lat", None) is not None:
             seed_points = [[cluster.centroid_lon, cluster.centroid_lat]]
-        task_sig = run_async_inference.s(
-            cluster.bbox,
-            model_type="ensemble",
-            incident_id=incident.id,
-            time_horizon=6,
-            seed_points=seed_points,
-        )
-        header_tasks.append(task_sig)
+        for model in ("unet", "pinn"):
+            task_sig = run_async_inference.s(
+                cluster.bbox,
+                model_type=model,
+                incident_id=incident.id,
+                time_horizon=6,
+                seed_points=seed_points,
+            )
+            header_tasks.append(task_sig)
 
     # Fan out in parallel and aggregate via Celery chord
     chord(header_tasks)(aggregate_active_predictions.s())
