@@ -2,22 +2,21 @@
 FastAPI ML Adapter — Fight Fire With AI
 ========================================
 Isolated translation layer between the Django/Celery backend and the
-ML models hosted on Vertex AI.
+ML models (U-Net and PINN microservices / Vertex AI).
 
-Month 1 behaviour (MOCK_INFERENCE=true):
-  - POST /predict/progression returns bay_area_fixture.json directly.
-  - No Vertex AI calls are made.
+Mock mode behaviour (MOCK_INFERENCE=true or request.mock=True):
+  - Returns a clean GeoJSON FeatureCollection with features: [] and status: "no_active_fire".
+  - Mock fixture files and synthetic translations are completely purged.
 
-Month 2 behaviour (MOCK_INFERENCE=false):
-  - POST /predict/progression invokes the trained U-Net, PINN, and RL
-    Agent endpoints on Vertex AI and returns the combined GeoJSON.
+Live mode behaviour (MOCK_INFERENCE=false):
+  - Dispatches to live containerized U-Net and PINN inference services.
+  - Forwards seed_points (hotspots) to trigger active fire spread forecasts.
+  - Combines multi-model predictions via weighted spatial union.
+  - When models report 0 features, returns features: [] with status: "no_active_fire".
 
-Design Doc §1.1 FastAPI ML Adapter, §8.B, §14 ML Integration Contract.
-FR-E09: Mock mode required for Month 1 development and CI/CD.
+Design Doc §1.1 FastAPI ML Adapter, §3.2, §8.B, §14 ML Integration Contract.
 """
 
-import hashlib
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -50,15 +49,13 @@ app = FastAPI(
     title="Fight Fire With AI — ML Adapter",
     description=(
         "Translates harvested feature data into fire risk GeoJSON predictions. "
-        "Calls Vertex AI model endpoints in production; returns a static Bay Area "
-        "fixture when MOCK_INFERENCE=true."
+        "Dispatches prediction requests to live containerized U-Net and PINN services."
     ),
     version="1.0.0",
 )
 
-MOCK_INFERENCE: bool = os.getenv("MOCK_INFERENCE", "true").lower() == "true"
+MOCK_INFERENCE: bool = os.getenv("MOCK_INFERENCE", "false").lower() == "true"
 
-FIXTURE_DIR: Path = Path(__file__).parent / "fixtures/frontend_team_geojson_files"
 
 
 # ---------------------------------------------------------------------------
@@ -68,17 +65,39 @@ FIXTURE_DIR: Path = Path(__file__).parent / "fixtures/frontend_team_geojson_file
 class PredictionRequest(BaseModel):
     """
     Payload sent by the Django Celery harvester.
-
-    In Month 1, only `bbox`, `time_horizon`, `model_type`, `date` and `mock` are used.
-    In Month 2, features will be fetched or processed based on the spatial bounds.
     """
     bbox: tuple[float, float, float, float] = (-122.9, 36.9, -121.5, 38.3)
-    time_horizon: int = 24
+    time_horizon: int = 6
     model_type: str = "unet"
     date: str | None = None
-    mock: bool = True
+    mock: bool = False
     seed_points: list[tuple[float, float]] | list[list[float]] | None = None
     ignition_points: list[tuple[float, float]] | list[list[float]] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _clean_empty_feature_collection(
+    model_type: str = "unet",
+    status: str = "no_active_fire",
+    mock: bool = False,
+) -> JSONResponse:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    content = {
+        "type": "FeatureCollection",
+        "status": status,
+        "metadata": {
+            "timestamp": now_iso,
+            "source_model": model_type,
+            "status": status,
+            "mock": mock,
+            "total_cells": 0,
+        },
+        "features": [],
+    }
+    return JSONResponse(content=content)
 
 
 # ---------------------------------------------------------------------------
@@ -109,14 +128,12 @@ async def predict_progression(request: PredictionRequest) -> JSONResponse:
     """
     POST /predict/progression
 
-    Month 1 (MOCK_INFERENCE=true):
-      Reads and normalizes the mock GeoJSONs.
-
-    Month 2 (MOCK_INFERENCE=false):
-      Dispatches prediction requests to downstream inference services (U-Net, PINN, or Ensemble).
+    Dispatches prediction requests to downstream inference services (U-Net, PINN, or Ensemble).
+    When live models report 0 features, returns a clean GeoJSON FeatureCollection with
+    features: [] and status: "no_active_fire".
     """
     if MOCK_INFERENCE or request.mock:
-        return _serve_mock_fixture(model_type=request.model_type, target_bbox=request.bbox)
+        return _clean_empty_feature_collection(model_type=request.model_type, status="no_active_fire", mock=True)
 
     try:
         seeds = request.seed_points or request.ignition_points
@@ -125,12 +142,20 @@ async def predict_progression(request: PredictionRequest) -> JSONResponse:
             if seeds is not None:
                 kwargs["seed_points"] = seeds
             geojson = await call_unet(**kwargs)
+            if not geojson.get("features"):
+                return _clean_empty_feature_collection(model_type='unet', status="no_active_fire", mock=False)
+            if "status" not in geojson:
+                geojson["status"] = geojson.get("metadata", {}).get("status", "ok")
             return JSONResponse(content=geojson)
         elif request.model_type == 'pinn':
             kwargs = {"bbox": request.bbox, "time_horizon": request.time_horizon, "date": request.date}
             if seeds is not None:
                 kwargs["seed_points"] = seeds
             geojson = await call_pinn(**kwargs)
+            if not geojson.get("features"):
+                return _clean_empty_feature_collection(model_type='pinn', status="no_active_fire", mock=False)
+            if "status" not in geojson:
+                geojson["status"] = geojson.get("metadata", {}).get("status", "ok")
             return JSONResponse(content=geojson)
         elif request.model_type == 'ensemble':
             return await predict_ensemble(request)
@@ -162,9 +187,11 @@ async def predict_ensemble(request: PredictionRequest) -> JSONResponse:
 
     Queries both U-Net and PINN services and combines them using weighted union scaling.
     Applies graceful degradation if one model fails.
+    When live models report 0 features, returns a clean GeoJSON FeatureCollection with
+    features: [] and status: "no_active_fire".
     """
     if MOCK_INFERENCE or request.mock:
-        return _serve_mock_fixture(model_type="ensemble", target_bbox=request.bbox)
+        return _clean_empty_feature_collection(model_type="ensemble", status="no_active_fire", mock=True)
 
     notes: list[str] = []
     unet_res = None
@@ -196,148 +223,9 @@ async def predict_ensemble(request: PredictionRequest) -> JSONResponse:
         )
 
     combined_fc = combine_ensemble_features(unet_res, pinn_res, notes=notes)
+    if not combined_fc.get("features"):
+        return _clean_empty_feature_collection(model_type="ensemble", status="no_active_fire", mock=False)
+    if "status" not in combined_fc:
+        combined_fc["status"] = combined_fc.get("metadata", {}).get("status", "ok")
     return JSONResponse(content=combined_fc)
 
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-def _translate_coordinates(coords, delta_lon: float, delta_lat: float):
-    if not coords:
-        return coords
-    if isinstance(coords[0], (int, float)):
-        return [round(coords[0] + delta_lon, 6), round(coords[1] + delta_lat, 6)]
-    return [_translate_coordinates(c, delta_lon, delta_lat) for c in coords]
-
-
-def _serve_mock_fixture(
-    model_type: str = "ensemble",
-    target_bbox: tuple[float, float, float, float] | list[float] | None = None,
-) -> JSONResponse:
-    """
-    Loads and normalizes the raw GeoJSON schemas from frontend_team_geojson_files.
-    Merges all horizon outputs into a single unified FeatureCollection.
-    Standardizes the root metadata.
-    If target_bbox is provided, translates polygon coordinate rings by (delta_lon, delta_lat)
-    calculated from the fixture reference center (-122.15, 37.05) to the target bbox center.
-    """
-    if not FIXTURE_DIR.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=f"Mock fixture directory not found at {FIXTURE_DIR}.",
-        )
-
-    delta_lon = 0.0
-    delta_lat = 0.0
-    grid_id_offset = 0
-    if target_bbox and len(target_bbox) == 4:
-        ref_lon, ref_lat = -122.15, 37.05
-        target_center_lon = (target_bbox[0] + target_bbox[2]) / 2.0
-        target_center_lat = (target_bbox[1] + target_bbox[3]) / 2.0
-        delta_lon = round(target_center_lon - ref_lon, 6)
-        delta_lat = round(target_center_lat - ref_lat, 6)
-        if abs(delta_lon) > 1e-5 or abs(delta_lat) > 1e-5:
-            coord_str = f"{round(delta_lon, 4):.4f}_{round(delta_lat, 4):.4f}"
-            hash_int = int(hashlib.md5(coord_str.encode()).hexdigest()[:8], 16)
-            grid_id_offset = ((hash_int % 100_000) + 1) * 10000
-
-    files_to_load = [
-        "current_fire_goes18_20250110T21Z.geojson",
-        "spread_goes_20250110T21Z_h1.geojson",
-        "spread_goes_20250110T21Z_h3.geojson",
-        "spread_goes_20250110T21Z_h6.geojson",
-        "spread_goes_20250110T21Z_h24.geojson",
-    ]
-
-    all_features = []
-    
-    # Generate a single timestamp to avoid race conditions/mismatches across files
-    current_timestamp = datetime.now(timezone.utc).isoformat()
-    
-    metadata: dict = {
-        "timestamp": current_timestamp,
-        "mock": True,
-        "grid_resolution_km": 1.0,
-        "source": set(),
-        "source_model": model_type,
-        "model_version": set()
-    }
-    if abs(delta_lon) > 1e-5 or abs(delta_lat) > 1e-5:
-        metadata["spatial_colocation"] = {
-            "reference_center": [-122.15, 37.05],
-            "target_center": [round(target_center_lon, 6), round(target_center_lat, 6)],
-            "delta": [delta_lon, delta_lat],
-        }
-
-    for filename in files_to_load:
-        filepath = FIXTURE_DIR / filename
-        if not filepath.exists():
-            continue
-        
-        with filepath.open("r") as f:
-            data = json.load(f)
-            
-            # Intercept root metadata timestamp
-            if "metadata" not in data or not isinstance(data["metadata"], dict):
-                data["metadata"] = {}
-            data["metadata"]["timestamp"] = current_timestamp
-            
-            # Normalize metadata
-            if "source" in data:
-                metadata["source"].add(data["source"])
-            if "model_version" in data:
-                metadata["model_version"].add(data["model_version"])
-                
-            # Ensure horizon_hours is always present, defaulting to 0 for current fire
-            data.setdefault("horizon_hours", 0)
-
-            # Extract ML properties that are at the root (like w_unet, members, horizon_hours, etc.)
-            exclude_root_keys = {
-                "type", "features", "timestamp",
-                "layer", "window_start", "window_end", "valid_time", "valid_start"
-            }
-            root_ml_props = {k: v for k, v in data.items() if k not in exclude_root_keys}
-            
-            # Merge features and preserve properties
-            for feature in data.get("features", []):
-                feature.setdefault("properties", {})
-                for k, v in root_ml_props.items():
-                    if k not in feature["properties"]:
-                        feature["properties"][k] = v
-                feature["properties"]["source_model"] = model_type
-                if model_type == "pinn":
-                    feature["properties"].setdefault("members", 10)
-                    feature["properties"].setdefault("w_pinn", 1.0)
-                elif model_type == "unet":
-                    feature["properties"].setdefault("members", 1)
-                    feature["properties"].setdefault("w_unet", 1.0)
-                else:  # ensemble
-                    feature["properties"].setdefault("members", 11)
-                    feature["properties"].setdefault("w_unet", 0.6)
-                    feature["properties"].setdefault("w_pinn", 0.4)
-
-                # Translate coordinates if target_bbox provided
-                if (abs(delta_lon) > 1e-5 or abs(delta_lat) > 1e-5) and "geometry" in feature:
-                    translated_geom = dict(feature["geometry"])
-                    if "coordinates" in translated_geom:
-                        translated_geom["coordinates"] = _translate_coordinates(
-                            translated_geom["coordinates"], delta_lon, delta_lat
-                        )
-                    feature["geometry"] = translated_geom
-
-                if grid_id_offset != 0 and "grid_id" in feature["properties"]:
-                    feature["properties"]["grid_id"] = feature["properties"]["grid_id"] + grid_id_offset
-
-                all_features.append(feature)
-
-    metadata["source"] = list(metadata["source"])
-    metadata["model_version"] = list(metadata["model_version"])
-
-    unified_geojson = {
-        "type": "FeatureCollection",
-        "metadata": metadata,
-        "features": all_features
-    }
-
-    return JSONResponse(content=unified_geojson)

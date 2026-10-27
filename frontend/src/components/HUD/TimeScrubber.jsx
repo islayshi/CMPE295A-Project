@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 
-export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizons = [0, 1, 3, 6, 24] }) {
-  const allowed = [0, 1, 3, 6, 24];
+export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizons = [0, 1, 3, 6] }) {
+  const allowed = [0, 1, 3, 6];
   const filteredHorizons = availableHorizons.filter(h => allowed.includes(h));
   const horizonsToUse = filteredHorizons.length > 0 ? filteredHorizons : allowed;
 
@@ -25,14 +25,6 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
         </>
       );
     }
-    if (timeScrub === 24) {
-      return (
-        <>
-          Forecast: +24 Hours
-          <span className="opacity-75 font-medium ml-1">(Day-Ahead Regional Risk)</span>
-        </>
-      );
-    }
     return (
       <>
         Forecast: +{timeScrub} Hour{timeScrub !== 1 ? 's' : ''}
@@ -40,6 +32,7 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
       </>
     );
   };
+
 
   return (
     <div className="w-full bg-slate-50 border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
@@ -72,7 +65,7 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
         <div className="flex justify-between px-2 -mt-1 text-[11px] font-medium transition-colors">
           {horizonsToUse.map((h, i) => {
             const isActive = h === timeScrub;
-            const label = h === 0 ? '0h' : h === 24 ? '+24h' : `+${h}h`;
+            const label = h === 0 ? '0h' : `+${h}h`;
             return (
               <span
                 key={i}

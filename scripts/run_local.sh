@@ -9,7 +9,8 @@ cd "$(dirname "$0")/.."
 PROJECT_ROOT=$(pwd)
 
 echo "1. Starting Docker containers (PostgreSQL/PostGIS, Redis, U-Net, PINN)..."
-docker compose up -d
+docker compose up -d --build
+
 
 echo "2. Waiting for PostgreSQL and Redis to become healthy..."
 for i in {1..30}; do
@@ -50,9 +51,6 @@ for i in {1..30}; do
     fi
     sleep 1
 done
-
-echo "5. Warming up Redis cache & PostGIS with live telemetry and fire predictions..."
-./.venv/bin/python scripts/seed_cache.py || true
 
 echo ""
 echo "=== Development Environment Started ==="

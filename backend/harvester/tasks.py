@@ -140,8 +140,9 @@ def _build_feature_payload() -> dict:
         "date": datetime.now(timezone.utc).date().isoformat(),
         "mock": settings.MOCK_INFERENCE,
         "bbox": [-122.9, 36.9, -121.5, 38.3],
-        "time_horizon": 24,
+        "time_horizon": 6,
         "model_type": "unet",
+
         # TODO Month 2: Add actual feature arrays here
         # "features": load_features_from_gcs(date=today, bucket=settings.GCS_BUCKET_NAME)
     }
@@ -295,6 +296,18 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
             },
             "features": serializer.data,
         }
+        # Empty overwrite guard: do not overwrite a populated cache with empty features
+        if not serializer.data:
+            existing_cached = cache.get("ffwai:predictions:current")
+            if existing_cached:
+                try:
+                    data = json.loads(existing_cached) if isinstance(existing_cached, str) else existing_cached
+                    if data.get("features"):
+                        logger.info('{"event": "store_geojson_skip_empty_cache_overwrite", "reason": "existing cache has features"}')
+                        return len(predictions_to_create)
+                except Exception:
+                    pass
+
         cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=21600)
         if source_model and source_model in ("unet", "pinn", "rl", "ensemble"):
             cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=21600)
@@ -822,19 +835,9 @@ def fetch_aqi_data(self):
 
 
 # ===========================================================================
-# STARTUP HYDRATION HOOK
-# ===========================================================================
+# Alias fetch_airnow_aqi to fetch_aqi_data for automated Celery startup warmup
+fetch_airnow_aqi = fetch_aqi_data
 
-@worker_ready.connect
-def on_worker_ready(sender, **kwargs):
-    """
-    Startup Hydration Hook: Trigger lightweight telemetry tasks on Celery startup
-    so the frontend UI doesn't remain empty waiting for the first beat interval.
-    """
-    logger.info('{"event": "worker_ready", "action": "triggering_initial_telemetry"}')
-    fetch_aqi_data.delay()
-    fetch_wind_data.delay()
-    fetch_nws_alerts.delay()
 
 
 @shared_task(name="harvester.tasks.run_async_inference", bind=True, max_retries=3, default_retry_delay=60)

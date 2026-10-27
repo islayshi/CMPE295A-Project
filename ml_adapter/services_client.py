@@ -194,12 +194,14 @@ def combine_ensemble_features(
             },
         })
 
+    status = "ok" if combined_features else "no_active_fire"
     metadata = {
         "timestamp": now_iso,
         "source_model": "ensemble",
         "model_version": "ensemble-v1.0",
         "grid_resolution_km": 1.0,
         "total_cells": len(combined_features),
+        "status": status,
         "w_unet": w_u,
         "w_pinn": w_p,
         "ensemble_notes": "; ".join(notes) if notes else "nominal",
@@ -207,9 +209,11 @@ def combine_ensemble_features(
 
     return {
         "type": "FeatureCollection",
+        "status": status,
         "metadata": metadata,
         "features": combined_features,
     }
+
 
 
 async def probe_services_health() -> dict[str, Any]:

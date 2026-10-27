@@ -137,7 +137,8 @@ def test_store_geojson_result_populates_ensemble_cache(cached_prediction_data):
 
 def test_current_predictions_horizon_filtering(api_client):
     """
-    Verifies that passing ?horizon=X filters features by horizon_hours.
+    Verifies that passing ?horizon=X filters features strictly by horizons [0, 1, 3, 6],
+    and rejects +24h or invalid horizons with HTTP 400 Bad Request.
     """
     multi_horizon_fc = {
         "type": "FeatureCollection",
@@ -145,22 +146,59 @@ def test_current_predictions_horizon_filtering(api_client):
         "features": [
             {
                 "type": "Feature",
-                "properties": {"grid_id": 1, "fire_probability": 0.8, "horizon_hours": 1},
+                "properties": {"grid_id": 1, "fire_probability": 0.9, "horizon_hours": 0},
                 "geometry": {"type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[1,0],[0,0]]]}
             },
             {
                 "type": "Feature",
-                "properties": {"grid_id": 2, "fire_probability": 0.5, "horizon_hours": 6},
+                "properties": {"grid_id": 2, "fire_probability": 0.8, "horizon_hours": 1},
                 "geometry": {"type": "Polygon", "coordinates": [[[1,1],[1,2],[2,2],[2,1],[1,1]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 3, "fire_probability": 0.6, "horizon_hours": 3},
+                "geometry": {"type": "Polygon", "coordinates": [[[2,2],[2,3],[3,3],[3,2],[2,2]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 4, "fire_probability": 0.5, "horizon_hours": 6},
+                "geometry": {"type": "Polygon", "coordinates": [[[3,3],[3,4],[4,4],[4,3],[3,3]]]}
             }
         ]
     }
     with patch("predictions.views.cache.get", return_value=json.dumps(multi_horizon_fc)):
-        response = api_client.get("/api/predictions/current/?horizon=6")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["features"]) == 1
-        assert data["features"][0]["properties"]["horizon_hours"] == 6
+        # Verify valid horizons: 0, 1, 3, 6
+        for h in [0, 1, 3, 6]:
+            response = api_client.get(f"/api/predictions/current/?horizon={h}")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["features"]) == 1
+            assert data["features"][0]["properties"]["horizon_hours"] == h
+            assert data["metadata"]["filtered_horizon"] == h
+
+        # Verify +24h horizon is completely removed and rejected with 400
+        response_24 = api_client.get("/api/predictions/current/?horizon=24")
+        assert response_24.status_code == 400
+        assert "Allowed horizons: [0, 1, 3, 6]" in response_24.json().get("error", "")
+
+        # Verify float-formatted integer strings like ?horizon=1.0 resolve cleanly
+        response_float_str = api_client.get("/api/predictions/current/?horizon=1.0")
+        assert response_float_str.status_code == 200
+        assert response_float_str.json()["metadata"]["filtered_horizon"] == 1
+
+        # Verify non-integer float horizon rejected with 400
+        response_fraction = api_client.get("/api/predictions/current/?horizon=1.5")
+        assert response_fraction.status_code == 400
+
+        # Verify negative horizon rejected with 400
+        response_negative = api_client.get("/api/predictions/current/?horizon=-1")
+        assert response_negative.status_code == 400
+
+        # Verify invalid horizon string rejected with 400
+        response_invalid = api_client.get("/api/predictions/current/?horizon=abc")
+        assert response_invalid.status_code == 400
+
+
 
 
 @pytest.mark.django_db

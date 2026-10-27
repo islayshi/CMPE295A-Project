@@ -80,11 +80,14 @@ export default function Dashboard() {
     refetchInterval: 300000,  // Poll every 5 minutes
   });
 
-  // Calculate dynamic available horizons based on predictions data
+  // Calculate dynamic available horizons based on predictions data (strictly [0, 1, 3, 6])
   const parsedHorizons = predictions?.features 
-    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
+    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))]
+        .filter(h => [0, 1, 3, 6].includes(h))
+        .sort((a, b) => a - b)
     : [];
-  const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6, 24];
+  const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6];
+
   
   // Find the largest horizon that is <= the current slider value
   const activeHorizon = [...availableHorizons].reverse().find(h => h <= timeScrub) ?? 0;

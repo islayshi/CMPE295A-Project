@@ -113,7 +113,7 @@ def test_health_live_mode(mock_probe):
 def test_predict_progression_mock():
     payload = {
         "bbox": [-122.9, 36.9, -121.5, 38.3],
-        "time_horizon": 24,
+        "time_horizon": 6,
         "model_type": "unet",
         "mock": True,
     }
@@ -121,15 +121,16 @@ def test_predict_progression_mock():
     assert response.status_code == 200
     data = response.json()
     assert data["type"] == "FeatureCollection"
-    assert "metadata" in data
+    assert data["status"] == "no_active_fire"
+    assert data["features"] == []
+    assert data["metadata"]["status"] == "no_active_fire"
     assert data["metadata"]["mock"] is True
-    assert any(f.get("properties", {}).get("horizon_hours") == 24 for f in data["features"])
 
 
 def test_predict_progression_mock_pinn():
     payload = {
         "bbox": [-122.9, 36.9, -121.5, 38.3],
-        "time_horizon": 24,
+        "time_horizon": 6,
         "model_type": "pinn",
         "mock": True,
     }
@@ -137,9 +138,11 @@ def test_predict_progression_mock_pinn():
     assert response.status_code == 200
     data = response.json()
     assert data["type"] == "FeatureCollection"
-    assert len(data["features"]) > 0
+    assert data["status"] == "no_active_fire"
+    assert data["features"] == []
     assert data["metadata"]["source_model"] == "pinn"
-    assert all(f.get("properties", {}).get("source_model") == "pinn" for f in data["features"])
+    assert data["metadata"]["mock"] is True
+
 
 
 @patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
@@ -248,34 +251,61 @@ def test_predict_ensemble_graceful_degradation(mock_call_unet, mock_call_pinn):
         assert "pinn_error" in data["metadata"].get("ensemble_notes", "").lower()
 
 
-def test_serve_mock_fixture_spatial_colocation():
+@patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
+def test_predict_progression_live_no_active_fire(mock_call_unet):
     """
-    Verifies that _serve_mock_fixture translates polygon coordinates
-    according to (delta_lon, delta_lat) when target_bbox is provided.
+    Verifies that when live U-Net reports 0 features, ml_adapter returns a clean
+    FeatureCollection with features: [] and status: "no_active_fire" without falling back to mock files.
     """
-    # Target center: (-122.0, 37.25)
-    # Ref center: (-122.15, 37.05)
-    # delta_lon: +0.15, delta_lat: +0.20
-    target_bbox = [-122.05, 37.20, -121.95, 37.30]
-    payload = {
-        "bbox": target_bbox,
-        "time_horizon": 24,
-        "model_type": "ensemble",
-        "mock": True,
+    mock_call_unet.return_value = {
+        "type": "FeatureCollection",
+        "metadata": {"source_model": "unet", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
     }
-    response = client.post("/predict/progression", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["type"] == "FeatureCollection"
-    assert "spatial_colocation" in data["metadata"]
-    assert data["metadata"]["spatial_colocation"]["delta"] == [0.15, 0.2]
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.9, 36.9, -121.5, 38.3],
+            "time_horizon": 6,
+            "model_type": "unet",
+            "mock": False,
+        }
+        response = client.post("/predict/progression", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert data["status"] == "no_active_fire"
+        assert data["features"] == []
+        assert data["metadata"]["status"] == "no_active_fire"
+        assert data["metadata"]["mock"] is False
 
-    # Verify translated coordinates
-    coords = data["features"][0]["geometry"]["coordinates"][0]
-    # In base fixture (current_fire_goes18), first ring coord is [-122.15, 37.05]
-    # Translated: [-122.15 + 0.15, 37.05 + 0.20] = [-122.0, 37.25]
-    assert round(coords[0][0], 2) == -122.00
-    assert round(coords[0][1], 2) == 37.25
+
+@patch("ml_adapter.main.call_pinn", new_callable=AsyncMock)
+def test_predict_progression_pinn_live_no_active_fire(mock_call_pinn):
+    """
+    Verifies that when live PINN reports 0 features, ml_adapter returns a clean
+    FeatureCollection with features: [] and status: "no_active_fire" without falling back to mock files.
+    """
+    mock_call_pinn.return_value = {
+        "type": "FeatureCollection",
+        "metadata": {"source_model": "pinn", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
+    }
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.9, 36.9, -121.5, 38.3],
+            "time_horizon": 6,
+            "model_type": "pinn",
+            "mock": False,
+        }
+        response = client.post("/predict/progression", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert data["status"] == "no_active_fire"
+        assert data["features"] == []
+        assert data["metadata"]["status"] == "no_active_fire"
+        assert data["metadata"]["mock"] is False
+
 
 
 @patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
@@ -335,22 +365,38 @@ def test_predict_ensemble_live_with_seed_points(mock_call_unet, mock_call_pinn):
         )
 
 
-def test_serve_mock_fixture_deterministic_grid_id_offset():
+@patch("ml_adapter.main.call_pinn", new_callable=AsyncMock)
+@patch("ml_adapter.main.call_unet", new_callable=AsyncMock)
+def test_predict_ensemble_live_no_active_fire(mock_call_unet, mock_call_pinn):
     """
-    Verifies that _serve_mock_fixture produces identical, deterministic grid_ids
-    for repeated requests with the same target_bbox.
+    Verifies that when both live models return 0 features, ensemble returns a clean
+    FeatureCollection with features: [] and status: "no_active_fire" without mock fallback.
     """
-    target_bbox = [-122.05, 37.20, -121.95, 37.30]
-    payload = {
-        "bbox": target_bbox,
-        "time_horizon": 24,
-        "model_type": "ensemble",
-        "mock": True,
+    mock_call_unet.return_value = {
+        "type": "FeatureCollection",
+        "metadata": {"source_model": "unet", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
     }
-    r1 = client.post("/predict/progression", json=payload).json()
-    r2 = client.post("/predict/progression", json=payload).json()
-    ids1 = [f["properties"]["grid_id"] for f in r1["features"]]
-    ids2 = [f["properties"]["grid_id"] for f in r2["features"]]
-    assert ids1 == ids2
+    mock_call_pinn.return_value = {
+        "type": "FeatureCollection",
+        "metadata": {"source_model": "pinn", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
+    }
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.9, 36.9, -121.5, 38.3],
+            "time_horizon": 6,
+            "model_type": "ensemble",
+            "mock": False,
+        }
+        response = client.post("/predict/ensemble", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert data["status"] == "no_active_fire"
+        assert data["features"] == []
+        assert data["metadata"]["status"] == "no_active_fire"
+        assert data["metadata"]["mock"] is False
+
 
 

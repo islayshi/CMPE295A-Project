@@ -52,7 +52,7 @@ MOCK_GEOJSON_RESPONSE = {
                 "fire_probability": 0.91,
                 "source_model": "mock",
                 "timestamp": "2026-09-23T06:00:00+00:00",
-                "horizon_hours": 24,
+                "horizon_hours": 6,
                 "w_unet": 0.8,
                 "model_version": "v1.0"
             },
@@ -151,7 +151,7 @@ def test_trigger_daily_inference_happy_path():
     assert high_risk is not None, "Expected a HIGH_RISK prediction for grid_id=1001"
     assert abs(high_risk.fire_probability - 0.91) < 0.001
     assert high_risk.source_model == "mock"
-    assert high_risk.lead_time_hours == 24
+    assert high_risk.lead_time_hours == 6
     assert "timestamp" not in high_risk.ml_metrics
     assert "source_model" not in high_risk.ml_metrics
 
@@ -430,5 +430,57 @@ def test_fetch_wind_data_existing_cache_retained():
         assert result["status"] == "retained_cache"
         assert result["grid_points"] == 1600
         mock_cache_set.assert_not_called()
+
+
+def test_worker_ready_startup_warmup_signals():
+    """
+    Verifies that the @worker_ready.connect signal handler registered in
+    harvester.signals dispatches the warmup tasks when the worker_ready signal fires:
+      - fetch_wind_data.delay()
+      - fetch_airnow_aqi.delay()
+      - trigger_active_inference.delay()
+    """
+    from celery.signals import worker_ready
+    import harvester.signals  # noqa: F401
+
+    with patch("harvester.signals.fetch_wind_data.delay") as mock_wind, \
+         patch("harvester.signals.fetch_airnow_aqi.delay") as mock_aqi, \
+         patch("harvester.signals.trigger_active_inference.delay") as mock_inference:
+
+        worker_ready.send(sender=None)
+
+        mock_wind.assert_called_once()
+        mock_aqi.assert_called_once()
+        mock_inference.assert_called_once()
+
+
+@pytest.mark.django_db
+def test_store_geojson_result_empty_features_does_not_overwrite_populated_cache():
+    """
+    Verifies that store_geojson_result guards against overwriting an existing
+    populated Redis cache when incoming prediction GeoJSON has 0 features.
+    """
+    from harvester.tasks import store_geojson_result
+
+    empty_geojson = {
+        "type": "FeatureCollection",
+        "status": "no_active_fire",
+        "metadata": {"source_model": "unet", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
+    }
+    existing_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 1},
+        "features": [{"type": "Feature", "properties": {"grid_id": 101, "horizon_hours": 1}}],
+    }
+    with patch("harvester.tasks.cache.get", return_value=json.dumps(existing_fc)), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        written = store_geojson_result(empty_geojson)
+        assert written == 0
+        # cache.set must NOT have been called with empty features
+        for call in mock_cache_set.call_args_list:
+            assert call[0][0] != "ffwai:predictions:current"
+
+
 
 

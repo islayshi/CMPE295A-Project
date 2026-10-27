@@ -41,7 +41,7 @@ def current_predictions(request):
 
     Query params:
       model   (optional): "ensemble" (default), "unet", "pinn", "rl"
-      horizon (optional): integer horizon hours (0, 1, 3, 6, 24)
+      horizon (optional): integer horizon hours (0, 1, 3, 6)
     """
     model_param = request.query_params.get("model", "ensemble").lower().strip()
     horizon_param = request.query_params.get("horizon")
@@ -141,10 +141,20 @@ def current_predictions(request):
                 "features": []
             }
 
-    # Optional horizon filtering
+    # Optional horizon filtering - strictly scoped to [0, 1, 3, 6]
+    ALLOWED_HORIZONS = (0, 1, 3, 6)
     if horizon_param is not None:
         try:
-            target_h = int(horizon_param)
+            val = float(horizon_param)
+            if not val.is_integer():
+                raise ValueError(f"Non-integer horizon '{horizon_param}'")
+            target_h = int(val)
+            if target_h not in ALLOWED_HORIZONS:
+                return Response(
+                    {"error": f"Invalid horizon '{horizon_param}'. Allowed horizons: {list(ALLOWED_HORIZONS)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             def _matches_horizon(feat, target):
                 props = feat.get("properties", {})
                 h = props.get("horizon_hours")
@@ -171,7 +181,11 @@ def current_predictions(request):
                 }
             })
         except (ValueError, TypeError):
-            pass
+            return Response(
+                {"error": f"Invalid horizon '{horizon_param}'. Allowed horizons: {list(ALLOWED_HORIZONS)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
 
     return Response(feature_collection)
 

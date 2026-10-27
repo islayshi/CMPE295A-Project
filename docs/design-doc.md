@@ -22,7 +22,8 @@ The system utilizes a Modular Monolith architecture to minimize deployment overh
 
 **Module 1 (The Harvester & Active Fire Scout)**
 The Harvester is designed with two complementary orchestration pipelines:
-- **Daily Baseline Orchestrator (`trigger_daily_inference`):** Scheduled daily at 06:00 UTC by Celery Beat for region-wide 24-hour day-ahead risk mapping.
+- **Automated Celery Startup Warmup (`harvester.signals.on_worker_ready`):** Registered via Celery `@worker_ready.connect` in `backend/harvester/signals.py` and loaded during `HarvesterConfig.ready()`. Automatically dispatches `fetch_wind_data.delay()`, `fetch_airnow_aqi.delay()`, and `trigger_active_inference.delay()` as soon as the Celery worker process initializes, ensuring immediate self-healing and pre-warming of the Redis cache and PostGIS database on startup without executing external scripts.
+- **Daily Baseline Orchestrator (`trigger_daily_inference`):** Scheduled daily at 06:00 UTC by Celery Beat for regional risk mapping across strictly supported horizons (`0h`, `1h`, `3h`, `6h`).
 - **Active Fire Scout (`trigger_active_inference`):** Scheduled every 30 minutes by Celery Beat (`trigger-active-inference-30min`) for near-real-time active wildfire detection and dynamic spread prediction (+1, +3, +6 hours):
   - Fetches VIIRS 375 m active fire detections from all three operational sensors via NASA FIRMS Area API (`VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT` via `FIRMS_MAP_KEY`) with automatic failover to the public keyless 24-hour VIIRS CSVs if the keyed Area API is unreachable or returns invalid/error payloads (NFR-R04).
   - Deduplicates overlapping detections across satellite orbits within 0.5 km (prioritizing higher Fire Radiative Power).
@@ -50,18 +51,19 @@ The Django model for the GeoJSON output contract is defined as follows:
 - `ml_metrics` (JSONField for raw model output parameters)
 
 **Module 3 (API & Alerts)**
-The API module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. Dynamic turn-by-turn routing is currently out-of-scope; instead, the system focuses on alternative alerting methods such as Safe Shelter Handoff and Zone-Based Warnings. The frontend polls the REST API every 5 minutes to check for updated predictions and active zone warnings; no WebSocket connection is required for the MVP. The `GET /api/predictions/current/` endpoint incorporates an API Fallback Guard: if the Redis cache is empty or returns `features: []`, it automatically queries active PostGIS `PredictionPolygon` records before serving empty data. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
+The API module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. Dynamic turn-by-turn routing is currently out-of-scope; instead, the system focuses on alternative alerting methods such as Safe Shelter Handoff and Zone-Based Warnings. The frontend polls the REST API every 5 minutes to check for updated predictions and active zone warnings; no WebSocket connection is required for the MVP. The `GET /api/predictions/current/` endpoint incorporates an API Fallback Guard: if the Redis cache is empty or returns `features: []`, it automatically queries active PostGIS `PredictionPolygon` records before serving empty data. Forecast horizons are strictly constrained to integer values `[0, 1, 3, 6]`. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
 
 ### The FastAPI ML Adapter (Cloud Run)
 
 The FastAPI ML Adapter serves as an isolated translation layer between the Django/Celery backend and the ML models hosted on Vertex AI. It receives lightweight bounding box parameters, orchestrates necessary data, invokes the appropriate Vertex AI model endpoint(s), and normalizes their diverse outputs into a standard unified GeoJSON FeatureCollection.
 
-- **Endpoint:** `POST /predict/progression` — Runs U-Net, PINN, and/or RL models for fire spread prediction based on payload `bbox`, `time_horizon`, and `model_type`.
-- **Endpoint:** `POST /predict/ensemble` — Combines outputs from multiple models via weighted voting (extends Paper 3's Cellular Automata Rule 30 pattern)
-- **Endpoint:** `GET /health` — Returns service status and mock mode flag
-- **Month 1 behavior:** Normalizes and unifies multiple static Bay Area GeoJSON fixture files when `MOCK_INFERENCE=true`.
-- **Month 2 behavior:** Invokes Vertex AI endpoints for trained U-Net (`.keras`), PINN, and RL agent (DQN/PPO) models
+- **Endpoint:** `POST /predict/progression` — Runs U-Net, PINN, and/or RL models for fire spread prediction based on payload `bbox`, `time_horizon` (0, 1, 3, 6), `model_type`, and `seed_points`.
+- **Endpoint:** `POST /predict/ensemble` — Combines outputs from multiple models via weighted voting (extends Paper 3's Cellular Automata Rule 30 pattern).
+- **Endpoint:** `GET /health` — Returns service status and mock mode flag.
+- **Mock Mode & Fixture Purge:** Pre-recorded Santa Cruz GeoJSON mock fixtures and synthetic coordinate translations have been completely purged. When live models report 0 features, the adapter cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"` without synthetic shifting.
+- **Live Dispatch:** Forwards requests and `seed_points` down to containerized inference microservices (U-Net on port 8081, PINN on port 8082).
 - Always returns the standard unified GeoJSON FeatureCollection output contract. (See [Vertex AI Endpoint Output Contract](vertex-ai-endpoint-contract.md) for Month 2 ML Integration requirements).
+
 
 **ML Model Ensemble:**
 The FastAPI adapter orchestrates three complementary model types, extending all three of the advisor's research papers:
@@ -90,7 +92,7 @@ This stack ensures total Python parity between the AI developers and the backend
 
 ## 3. External Data Sources
 
-### Category A — Backend-Owned Sources (Celery Harvester Tasks):
+### 3.1 Category A — Backend-Owned Sources (Celery Harvester Tasks):
 - **Google Earth Engine (GEE):** NDVI / EVI / NDWI vegetation indices from Landsat 8/9 (`LANDSAT/LC09/C02/T1_L2`). Critical ML training feature (used in all three advisor papers).
 - **GOES-18 via GEE:** Fire Detection & Characterization (`NOAA/GOES/18/FDCC`) and Cloud/Moisture Imagery (`NOAA/GOES/18/MCMIPC`). High-temporal (5 min), low-spatial (2 km) satellite imagery. Daily composite exported to GCS.
 - **VIIRS via GEE:** Near-real-time active fire hotspots (`NASA/VIIRS/002/VNP09GA`). High-spatial (375 m), low-temporal (12–24 hr). Paired with GOES-18 for potential super-resolution training by the ML team.
@@ -102,9 +104,12 @@ This stack ensures total Python parity between the AI developers and the backend
 - **CAL FIRE FRAP:** Historical fire perimeters for model validation and demo scenarios (CZU Lightning Complex, August 2020).
 - **NASA FIRMS:** Near-real-time active fire hotspots from Suomi-NPP, NOAA-20, and NOAA-21 (VIIRS 375 m). Used for Active Fire Scout detection and ground-truth pins.
 - **Sensor Resolution Mismatch & VIIRS Ignition Fallback:** GOES-18 ABI provides high-temporal (5 min) but coarse-spatial (2 km) pixel resolution, whereas VIIRS provides fine 375 m resolution. When early or small fires are detected by VIIRS but fall below the GOES-18 2 km pixel threshold, the pipeline automatically injects the VIIRS 375 m hotspot coordinates as `seed_points` (ignition seeds) into the U-Net inference tensor channels rather than aborting with zero features.
-- **OpenAQ / PurpleAir:** Live PM2.5 / AQI — *delayed but kept in plan* for future air quality overlay.
+- **AirNow API:** Live PM2.5 / AQI measurements across Bay Area monitoring stations for environmental hazard overlays.
 
-### Category B — ML Pipeline Sources (ML team-owned, backend provides data):
+### 3.2 Category B — ML Pipeline Sources, Model Contracts & Automated Lifecycle:
+- **Automated Celery Startup Warmup (`@worker_ready.connect`):** Registered in `backend/harvester/signals.py` and loaded during `HarvesterConfig.ready()`. Automatically dispatches `fetch_wind_data.delay()`, `fetch_airnow_aqi.delay()`, and `trigger_active_inference.delay()` immediately upon worker boot, ensuring that the Redis cache and PostGIS database pre-warm automatically without executing manual `seed_cache.py` scripts.
+- **Complete Purge of Mock Fixtures & Synthetic Translations:** Pre-recorded Santa Cruz GeoJSON mock fixture files and artificial coordinate translations have been purged. When live models report 0 features, the system cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"`, preventing misleading synthetic fire perimeters from displaying on unburned land.
+- **Strictly Scoped Forecast Horizons (`0h`, `1h`, `3h`, `6h`):** All prediction interfaces (Frontend TimeScrubber HUD, MapCanvas layer filters, DRF API views, Celery tasks, and ML Adapter payloads) strictly constrain forecast horizons to `[0, 1, 3, 6]` hours. The legacy +24h day-ahead horizon has been completely retired to maintain contract fidelity with the hourly U-Net and PINN microservices.
 - **NOAA HRRR:** Short-range weather forecasts (if ML team requires forecast-horizon features).
 - **LANDFIRE fuel models:** Vegetation fuel type classification.
 - **Google Drive (free unlimited student storage):** Potential shared workspace for large training datasets between backend and ML teams. *Note: Google Drive has API rate limits and is not suitable for programmatic high-frequency access. Use GCS for production data and Google Drive as a secondary backup for large files the ML team needs to access manually.*
@@ -228,7 +233,7 @@ Given the timeline and academic constraints, the following features are explicit
 
 | Method | Endpoint | Purpose | Response |
 |---|---|---|---|
-| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache with 6-hour TTL / timeout=21600). Supports `?model=ensemble\|unet\|pinn` and `?horizon=0\|1\|3\|6\|24`. Uses model-scoped Redis cache keys (`ffwai:predictions:current[:model]`). Includes API Fallback Guard: if cache is cold or has empty features (`features: []`), automatically queries active PostGIS `PredictionPolygon` records before serving empty data. | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
+| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache with 6-hour TTL / timeout=21600). Supports `?model=ensemble\|unet\|pinn` and `?horizon=0\|1\|3\|6` (strictly scoped to `[0, 1, 3, 6]`; legacy +24h horizon removed). Uses model-scoped Redis cache keys (`ffwai:predictions:current[:model]`). Includes API Fallback Guard: if cache is cold or has empty features (`features: []`), automatically queries active PostGIS `PredictionPolygon` records before serving empty data. | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
 | `GET` | `/api/predictions/history/` | Historical predictions with date range filter (reads permanently retained `PredictionPolygon` PostGIS records) | Paginated GeoJSON FeatureCollection list |
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
@@ -242,10 +247,11 @@ Given the timeline and academic constraints, the following features are explicit
 
 | Method | Endpoint | Purpose | Response |
 |---|---|---|---|
-| `POST` | `/predict/progression` | Trigger U-Net + PINN + RL fire spread prediction. Accepts `bbox`, `time_horizon`, `model_type`, `date`, `mock`, and `seed_points: list[tuple[float, float]]` (or `ignition_points`). In mock mode, dynamically translates polygon coordinate rings via spatial colocation relative to reference center `(-122.15, 37.05)`. | GeoJSON FeatureCollection |
-| `POST` | `/predict/ensemble` | Explicit ensemble: combine all available model outputs via weighted scaling. Supports `seed_points` and spatial colocation. | GeoJSON FeatureCollection |
+| `POST` | `/predict/progression` | Trigger U-Net + PINN + RL fire spread prediction. Accepts `bbox`, `time_horizon` (0, 1, 3, 6), `model_type`, `date`, `mock`, and `seed_points: list[tuple[float, float]]` (or `ignition_points`). Pre-recorded mock fixtures are purged; when live models report 0 features, cleanly returns `features: []` with `status: "no_active_fire"`. | GeoJSON FeatureCollection |
+| `POST` | `/predict/ensemble` | Explicit ensemble: combine all available model outputs via weighted scaling. Supports `seed_points`. When models report 0 features, returns `features: []` with `status: "no_active_fire"`. | GeoJSON FeatureCollection |
 | `GET` | `/health` | ML Adapter health check + mock mode status | JSON: `{status, mock, models_loaded}` |
 | `GET` | `/docs` | Auto-generated Swagger documentation | Swagger UI (built-in FastAPI) |
+
 
 ### Incident Containment Lifecycle & Cache Cleanup
 - **Permanent Retention:** All prediction runs (`PredictionPolygon` rows in PostGIS) are permanently retained to maintain an immutable audit trail for longitudinal research (FR-E01).
@@ -372,20 +378,17 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 
 ### 13.3 Local Development Stack & Lifecycle Ordering
 To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
-1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
+1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d --build`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
 2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
 3. **Application Process Launch:** Spawns isolated terminals for Django (8000), Celery Worker, Celery Beat, FastAPI ML Adapter (8001), and React Frontend (5173).
 4. **Service Health Gate:** Actively polls FastAPI ML Adapter (`GET /health`) on port 8001 until HTTP 200 is confirmed.
-5. **Cache & Database Warmup (`scripts/seed_cache.py`):**
-   - Populates live wind vector telemetry (`ffwai:wind_current`) via single-batch Open-Meteo querying, with fallback to calibrated Bay Area climatological vectors on transient read timeouts.
-   - Populates AQI telemetry (`ffwai:aqi_data`) with fallback.
-   - Dispatches Active Fire Scout (NASA FIRMS VIIRS 375m) to detect and cluster satellite fire hotspots.
-   - **Historical Replay Seeding for Live Docker Testing:**
-     - In live Docker mode (`MOCK_INFERENCE=false`), live GOES-18 ABI and PINN vegetation layers inspect real-time observations for `date=now`. On normal days with no active wildfire burning in the Bay Area, live models return 0 features (`features: []`).
-     - To enable genuine local testing of containerized U-Net and PINN services without waiting for a real-world wildfire, `seed_cache.py` expands the active fire bounding box to cover both Los Gatos and Morgan Hill (`[-122.25, 37.05, -121.65, 37.35]`).
-     - If live inference at `date=now` yields 0 features, `seed_cache.py` automatically falls back to querying the ML adapter with benchmark wildfire timestamp `2025-01-10T21:00:00Z` (Palisades benchmark fire).
-     - The benchmark predictions are replayed at the current timestamp (`now_iso`) and stored in PostGIS via `store_geojson_result`, caching the unified FeatureCollections in Redis under `ffwai:predictions:current`, `ffwai:predictions:current:ensemble`, `ffwai:predictions:current:unet`, and `ffwai:predictions:current:pinn`.
-     - This immediately populates 0h, +1h, +3h, and +6h fire spread polygons on the frontend Mapbox/Deck.gl canvas.
+5. **Automated Cache & Database Warmup (`@worker_ready.connect`):**
+   - Retires the need to manually invoke `scripts/seed_cache.py` during stack startup.
+   - Celery worker startup signal hook (`harvester.signals.on_worker_ready`) automatically dispatches:
+     - `fetch_wind_data.delay()` (live wind vector telemetry)
+     - `fetch_airnow_aqi.delay()` (live PM2.5 / AQI telemetry)
+     - `trigger_active_inference.delay()` (NASA FIRMS VIIRS 375m active fire scout)
+   - Automatically pre-warms Redis and PostGIS across strictly supported forecast horizons (`0h`, `1h`, `3h`, `6h`).
 
 ---
 
@@ -393,18 +396,19 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
 
 - **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter and containerized inference services (`ml_services/`).
 - **Inference Services Structure & Ports:**
-  - **FastAPI ML Adapter (`ml_adapter/`):** Listens on port 8001. Proxies requests to downstream containerized services (`UNET_SERVICE_URL=http://localhost:8081` and `PINN_SERVICE_URL=http://localhost:8082`), handles mock bypass (`MOCK_INFERENCE=true`), health probing (`GET /health`), and multi-model ensemble blending (`POST /predict/ensemble`).
+  - **FastAPI ML Adapter (`ml_adapter/`):** Listens on port 8001. Proxies requests to downstream containerized services (`UNET_SERVICE_URL=http://localhost:8081` and `PINN_SERVICE_URL=http://localhost:8082`), handles health probing (`GET /health`), and multi-model ensemble blending (`POST /predict/ensemble`).
   - **U-Net Service (`ml_services/unet_service/`):** Listens on port 8081 (`AIP_HTTP_PORT=8081`). Exposes `GET /health` and `POST /predict`. Bundles pre-trained weights (`models/goes_h1`, `models/goes_h3`, `models/goes_h6`) and California 1 km terrain cache (`static_ca_1km.npz`). Uses native NOAA GOES-18 ABI and Open-Meteo ingestion with isotonic calibration.
   - **PINN Service (`ml_services/ml_pinn_service/`):** Listens on port 8082 (`AIP_HTTP_PORT=8082`). Exposes `GET /health` and `POST /predict`. Implements calibrated physics fire spread simulation.
 - **Contract Interface:**
-  - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string, optional — defaults to UTC now), `time_horizon` (int hours: 0, 1, 3, 6, 24), and `model_type` ("unet", "pinn", or "ensemble").
-  - **Output Contract (ML Engine → Django Backend):** Standard unified GeoJSON `FeatureCollection` containing per-cell features with `grid_id`, `fire_probability` (0.0–1.0), `risk_label`, `horizon_hours`, `source_model`, `w_unet`, and `members`.
+  - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string, optional — defaults to UTC now), `time_horizon` (int hours: 0, 1, 3, 6), and `model_type` ("unet", "pinn", or "ensemble").
+  - **Output Contract (ML Engine → Django Backend):** Standard unified GeoJSON `FeatureCollection` containing per-cell features with `grid_id`, `fire_probability` (0.0–1.0), `risk_label`, `horizon_hours` (0, 1, 3, 6), `source_model`, `w_unet`, and `members`.
   - **Ensemble Blending:** Combines U-Net and PINN predictions via spatial grid union: $P_{\text{ensemble}} = 0.6 \times P_{\text{unet}} + 0.4 \times P_{\text{pinn}}$ for overlapping cells; single-model scaled probabilities for non-overlapping cells. If one service fails, the ensemble gracefully degrades to the surviving service without failing the request.
-- **Mock Fixture & Local Benchmark Replay:**
-  - When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
-  - When `MOCK_INFERENCE=false` (Live Docker microservices), `scripts/seed_cache.py` queries live U-Net and PINN containers. If `date=now` detects no active fire in real-world satellite feeds, the seeding pipeline automatically triggers Historical Replay using benchmark fire timestamp `2025-01-10T21:00:00Z`, verifying actual containerized model execution while ensuring active spread polygons appear for frontend UI validation.
+- **Mock Fixture Purge & Clean Empty Output:**
+  - Mock GeoJSON fixture files and synthetic coordinate translations have been purged.
+  - When live models detect 0 features, the adapter cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"`, avoiding any fallback or translation of pre-recorded Santa Cruz files onto the map.
 - **Inference Cadence:** Daily Celery cron job (`harvester.tasks.trigger_daily_inference` at 06:00 UTC) plus 30-minute Active Fire Scout (`harvester.tasks.trigger_active_inference`).
 - **Ensemble Models:** U-Net (spatial segmentation), PINN (physics-constrained spread), RL Agent DQN/PPO (dynamic progression). Ensemble combiner uses weighted voting / probability averaging.
+
 - **Research Lineage:** U-Net extends Paper 1 (Malik et al., 2021), RL extends Paper 2 (Adhikari et al., 2024), Ensemble extends Paper 3 (Malik et al., 2022).
 
 
