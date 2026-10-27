@@ -227,7 +227,11 @@ def process_hotspots_for_telemetry_and_clustering(
     wildland_points: list[dict[str, Any]] = []
     all_hotspots: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
-    twenty_four_hours_ago = now - timedelta(hours=24)
+    # Rolling 2-calendar-day window matching NASA FIRMS "24HRS" portal definition:
+    # "From [Yesterday 00:00:00 UTC] to present" (up to 48 hours)
+    yesterday_midnight_utc = datetime.combine(
+        now.date() - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc
+    )
 
     for pt in rows:
         lat = pt["latitude"]
@@ -237,14 +241,14 @@ def process_hotspots_for_telemetry_and_clustering(
         if not (min_lat <= lat <= max_lat and min_lon <= lon <= max_lon):
             continue
 
-        # 24-hour rolling window check
+        # 2-calendar-day rolling window check (From yesterday 00:00:00 UTC to present)
         acq_date = pt.get("acq_date")
         acq_time = pt.get("acq_time")
         if acq_date and acq_time:
             try:
                 time_str = f"{acq_date} {str(acq_time).zfill(4)}"
                 dt = datetime.strptime(time_str, "%Y-%m-%d %H%M").replace(tzinfo=timezone.utc)
-                if dt < twenty_four_hours_ago:
+                if dt < yesterday_midnight_utc:
                     continue
             except Exception:
                 pass

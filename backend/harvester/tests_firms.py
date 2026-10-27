@@ -520,14 +520,20 @@ def test_firms_area_api_queries_rolling_2day_window():
     )
 
 
-def test_process_hotspots_filters_detections_older_than_24h():
-    """Verify that process_hotspots_for_telemetry_and_clustering filters out detections older than 24 hours."""
+def test_process_hotspots_filters_detections_older_than_2_calendar_days():
+    """
+    Verify that process_hotspots_for_telemetry_and_clustering aligns with NASA FIRMS '24HRS' view
+    ('From Yesterday 00:00:00 UTC to present'), retaining detections from yesterday and filtering older ones.
+    """
     from datetime import datetime, timezone, timedelta
     from harvester.firms_client import process_hotspots_for_telemetry_and_clustering
 
     now = datetime.now(timezone.utc)
     recent_time = now - timedelta(hours=2)
-    stale_time = now - timedelta(hours=36)
+    # Yesterday 10:00 UTC (e.g. ~30-34 hours ago) — must be retained to match NASA FIRMS
+    yesterday_time = datetime.combine(now.date() - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=10)
+    # 2+ days ago — strictly before yesterday 00:00:00 UTC — must be filtered out
+    stale_time = datetime.combine(now.date() - timedelta(days=2), datetime.min.time(), tzinfo=timezone.utc) - timedelta(hours=1)
 
     raw_rows = [
         {
@@ -537,6 +543,14 @@ def test_process_hotspots_filters_detections_older_than_24h():
             "frp": 15.0,
             "acq_date": recent_time.strftime("%Y-%m-%d"),
             "acq_time": recent_time.strftime("%H%M"),
+        },
+        {
+            "latitude": 38.31,
+            "longitude": -121.83,
+            "confidence": "high",
+            "frp": 20.0,
+            "acq_date": yesterday_time.strftime("%Y-%m-%d"),
+            "acq_time": yesterday_time.strftime("%H%M"),
         },
         {
             "latitude": 38.22,
@@ -549,8 +563,12 @@ def test_process_hotspots_filters_detections_older_than_24h():
     ]
 
     wildland, all_hotspots = process_hotspots_for_telemetry_and_clustering(raw_rows)
-    assert len(all_hotspots) == 1
-    assert all_hotspots[0]["latitude"] == 38.20
+    # Should retain recent_time (today) and yesterday_time (yesterday), filtering out stale_time (2 days ago)
+    assert len(all_hotspots) == 2
+    hotspot_lats = {h["latitude"] for h in all_hotspots}
+    assert 38.20 in hotspot_lats
+    assert 38.31 in hotspot_lats
+    assert 38.22 not in hotspot_lats
 
 
 def test_on_worker_ready_dispatches_archive_old_predictions():
