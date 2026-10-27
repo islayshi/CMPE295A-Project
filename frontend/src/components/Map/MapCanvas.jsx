@@ -41,8 +41,8 @@ export default function MapCanvas({
         mapStyle="mapbox://styles/mapbox/outdoors-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
         maxBounds={[
-          [-122.90, 36.90],
-          [-121.50, 38.30]
+          [-123.00, 36.80],
+          [-121.20, 38.50]
         ]}
       >
         {windData && <WindOverlay data={windData} />}
