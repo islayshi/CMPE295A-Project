@@ -12,8 +12,6 @@ import { fetchShelters, fetchWindData, fetchAqiData, fetchFirmsHotspots } from '
 
 export default function Dashboard() {
   const [selectedModel, setSelectedModel] = useState('pinn');
-  const [isFireRiskVisible, setIsFireRiskVisible] = useState(true);
-  const [isHotspotsVisible, setIsHotspotsVisible] = useState(true);
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
   const [isSheltersVisible, setIsSheltersVisible] = useState(false);
@@ -101,8 +99,8 @@ export default function Dashboard() {
         windData={windData}
         hotspotsData={hotspotsData}
         userLocation={userLocation}
-        isFireRiskVisible={isFireRiskVisible}
-        isHotspotsVisible={isHotspotsVisible}
+        isFireRiskVisible={true}
+        isHotspotsVisible={true}
         isAqiVisible={isAqiVisible}
         isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
@@ -110,16 +108,10 @@ export default function Dashboard() {
       />
       
       <LayersLegend 
-        isFireRiskVisible={isFireRiskVisible}
-        setIsFireRiskVisible={setIsFireRiskVisible}
-        isHotspotsVisible={isHotspotsVisible}
-        setIsHotspotsVisible={setIsHotspotsVisible}
         isAqiVisible={isAqiVisible} 
         setIsAqiVisible={setIsAqiVisible} 
         isSheltersVisible={isSheltersVisible}
         setIsSheltersVisible={setIsSheltersVisible}
-        selectedModel={selectedModel}
-        setSelectedModel={setSelectedModel}
       />
       
       <TelemetryWidget 

@@ -1,19 +1,13 @@
 import { useState } from 'react';
-import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Satellite, Factory } from 'lucide-react';
+import { Layers, Activity, Map as MapIcon, X, Tent, Factory } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LayersLegend({
-  isFireRiskVisible = true,
-  setIsFireRiskVisible = () => {},
-  isHotspotsVisible = true,
-  setIsHotspotsVisible = () => {},
   isAqiVisible = false,
   setIsAqiVisible = () => {},
   isSheltersVisible = false,
   setIsSheltersVisible = () => {},
-  selectedModel = 'ensemble',
-  setSelectedModel = () => {},
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -54,69 +48,10 @@ export default function LayersLegend({
             </div>
 
             <div className="p-4 space-y-5">
-              {/* Predictive Model Selector */}
-              <div>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Predictive Model</h3>
-                <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-slate-200">
-                  {[
-                    { id: 'pinn', label: 'PIML', activeClass: 'bg-teal-600 text-white shadow-sm ring-1 ring-teal-500/20 font-semibold' },
-                    { id: 'unet', label: 'U-Net', activeClass: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/20 font-semibold' },
-                    { id: 'ensemble', label: 'Ensemble', activeClass: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500/20 font-semibold', disabled: true },
-                  ].map((m) => {
-                    const isActive = selectedModel === m.id;
-                    const isDisabled = Boolean(m.disabled);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        disabled={isDisabled}
-                        title={m.disabled ? 'Pending AI/ML Team Specification' : m.label}
-                        onClick={() => !isDisabled && setSelectedModel(m.id)}
-                        className={`py-2 px-1 rounded-lg text-xs transition-all ${
-                          isDisabled
-                            ? 'opacity-40 cursor-not-allowed text-slate-400 font-medium'
-                            : isActive
-                            ? m.activeClass
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Layer Toggles */}
               <div>
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Map Layers</h3>
                 <div className="space-y-2">
-                  <button
-                    onClick={() => setIsFireRiskVisible(!isFireRiskVisible)}
-                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Flame size={16} className={isFireRiskVisible ? 'text-orange-600' : 'text-slate-400'} />
-                      <span className="text-sm font-medium text-slate-800">Fire Probability</span>
-                    </div>
-                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isFireRiskVisible ? 'bg-orange-600' : 'bg-slate-300'}`}>
-                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isFireRiskVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setIsHotspotsVisible(!isHotspotsVisible)}
-                    className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Satellite size={16} className={isHotspotsVisible ? 'text-rose-600' : 'text-slate-400'} />
-                      <span className="text-sm font-medium text-slate-800">Satellite Hotspots (NASA FIRMS)</span>
-                    </div>
-                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isHotspotsVisible ? 'bg-rose-600' : 'bg-slate-300'}`}>
-                      <div className={`bg-white w-3 h-3 rounded-full shadow-sm transition-transform ${isHotspotsVisible ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                    </div>
-                  </button>
-
                   <button
                     onClick={() => setIsAqiVisible(!isAqiVisible)}
                     className="w-full flex justify-between items-center bg-white hover:bg-slate-100 transition-colors p-3 rounded-lg border border-slate-200"
