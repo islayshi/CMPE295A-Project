@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Sparkles, Cpu, Satellite, Factory } from 'lucide-react';
+import { Layers, Activity, Map as MapIcon, X, Tent, Flame, Satellite, Factory } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -59,11 +59,10 @@ export default function LayersLegend({
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Predictive Model</h3>
                 <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-slate-200">
                   {[
-                    { id: 'pinn', label: 'PIML', icon: Flame },
-                    { id: 'unet', label: 'U-Net', icon: Cpu },
-                    { id: 'ensemble', label: 'Ensemble', icon: Sparkles, disabled: true },
+                    { id: 'pinn', label: 'PIML', activeClass: 'bg-orange-600 text-white shadow-sm ring-1 ring-orange-500/20 font-semibold' },
+                    { id: 'unet', label: 'U-Net', activeClass: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/20 font-semibold' },
+                    { id: 'ensemble', label: 'Ensemble', activeClass: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500/20 font-semibold', disabled: true },
                   ].map((m) => {
-                    const Icon = m.icon;
                     const isActive = selectedModel === m.id;
                     const isDisabled = Boolean(m.disabled);
                     return (
@@ -73,16 +72,15 @@ export default function LayersLegend({
                         disabled={isDisabled}
                         title={m.disabled ? 'Pending AI/ML Team Specification' : m.label}
                         onClick={() => !isDisabled && setSelectedModel(m.id)}
-                        className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                        className={`py-2 px-1 rounded-lg text-xs transition-all ${
                           isDisabled
-                            ? 'opacity-40 cursor-not-allowed text-slate-400'
+                            ? 'opacity-40 cursor-not-allowed text-slate-400 font-medium'
                             : isActive
-                            ? 'bg-orange-600 text-white shadow-sm font-semibold'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                            ? m.activeClass
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
                         }`}
                       >
-                        <Icon size={14} className={isActive ? 'text-white mb-1' : isDisabled ? 'text-slate-400 mb-1' : 'text-slate-500 mb-1'} />
-                        <span>{m.label}</span>
+                        {m.label}
                       </button>
                     );
                   })}

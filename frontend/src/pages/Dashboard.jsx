@@ -5,7 +5,6 @@ import MapCanvas from '../components/Map/MapCanvas';
 import TelemetryWidget from '../components/HUD/TelemetryWidget';
 import LayersLegend from '../components/HUD/LayersLegend';
 import TimeScrubber from '../components/HUD/TimeScrubber';
-import ModelSelector from '../components/HUD/ModelSelector';
 import ChatDrawer from '../components/HUD/ChatDrawer';
 
 import { fetchCurrentPredictions } from '../api/predictions';
@@ -109,11 +108,6 @@ export default function Dashboard() {
         aqiData={aqiData}
         timeScrub={activeHorizon}
       />
-
-      {/* Model Selector Pill on HUD directly beside Layers button */}
-      <div className="absolute top-20 left-20 z-40">
-        <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
-      </div>
       
       <LayersLegend 
         isFireRiskVisible={isFireRiskVisible}
@@ -136,7 +130,13 @@ export default function Dashboard() {
       />
         
       <div className="absolute bottom-0 left-0 w-full z-40 pointer-events-auto">
-        <TimeScrubber timeScrub={activeHorizon} setTimeScrub={setTimeScrub} availableHorizons={availableHorizons} />
+        <TimeScrubber 
+          timeScrub={activeHorizon} 
+          setTimeScrub={setTimeScrub} 
+          availableHorizons={availableHorizons}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
+        />
       </div>
 
       <ChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />

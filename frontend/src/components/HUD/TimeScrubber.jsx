@@ -1,6 +1,13 @@
 import { useState, useMemo } from 'react';
+import ModelSelector from './ModelSelector';
 
-export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizons = [0, 1, 3, 6] }) {
+export default function TimeScrubber({
+  timeScrub,
+  setTimeScrub,
+  availableHorizons = [0, 1, 3, 6],
+  selectedModel = 'pinn',
+  onSelectModel = () => {},
+}) {
   const allowed = [0, 1, 3, 6];
   const filteredHorizons = availableHorizons.filter(h => allowed.includes(h));
   const horizonsToUse = filteredHorizons.length > 0 ? filteredHorizons : allowed;
@@ -33,20 +40,44 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
     );
   };
 
+  const isUnet = selectedModel === 'unet';
 
   return (
     <div className="w-full bg-slate-50 border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-      <div className="px-6 py-3 flex flex-col gap-3">
-        {/* Centered Badge for Active Forecast Time */}
-        <div className="flex justify-center items-center text-sm font-bold tracking-wide">
-          <div className="px-4 py-1.5 bg-orange-100 text-orange-700 rounded-full border border-orange-300 shadow-sm flex items-center gap-2 transition-all">
-            <span className="relative flex h-2 w-2">
-              {timeScrub === 0 && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-              )}
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
-            </span>
-            {getBadgeLabel()}
+      <div className="px-6 py-3 flex flex-col gap-2.5">
+        {/* Header: Model Selector (Left) + Forecast Badge (Right) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          {/* Predictive Model Segmented Switch */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Model:</span>
+            <ModelSelector selectedModel={selectedModel} onSelectModel={onSelectModel} />
+          </div>
+
+          {/* Active Forecast Time Badge */}
+          <div className="flex items-center text-xs font-bold tracking-wide">
+            <div
+              className={`px-3.5 py-1.5 rounded-full border shadow-sm flex items-center gap-2 transition-all ${
+                isUnet
+                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                  : 'bg-orange-50 text-orange-800 border-orange-200'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                {timeScrub === 0 && (
+                  <span
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      isUnet ? 'bg-indigo-400' : 'bg-orange-400'
+                    }`}
+                  ></span>
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    isUnet ? 'bg-indigo-600' : 'bg-orange-500'
+                  }`}
+                ></span>
+              </span>
+              {getBadgeLabel()}
+            </div>
           </div>
         </div>
 
@@ -57,7 +88,9 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
           step="1"
           value={currentIndex}
           onChange={(e) => setTimeScrub(horizonsToUse[parseInt(e.target.value, 10)])}
-          className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-orange-600 outline-none block transition-all"
+          className={`w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer outline-none block transition-all ${
+            isUnet ? 'accent-indigo-600' : 'accent-orange-600'
+          }`}
           style={{ margin: 0, padding: 0 }}
         />
 
@@ -71,11 +104,17 @@ export default function TimeScrubber({ timeScrub, setTimeScrub, availableHorizon
                 key={i}
                 onClick={() => setTimeScrub(h)}
                 className={`flex flex-col items-center cursor-pointer transition-all duration-200 ${
-                  isActive ? 'text-orange-700 font-bold scale-110' : 'text-slate-500 hover:text-slate-800'
+                  isActive
+                    ? isUnet
+                      ? 'text-indigo-700 font-bold scale-110'
+                      : 'text-orange-700 font-bold scale-110'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <span
-                  className={`w-0.5 h-2 mb-1 rounded-full ${isActive ? 'bg-orange-500' : 'bg-slate-300'}`}
+                  className={`w-0.5 h-2 mb-1 rounded-full ${
+                    isActive ? (isUnet ? 'bg-indigo-600' : 'bg-orange-500') : 'bg-slate-300'
+                  }`}
                 ></span>
                 {label}
               </span>

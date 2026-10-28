@@ -1,20 +1,33 @@
-import { Sparkles, Cpu, Flame } from 'lucide-react';
-
 const MODELS = [
-  { id: 'pinn', label: 'PIML', icon: Flame, hint: 'Physics-Informed Machine Learning (v0.3.1 Spread)' },
-  { id: 'unet', label: 'U-Net', icon: Cpu, hint: 'Spatial Segmentation' },
-  { id: 'ensemble', label: 'Ensemble', icon: Sparkles, hint: 'Pending AI/ML Team Specification', disabled: true },
+  {
+    id: 'pinn',
+    label: 'PIML',
+    hint: 'Physics-Informed Machine Learning (v0.3.1 Spread)',
+    activeClass: 'bg-orange-600 text-white shadow-sm ring-1 ring-orange-500/20 font-semibold',
+  },
+  {
+    id: 'unet',
+    label: 'U-Net',
+    hint: 'Spatial Segmentation (GOES-18 ABI)',
+    activeClass: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/20 font-semibold',
+  },
+  {
+    id: 'ensemble',
+    label: 'Ensemble',
+    hint: 'Multi-Model Consensus (Pending AI/ML Team Specification)',
+    disabled: true,
+    activeClass: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500/20 font-semibold',
+  },
 ];
 
 export default function ModelSelector({ selectedModel, onSelectModel, className = '' }) {
   return (
     <div
-      className={`inline-flex items-center bg-white/90 backdrop-blur-md border border-slate-200 shadow-lg rounded-full p-1 pointer-events-auto transition-all ${className}`}
+      className={`inline-flex items-center bg-white border border-slate-200 shadow-sm rounded-full p-0.5 pointer-events-auto transition-all ${className}`}
       role="radiogroup"
       aria-label="Predictive Model"
     >
       {MODELS.map((model) => {
-        const Icon = model.icon;
         const isActive = selectedModel === model.id;
         const isDisabled = Boolean(model.disabled);
         return (
@@ -26,16 +39,15 @@ export default function ModelSelector({ selectedModel, onSelectModel, className 
             aria-checked={isActive}
             title={model.hint}
             onClick={() => !isDisabled && onSelectModel(model.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+            className={`px-3 py-1 text-xs rounded-full transition-all duration-200 tracking-wide ${
               isDisabled
-                ? 'opacity-40 cursor-not-allowed text-slate-400'
+                ? 'opacity-40 cursor-not-allowed text-slate-400 font-medium'
                 : isActive
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ? model.activeClass
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
             }`}
           >
-            <Icon size={14} className={isActive ? 'text-white' : isDisabled ? 'text-slate-400' : 'text-slate-500'} />
-            <span>{model.label}</span>
+            {model.label}
           </button>
         );
       })}
