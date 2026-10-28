@@ -3,7 +3,7 @@ const MODELS = [
     id: 'pinn',
     label: 'PIML',
     hint: 'Physics-Informed Machine Learning (v0.3.1 Spread)',
-    activeClass: 'bg-orange-600 text-white shadow-sm ring-1 ring-orange-500/20 font-semibold',
+    activeClass: 'bg-teal-600 text-white shadow-sm ring-1 ring-teal-500/20 font-semibold',
   },
   {
     id: 'unet',

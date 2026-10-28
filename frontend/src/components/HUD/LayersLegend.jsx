@@ -59,7 +59,7 @@ export default function LayersLegend({
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Predictive Model</h3>
                 <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-slate-200">
                   {[
-                    { id: 'pinn', label: 'PIML', activeClass: 'bg-orange-600 text-white shadow-sm ring-1 ring-orange-500/20 font-semibold' },
+                    { id: 'pinn', label: 'PIML', activeClass: 'bg-teal-600 text-white shadow-sm ring-1 ring-teal-500/20 font-semibold' },
                     { id: 'unet', label: 'U-Net', activeClass: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/20 font-semibold' },
                     { id: 'ensemble', label: 'Ensemble', activeClass: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500/20 font-semibold', disabled: true },
                   ].map((m) => {

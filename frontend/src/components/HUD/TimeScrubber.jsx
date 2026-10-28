@@ -1,6 +1,33 @@
 import { useState, useMemo } from 'react';
 import ModelSelector from './ModelSelector';
 
+const MODEL_THEMES = {
+  pinn: {
+    badge: 'bg-teal-50 text-teal-800 border-teal-200',
+    ping: 'bg-teal-400',
+    dot: 'bg-teal-600',
+    slider: 'accent-teal-600',
+    tickText: 'text-teal-700 font-bold scale-110',
+    tickBar: 'bg-teal-600',
+  },
+  unet: {
+    badge: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+    ping: 'bg-indigo-400',
+    dot: 'bg-indigo-600',
+    slider: 'accent-indigo-600',
+    tickText: 'text-indigo-700 font-bold scale-110',
+    tickBar: 'bg-indigo-600',
+  },
+  ensemble: {
+    badge: 'bg-purple-50 text-purple-800 border-purple-200',
+    ping: 'bg-purple-400',
+    dot: 'bg-purple-600',
+    slider: 'accent-purple-600',
+    tickText: 'text-purple-700 font-bold scale-110',
+    tickBar: 'bg-purple-600',
+  },
+};
+
 export default function TimeScrubber({
   timeScrub,
   setTimeScrub,
@@ -40,7 +67,7 @@ export default function TimeScrubber({
     );
   };
 
-  const isUnet = selectedModel === 'unet';
+  const currentTheme = MODEL_THEMES[selectedModel] || MODEL_THEMES.pinn;
 
   return (
     <div className="w-full bg-slate-50 border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
@@ -56,24 +83,16 @@ export default function TimeScrubber({
           {/* Active Forecast Time Badge */}
           <div className="flex items-center text-xs font-bold tracking-wide">
             <div
-              className={`px-3.5 py-1.5 rounded-full border shadow-sm flex items-center gap-2 transition-all ${
-                isUnet
-                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
-                  : 'bg-orange-50 text-orange-800 border-orange-200'
-              }`}
+              className={`px-3.5 py-1.5 rounded-full border shadow-sm flex items-center gap-2 transition-all ${currentTheme.badge}`}
             >
               <span className="relative flex h-2 w-2">
                 {timeScrub === 0 && (
                   <span
-                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      isUnet ? 'bg-indigo-400' : 'bg-orange-400'
-                    }`}
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${currentTheme.ping}`}
                   ></span>
                 )}
                 <span
-                  className={`relative inline-flex rounded-full h-2 w-2 ${
-                    isUnet ? 'bg-indigo-600' : 'bg-orange-500'
-                  }`}
+                  className={`relative inline-flex rounded-full h-2 w-2 ${currentTheme.dot}`}
                 ></span>
               </span>
               {getBadgeLabel()}
@@ -88,9 +107,7 @@ export default function TimeScrubber({
           step="1"
           value={currentIndex}
           onChange={(e) => setTimeScrub(horizonsToUse[parseInt(e.target.value, 10)])}
-          className={`w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer outline-none block transition-all ${
-            isUnet ? 'accent-indigo-600' : 'accent-orange-600'
-          }`}
+          className={`w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer outline-none block transition-all ${currentTheme.slider}`}
           style={{ margin: 0, padding: 0 }}
         />
 
@@ -105,15 +122,13 @@ export default function TimeScrubber({
                 onClick={() => setTimeScrub(h)}
                 className={`flex flex-col items-center cursor-pointer transition-all duration-200 ${
                   isActive
-                    ? isUnet
-                      ? 'text-indigo-700 font-bold scale-110'
-                      : 'text-orange-700 font-bold scale-110'
+                    ? currentTheme.tickText
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <span
                   className={`w-0.5 h-2 mb-1 rounded-full ${
-                    isActive ? (isUnet ? 'bg-indigo-600' : 'bg-orange-500') : 'bg-slate-300'
+                    isActive ? currentTheme.tickBar : 'bg-slate-300'
                   }`}
                 ></span>
                 {label}
