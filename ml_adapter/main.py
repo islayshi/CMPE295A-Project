@@ -66,7 +66,7 @@ class PredictionRequest(BaseModel):
     """
     Payload sent by the Django Celery harvester.
     """
-    bbox: tuple[float, float, float, float] = (-122.9, 36.9, -121.5, 38.3)
+    bbox: tuple[float, float, float, float] = (-122.9, 36.9, -121.2, 38.5)
     time_horizon: int = 6
     model_type: str = "unet"
     date: str | None = None

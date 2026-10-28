@@ -24,6 +24,9 @@ done
 
 echo "3. Opening 5 Terminal windows for local services..."
 
+# Clean up any leftover background celery processes before starting new ones
+pkill -9 -f "celery" 2>/dev/null || true
+
 # Ensure Terminal is running on macOS
 open -a Terminal
 sleep 1

@@ -17,7 +17,7 @@ for PORT in 8000 8001 5173; do
 done
 
 # Kill Celery processes
-pkill -f "celery -A core" 2>/dev/null || true
+pkill -9 -f "celery" 2>/dev/null || true
 
 echo "Stopping Docker containers..."
 docker compose down

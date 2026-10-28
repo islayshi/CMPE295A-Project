@@ -280,11 +280,22 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
     with transaction.atomic():
         PredictionPolygon.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
 
-    # Query the database for the batch polygons and assemble into a FeatureCollection
+    # Query the database for active incident polygons across the Bay Area and assemble into a FeatureCollection
     if timestamp:
-        valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
-        if source_model:
-            valid_polygons = valid_polygons.filter(source_model=source_model)
+        from predictions.models import FireIncident
+        active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+        if active_incidents:
+            six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
+            valid_polygons = PredictionPolygon.objects.filter(
+                fire_incident_id__in=active_incidents,
+                timestamp__gte=six_hours_ago,
+            ).select_related("grid")
+            if source_model:
+                valid_polygons = valid_polygons.filter(source_model=source_model)
+        else:
+            valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
+            if source_model:
+                valid_polygons = valid_polygons.filter(source_model=source_model)
         from predictions.serializers import PredictionPolygonGeoJSONSerializer
         serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
         feature_collection = {

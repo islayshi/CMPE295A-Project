@@ -587,6 +587,60 @@ def test_on_worker_ready_dispatches_archive_old_predictions():
         mock_archive.assert_called_once()
 
 
+@pytest.mark.django_db
+def test_store_geojson_result_aggregates_across_all_active_incidents():
+    """
+    Verify that when store_geojson_result stores predictions for one incident,
+    the cached GeoJSON aggregates predictions across all currently active incidents
+    rather than overwriting the cache with only the latest single incident's cells.
+    """
+    from datetime import datetime, timezone
+    from django.contrib.gis.geos import Polygon, Point
+    from grid.models import BayAreaGrid
+    from predictions.models import FireIncident, PredictionPolygon
+    from harvester.tasks import store_geojson_result
+
+    # Incident 1 (Courtland)
+    inc1 = FireIncident.objects.create(name="Incident 1", start_time=datetime.now(timezone.utc), is_active=True)
+    poly1 = Polygon([(-121.53, 38.32), (-121.52, 38.32), (-121.52, 38.33), (-121.53, 38.33), (-121.53, 38.32)])
+    g1 = BayAreaGrid.objects.create(id=901, geometry=poly1, centroid=Point(-121.525, 38.325), row=0, col=0)
+    PredictionPolygon.objects.create(
+        grid=g1, fire_incident=inc1, source_model="unet", fire_probability=0.8,
+        lead_time_hours=0, timestamp=datetime.now(timezone.utc)
+    )
+
+    # Incident 2 (Galt)
+    inc2 = FireIncident.objects.create(name="Incident 2", start_time=datetime.now(timezone.utc), is_active=True)
+    poly2 = Polygon([(-121.34, 38.24), (-121.33, 38.24), (-121.33, 38.25), (-121.34, 38.25), (-121.34, 38.24)])
+
+    # Call store_geojson_result for Incident 2
+    galt_payload = {
+        "type": "FeatureCollection",
+        "metadata": {"timestamp": datetime.now(timezone.utc).isoformat(), "source_model": "unet"},
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": json.loads(poly2.geojson),
+                "properties": {"grid_id": 902, "fire_probability": 0.9, "horizon_hours": 0, "source_model": "unet"}
+            }
+        ]
+    }
+
+    with patch("harvester.tasks.cache.set") as mock_cache_set:
+        store_geojson_result(galt_payload, incident_id=inc2.id)
+
+        # Find call that cached ffwai:predictions:current:unet
+        unet_calls = [call for call in mock_cache_set.call_args_list if call[0][0] == "ffwai:predictions:current:unet"]
+        assert len(unet_calls) == 1
+        cached_fc = json.loads(unet_calls[0][0][1])
+        # Must include BOTH Incident 1 (901) and Incident 2 (902)!
+        cached_grid_ids = {f["properties"]["grid_id"] for f in cached_fc["features"]}
+        assert 901 in cached_grid_ids
+        assert 902 in cached_grid_ids
+        assert len(cached_fc["features"]) == 2
+
+
+
 
 
 

@@ -17,7 +17,7 @@ MODEL_TYPE = "pinn"
 MODEL_VERSION = "0.3.1-calibrated"
 DEFAULT_PORT = 8082
 DEFAULT_HOUR_UTC = 21          # sponsor FAQ Q2: date-only requests mean 21:00 UTC
-BAY_AREA_BBOX = (-122.9, 36.9, -121.5, 38.3)
+BAY_AREA_BBOX = (-122.9, 36.9, -121.2, 38.5)
 
 
 class ServiceError(Exception):
