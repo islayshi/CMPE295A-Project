@@ -19,7 +19,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-BAY_AREA_BBOX = (-122.9, 36.9, -121.5, 38.5)
+BAY_AREA_BBOX = (-122.9, 36.9, -121.2, 38.5)
 CALIFORNIA_BOUNDS = (-124.5, 32.5, -114.0, 42.1)
 
 # Known East Bay and South Bay industrial flaring sites (name, lat, lon, exclusion radius km)

@@ -421,7 +421,8 @@ def test_archive_old_predictions_partial_containment_refreshes_cache_for_remaini
 def test_bay_area_bbox_includes_sacramento_delta_and_solano():
     """
     Verify that BAY_AREA_BBOX northern latitude extends to at least 38.50
-    so northern Solano County and Sacramento Delta (Courtland, Rio Vista, Fairfield)
+    and eastern longitude extends to at least -121.20 so northern Solano County,
+    Sacramento Delta (Courtland, Rio Vista, Fairfield), and Galt foothills
     hotspots are not excluded from telemetry pins.
     """
     from harvester.firms_client import BAY_AREA_BBOX
@@ -430,7 +431,7 @@ def test_bay_area_bbox_includes_sacramento_delta_and_solano():
     assert max_lat >= 38.50, f"Expected max_lat >= 38.50, got {max_lat}"
     assert min_lat <= 36.90
     assert min_lon <= -122.90
-    assert max_lon >= -121.50
+    assert max_lon >= -121.20, f"Expected max_lon >= -121.20, got {max_lon}"
 
 
 @pytest.mark.django_db
