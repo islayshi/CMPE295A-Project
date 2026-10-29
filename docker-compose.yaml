@@ -68,8 +68,10 @@ services:
     volumes:
       - ./ml_services/unet_service/settings.py:/app/settings.py
       - ./ml_services/unet_service/postprocessing.py:/app/postprocessing.py
+      - ./ml_services/unet_service/native_ingestion.py:/app/native_ingestion.py
       - ./ml_services/unet_service/inference.py:/app/inference.py
       - ./ml_services/unet_service/serve.py:/app/serve.py
+      - goes_cache:/tmp/goes_cache
     restart: unless-stopped
 
   # ----------------------------------------------------------
@@ -91,3 +93,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  goes_cache:

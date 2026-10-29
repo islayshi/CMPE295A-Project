@@ -30,6 +30,10 @@ def predict(body: dict = Body(...)):
         return _answer(body)                                   # raw request -> bare FeatureCollection
     except inference.ContractError as ex:
         return JSONResponse(status_code=ex.status, content={'error': str(ex)})
+    except Exception as ex:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={'error': f'U-Net internal error: {ex}'})
 
 
 if __name__ == '__main__':
