@@ -67,7 +67,7 @@ def to_geojson(p, grid, timestamp, thr, p_emit=P_EMIT, burned=None, extra_layers
         if burned[r, c]:
             props = {'grid_id': int(ids[r, c]), 'fire_probability': 1.0, 'risk_label': 'ACTIVE_FIRE'}
         else:
-            props = {'grid_id': int(ids[r, c]), 'fire_probability': round(float(p[r, c]), 3),
+            props = {'grid_id': int(ids[r, c]), 'fire_probability': round(float(p[r, c]), 4),
                      'risk_label': str(labels[r, c])}
         for name, layer in (extra_layers or {}).items():
             if layer is not None:
