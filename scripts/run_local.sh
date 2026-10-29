@@ -22,6 +22,10 @@ for i in {1..30}; do
     sleep 1
 done
 
+echo "   Running database migrations..."
+source .venv/bin/activate
+(cd backend && python manage.py migrate --noinput)
+
 echo "3. Opening 5 Terminal windows for local services..."
 
 # Clean up any leftover background celery processes before starting new ones
