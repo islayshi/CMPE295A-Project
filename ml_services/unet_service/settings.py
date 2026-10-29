@@ -25,7 +25,7 @@ GOES_BUCKET = 'noaa-goes18'
 GOES_PRODUCT = 'ABI-L2-FDCC'
 GOES_FILE_STRIDE = 2
 GOES_HORIZONS_H = (1, 3, 6)
-P_EMIT = 0.001
+P_EMIT = 0.05
 P_MAX = 0.6
 W_UNET = 0.5
 WEATHER_GRID_N = 9
@@ -73,7 +73,7 @@ except Exception as _ex:
 MODEL_VERSION = 'unet-goes-hourly-1.0'
 CONTRACT_HORIZONS = (0, 1, 3, 6)      # 0 = current fire (GOES-18, last hour)
 DEFAULT_HOUR_UTC = 21                 # date-only requests use 21:00 UTC (peak afternoon burn window)
-MIN_CONFIDENCE = 0.001                 # lowest confidence_threshold accepted (keeps responses small)
+MIN_CONFIDENCE = 0.01                 # lowest confidence_threshold accepted (keeps responses small)
 MAX_BBOX_KM = 500                     # largest bbox side the service will run
 FIRE_SEARCH_PAD_KM = 25               # fires up to this far outside the bbox still count
 
