@@ -58,7 +58,7 @@ INSTALLED_APPS = [
     "drf_spectacular",      # OpenAPI 3.0 auto-docs — NFR-U01
     # Project apps (each owns a distinct domain — see design-doc.md §1.1)
     "api",          # Legacy connection test — will be removed after full migration
-    "grid",         # BayAreaGrid, TerrainFeature, VegetationIndex models
+    "grid",         # BayAreaGrid, VegetationIndex models
     "predictions",  # PredictionPolygon, ModelPerformanceMetric models
     "harvester",    # Celery tasks: data harvest + ML inference trigger
     "telemetry",    # Wind, NWS alerts, emergency shelters (FEMA/CalOES)

@@ -60,7 +60,7 @@ flowchart TD
 
         FASTAPI["🤖 **FastAPI ML Adapter**\nML inference engine\n/predict/progression\n(U-Net + PINN)\n\n[Python ASGI Server — Uvicorn]"]
 
-        POSTGRES["🗄️ **PostgreSQL + PostGIS + pgvector**\nFireRiskPrediction\nBayAreaGrid\nTerrainFeature\nVegetationIndex\n\n[Relational + Spatial DB]"]
+        POSTGRES["🗄️ **PostgreSQL + PostGIS + pgvector**\nFireRiskPrediction\nBayAreaGrid\nVegetationIndex\n\n[Relational + Spatial DB]"]
 
         REDIS["⚡ **Redis**\n- Celery task broker\n- Django Channels WS store\n- GeoJSON cache\n\n[In-memory store]"]
     end
@@ -100,8 +100,8 @@ flowchart TD
         end
 
         subgraph GRID_APP["grid app"]
-            GRID_MODEL["BayAreaGrid model\nTerrainFeature model\nVegetationIndex model\n\nPostGIS PolygonField\nFloatFields per cell"]
-            GRID_CMD["Management Commands\ngenerate_grid.py\nload_terrain.py\nload_powerlines.py\nseed_czu_fire.py"]
+            GRID_MODEL["BayAreaGrid model\nVegetationIndex model\n\nPostGIS PolygonField\nFloatFields per cell"]
+            GRID_CMD["Management Commands\ngenerate_grid.py\nload_powerlines.py\nseed_czu_fire.py"]
         end
 
         subgraph PREDICTIONS_APP["predictions app"]
@@ -265,7 +265,7 @@ flowchart TD
 |---|---|---|---|
 | **React build** | ~5 MB | AWS S3 | Free tier |
 | **Processed `.npz` feature files** (daily, Bay Area) | ~100–500 MB/day | AWS S3 | ~\$0.023/GB/mo |
-| **PostGIS spatial data** (grid, terrain, predictions) | ~2–5 GB | AWS RDS | Free tier (20GB) |
+| **PostGIS spatial data** (grid, vegetation, predictions, shelters) | ~2–5 GB | AWS RDS | Free tier (20GB) |
 | **Trained U-Net `.keras` model** | ~50–200 MB | **Hugging Face Hub** | Free (public repo) |
 | **PINN model weights** | ~10–50 MB | **Hugging Face Hub** | Free |
 | **Raw satellite imagery** (Landsat, GOES) | **Terabytes** | **Google Earth Engine** — do NOT download | Free academic |
