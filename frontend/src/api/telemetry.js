@@ -11,3 +11,7 @@ export const fetchWindData = () => {
 export const fetchAqiData = () => {
   return apiClient('/telemetry/aqi/');
 };
+
+export const fetchFirmsHotspots = () => {
+  return apiClient('/telemetry/hotspots/');
+};

@@ -1,0 +1,16 @@
+tensorflow-cpu>=2.15.0; platform_machine == "x86_64"
+tensorflow>=2.15.0; platform_machine != "x86_64"
+keras>=3.0.0
+scikit-learn>=1.3.0
+numpy>=1.26.0
+pandas
+scipy
+xarray
+h5netcdf
+pyproj
+requests
+joblib
+fastapi
+uvicorn
+earthengine-api
+google-auth

@@ -90,3 +90,282 @@ def test_current_predictions_empty_cache(api_client, prediction_data):
         assert len(data["features"]) == 2
         mock_cache_get.assert_called_once_with("ffwai:predictions:current")
 
+
+def test_current_predictions_model_scoped_cache_keys(api_client, cached_prediction_data):
+    """
+    Verifies that model query parameter selects model-scoped Redis cache keys.
+    """
+    with patch("predictions.views.cache.get") as mock_cache_get:
+        mock_cache_get.return_value = json.dumps(cached_prediction_data)
+
+        # Default / ensemble (no model param)
+        api_client.get("/api/predictions/current/")
+        mock_cache_get.assert_called_with("ffwai:predictions:current")
+
+        # Explicit ensemble
+        api_client.get("/api/predictions/current/?model=ensemble")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:ensemble")
+
+        # U-Net
+        api_client.get("/api/predictions/current/?model=unet")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:unet")
+
+        # PINN
+        api_client.get("/api/predictions/current/?model=pinn")
+        mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
+
+
+@pytest.mark.django_db
+def test_store_geojson_result_populates_ensemble_cache(cached_prediction_data):
+    """
+    Verifies that store_geojson_result populates both ffwai:predictions:current
+    and ffwai:predictions:current:ensemble when source_model='ensemble'.
+    """
+    from harvester.tasks import store_geojson_result
+    data = dict(cached_prediction_data)
+    data["metadata"]["source_model"] = "ensemble"
+    for f in data["features"]:
+        f["properties"]["source_model"] = "ensemble"
+        f["properties"]["horizon_hours"] = 1
+
+    with patch("harvester.tasks.cache.set") as mock_cache_set:
+        store_geojson_result(data)
+        keys_set = [call[0][0] for call in mock_cache_set.call_args_list]
+        assert "ffwai:predictions:current" in keys_set
+        assert "ffwai:predictions:current:ensemble" in keys_set
+
+
+def test_current_predictions_horizon_filtering(api_client):
+    """
+    Verifies that passing ?horizon=X filters features strictly by horizons [0, 1, 3, 6],
+    and rejects +24h or invalid horizons with HTTP 400 Bad Request.
+    """
+    multi_horizon_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"timestamp": "2026-10-04T00:00:00Z"},
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 1, "fire_probability": 0.9, "horizon_hours": 0},
+                "geometry": {"type": "Polygon", "coordinates": [[[0,0],[0,1],[1,1],[1,0],[0,0]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 2, "fire_probability": 0.8, "horizon_hours": 1},
+                "geometry": {"type": "Polygon", "coordinates": [[[1,1],[1,2],[2,2],[2,1],[1,1]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 3, "fire_probability": 0.6, "horizon_hours": 3},
+                "geometry": {"type": "Polygon", "coordinates": [[[2,2],[2,3],[3,3],[3,2],[2,2]]]}
+            },
+            {
+                "type": "Feature",
+                "properties": {"grid_id": 4, "fire_probability": 0.5, "horizon_hours": 6},
+                "geometry": {"type": "Polygon", "coordinates": [[[3,3],[3,4],[4,4],[4,3],[3,3]]]}
+            }
+        ]
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(multi_horizon_fc)):
+        # Verify valid horizons: 0, 1, 3, 6
+        for h in [0, 1, 3, 6]:
+            response = api_client.get(f"/api/predictions/current/?horizon={h}")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["features"]) == 1
+            assert data["features"][0]["properties"]["horizon_hours"] == h
+            assert data["metadata"]["filtered_horizon"] == h
+
+        # Verify +24h horizon is completely removed and rejected with 400
+        response_24 = api_client.get("/api/predictions/current/?horizon=24")
+        assert response_24.status_code == 400
+        assert "Allowed horizons: [0, 1, 3, 6]" in response_24.json().get("error", "")
+
+        # Verify float-formatted integer strings like ?horizon=1.0 resolve cleanly
+        response_float_str = api_client.get("/api/predictions/current/?horizon=1.0")
+        assert response_float_str.status_code == 200
+        assert response_float_str.json()["metadata"]["filtered_horizon"] == 1
+
+        # Verify non-integer float horizon rejected with 400
+        response_fraction = api_client.get("/api/predictions/current/?horizon=1.5")
+        assert response_fraction.status_code == 400
+
+        # Verify negative horizon rejected with 400
+        response_negative = api_client.get("/api/predictions/current/?horizon=-1")
+        assert response_negative.status_code == 400
+
+        # Verify invalid horizon string rejected with 400
+        response_invalid = api_client.get("/api/predictions/current/?horizon=abc")
+        assert response_invalid.status_code == 400
+
+
+
+
+@pytest.mark.django_db
+def test_current_predictions_db_fallback_by_model(api_client):
+    """
+    Verifies that DB fallback filters by source_model when specified.
+    """
+    from predictions.models import FireIncident
+
+    poly1 = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid1 = BayAreaGrid.objects.create(id=201, geometry=poly1, centroid=Point(10, 10, srid=4326), row=0, col=0)
+    poly2 = Polygon(((19, 19), (19, 21), (21, 21), (21, 19), (19, 19)), srid=4326)
+    grid2 = BayAreaGrid.objects.create(id=202, geometry=poly2, centroid=Point(20, 20, srid=4326), row=0, col=1)
+
+    now = timezone.now()
+    inc = FireIncident.objects.create(name="Model Filter Test Fire", start_time=now, is_active=True)
+
+    PredictionPolygon.objects.create(grid=grid1, fire_incident=inc, timestamp=now, source_model="unet", fire_probability=0.8, lead_time_hours=1)
+    PredictionPolygon.objects.create(grid=grid2, fire_incident=inc, timestamp=now, source_model="pinn", fire_probability=0.6, lead_time_hours=1)
+
+    with patch("predictions.views.cache.get", return_value=None):
+        resp_unet = api_client.get("/api/predictions/current/?model=unet")
+        assert resp_unet.status_code == 200
+        data_unet = resp_unet.json()
+        assert len(data_unet["features"]) == 1
+        assert data_unet["features"][0]["properties"]["source_model"] == "unet"
+
+        resp_pinn = api_client.get("/api/predictions/current/?model=pinn")
+        assert resp_pinn.status_code == 200
+        data_pinn = resp_pinn.json()
+        assert len(data_pinn["features"]) == 1
+        assert data_pinn["features"][0]["properties"]["source_model"] == "pinn"
+
+
+@pytest.mark.django_db
+def test_current_predictions_falls_back_when_cache_has_empty_features(api_client, prediction_data):
+    """
+    Verifies that when Redis cache contains a FeatureCollection with empty features ([]),
+    the current_predictions endpoint falls back to active PostGIS PredictionPolygon records.
+    """
+    empty_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 0, "timestamp": "2026-10-26T00:00:00Z"},
+        "features": [],
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(empty_fc)):
+        response = api_client.get("/api/predictions/current/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 2
+
+
+@pytest.mark.django_db
+def test_current_predictions_falls_back_when_cache_returns_dict_with_empty_features(api_client, prediction_data):
+    """
+    Verifies that when Redis cache returns a Python dict with empty features (e.g. LocMemCache),
+    the endpoint falls back to active PostGIS PredictionPolygon records without TypeError.
+    """
+    empty_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 0, "timestamp": "2026-10-26T00:00:00Z"},
+        "features": [],
+    }
+    with patch("predictions.views.cache.get", return_value=empty_fc):
+        response = api_client.get("/api/predictions/current/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) == 2
+
+
+@pytest.mark.django_db
+def test_current_predictions_horizon_filter_robustness(api_client, prediction_data):
+    """
+    Verifies that the horizon filter handles integer, float, and string representations
+    correctly when filtering GeoJSON features.
+    """
+    cached_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 3},
+        "features": [
+            {"type": "Feature", "properties": {"grid_id": 1, "horizon_hours": 1}},
+            {"type": "Feature", "properties": {"grid_id": 2, "lead_time_hours": "1"}},
+            {"type": "Feature", "properties": {"grid_id": 3, "horizon_hours": 3}},
+        ],
+    }
+    with patch("predictions.views.cache.get", return_value=json.dumps(cached_fc)):
+        response = api_client.get("/api/predictions/current/?horizon=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["features"]) == 2
+        assert {f["properties"]["grid_id"] for f in data["features"]} == {1, 2}
+
+
+@pytest.mark.django_db
+def test_current_predictions_bidirectional_cache_sync_on_fallback(api_client, prediction_data):
+    """
+    Verifies that when current_predictions falls back to PostGIS, it populates both
+    ffwai:predictions:current and ffwai:predictions:current:ensemble.
+    """
+    cached_writes = {}
+
+    def fake_cache_set(key, val, timeout=None):
+        cached_writes[key] = val
+
+    with patch("predictions.views.cache.get", return_value=None), \
+         patch("predictions.views.cache.set", side_effect=fake_cache_set):
+        response = api_client.get("/api/predictions/current/?model=ensemble")
+        assert response.status_code == 200
+        assert "ffwai:predictions:current:ensemble" in cached_writes
+        assert "ffwai:predictions:current" in cached_writes
+
+
+def test_current_predictions_piml_alias_resolves_to_pinn(api_client, cached_prediction_data):
+    """
+    Verifies that querying ?model=piml aliases to ?model=pinn and checks the
+    ffwai:predictions:current:pinn cache key.
+    """
+    with patch("predictions.views.cache.get") as mock_cache_get:
+        mock_cache_get.return_value = json.dumps(cached_prediction_data)
+        response = api_client.get("/api/predictions/current/?model=piml")
+        assert response.status_code == 200
+        mock_cache_get.assert_called_with("ffwai:predictions:current:pinn")
+
+
+@pytest.mark.django_db
+def test_current_predictions_does_not_resurrect_stale_or_inactive_incidents(api_client):
+    """
+    Verifies that current_predictions never returns polygons from inactive incidents
+    or predictions older than 6 hours when the Redis cache is empty.
+    """
+    from datetime import datetime, timezone, timedelta
+    from predictions.models import FireIncident, PredictionPolygon
+    from grid.models import BayAreaGrid
+
+    poly = Polygon(((9, 9), (9, 11), (11, 11), (11, 9), (9, 9)), srid=4326)
+    grid = BayAreaGrid.objects.create(id=9991, geometry=poly, centroid=Point(10, 10, srid=4326), row=0, col=0)
+
+    now = datetime.now(timezone.utc)
+    ten_hours_ago = now - timedelta(hours=10)
+
+    # Inactive incident from 10 hours ago (e.g. historical Morgan Hill incident)
+    inc_inactive = FireIncident.objects.create(
+        name="Historical Contained Fire",
+        start_time=ten_hours_ago,
+        end_time=ten_hours_ago,
+        is_active=False,
+    )
+    PredictionPolygon.objects.create(
+        grid=grid,
+        fire_incident=inc_inactive,
+        timestamp=ten_hours_ago,
+        source_model="pinn",
+        fire_probability=0.9,
+    )
+
+    with patch("predictions.views.cache.get", return_value=None):
+        response = api_client.get("/api/predictions/current/?model=pinn")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "FeatureCollection"
+        # Must return empty features — NEVER resurrect the inactive incident!
+        assert len(data["features"]) == 0
+        assert data.get("status") == "no_active_fire"
+
+
+
+
+

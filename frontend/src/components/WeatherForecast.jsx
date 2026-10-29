@@ -53,18 +53,25 @@ export default function WeatherForecast({ userLocation }) {
   const lon = userLocation?.lon ?? -122.0828;
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
+    let ignore = false;
     (async () => {
       try {
         const data = await fetchWeather(lat, lon);
-        setWeather(data);
+        if (!ignore) {
+          setWeather(data);
+          setError(null);
+          setLoading(false);
+        }
       } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+        if (!ignore) {
+          setError(e.message);
+          setLoading(false);
+        }
       }
     })();
+    return () => {
+      ignore = true;
+    };
   }, [lat, lon]);
 
   if (loading) return <LoadingSkeleton />;

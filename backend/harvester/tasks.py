@@ -28,11 +28,16 @@ import time
 from datetime import datetime, timezone
 
 import requests
-from celery import shared_task
+from celery import chord, shared_task
 from celery.signals import worker_ready
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
+
+try:
+    from harvester.firms_client import fetch_bay_area_hotspots
+except ImportError:
+    from backend.harvester.firms_client import fetch_bay_area_hotspots
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,7 @@ WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
 CURRENT_RISK_CACHE_KEY = "ffwai:predictions:current"
 AQI_CACHE_KEY = "ffwai:aqi_data"
+FIRMS_HOTSPOTS_CACHE_KEY = "ffwai:telemetry:firms_hotspots"
 
 
 # ===========================================================================
@@ -134,8 +140,9 @@ def _build_feature_payload() -> dict:
         "date": datetime.now(timezone.utc).date().isoformat(),
         "mock": settings.MOCK_INFERENCE,
         "bbox": [-122.9, 36.9, -121.5, 38.3],
-        "time_horizon": 24,
+        "time_horizon": 6,
         "model_type": "unet",
+
         # TODO Month 2: Add actual feature arrays here
         # "features": load_features_from_gcs(date=today, bucket=settings.GCS_BUCKET_NAME)
     }
@@ -175,10 +182,10 @@ def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
 # RESULT STORAGE
 # ===========================================================================
 
-def store_geojson_result(geojson: dict) -> int:
+def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
     """
     Parses the GeoJSON FeatureCollection from the ML Adapter and writes:
-      1. Individual PredictionPolygon rows to PostGIS (Cloud SQL)
+      1. Individual PredictionPolygon rows to PostGIS (Cloud SQL) linked to FireIncident
       2. Full GeoJSON to Redis cache (for fast REST polling — NFR-P01)
 
     ML Interface Contract §3.1: Expected GeoJSON structure.
@@ -234,6 +241,7 @@ def store_geojson_result(geojson: dict) -> int:
 
     import datetime as dt
 
+    target_timestamp = timestamp
     predictions_to_create = []
     for feature in features:
         props = feature.get("properties", {})
@@ -256,6 +264,7 @@ def store_geojson_result(geojson: dict) -> int:
 
         predictions_to_create.append(PredictionPolygon(
             grid_id=grid_id,
+            fire_incident_id=incident_id,
             timestamp=timestamp,
             lead_time_hours=lead_time_hours,
             target_timestamp=target_timestamp,
@@ -271,17 +280,48 @@ def store_geojson_result(geojson: dict) -> int:
     with transaction.atomic():
         PredictionPolygon.objects.bulk_create(predictions_to_create, ignore_conflicts=True)
 
-    # Query the database for the batch polygons and assemble into a FeatureCollection
+    # Query the database for active incident polygons across the Bay Area and assemble into a FeatureCollection
     if timestamp:
-        valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
+        from predictions.models import FireIncident
+        active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+        if active_incidents:
+            six_hours_ago = datetime.now(timezone.utc) - dt.timedelta(hours=6)
+            valid_polygons = PredictionPolygon.objects.filter(
+                fire_incident_id__in=active_incidents,
+                timestamp__gte=six_hours_ago,
+            ).select_related("grid")
+            if source_model:
+                valid_polygons = valid_polygons.filter(source_model=source_model)
+        else:
+            valid_polygons = PredictionPolygon.objects.filter(timestamp=timestamp).select_related("grid")
+            if source_model:
+                valid_polygons = valid_polygons.filter(source_model=source_model)
         from predictions.serializers import PredictionPolygonGeoJSONSerializer
         serializer = PredictionPolygonGeoJSONSerializer(valid_polygons, many=True)
         feature_collection = {
             "type": "FeatureCollection",
-            "metadata": {"timestamp": target_timestamp.isoformat(), "total_cells": valid_polygons.count()},
+            "metadata": {
+                "timestamp": target_timestamp.isoformat(),
+                "total_cells": valid_polygons.count(),
+                "source_model": source_model,
+            },
             "features": serializer.data,
         }
-        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=3600)
+        # Empty overwrite guard: do not overwrite a populated cache with empty features
+        if not serializer.data:
+            existing_cached = cache.get("ffwai:predictions:current")
+            if existing_cached:
+                try:
+                    data = json.loads(existing_cached) if isinstance(existing_cached, str) else existing_cached
+                    if data.get("features"):
+                        logger.info('{"event": "store_geojson_skip_empty_cache_overwrite", "reason": "existing cache has features"}')
+                        return len(predictions_to_create)
+                except Exception:
+                    pass
+
+        cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=21600)
+        if source_model and source_model in ("unet", "pinn", "rl", "ensemble"):
+            cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=21600)
 
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
 
@@ -514,93 +554,153 @@ def fetch_nws_alerts():
 
 import math
 
+def _interpolate_wind_grid(samples: list[dict], nx: int = 40, ny: int = 40,
+                           la1: float = 38.3, lo1: float = -122.9,
+                           la2: float = 36.9, lo2: float = -121.5) -> list[dict]:
+    """
+    Computes 40x40 Inverse Distance Weighting (IDW) interpolation from discrete
+    wind sample vectors into the standard GFS JSON payload required by WebGL wind libraries.
+    """
+    dx = (lo2 - lo1) / (nx - 1)
+    dy = (la2 - la1) / (ny - 1)
+    u_data, v_data = [], []
+
+    for j in range(ny):
+        lat = la1 + j * dy
+        for i in range(nx):
+            lon = lo1 + i * dx
+            num_u, num_v, den = 0.0, 0.0, 0.0
+            for s in samples:
+                dist_sq = (s["lon"] - lon) ** 2 + (s["lat"] - lat) ** 2
+                weight = 1e6 if dist_sq < 1e-6 else 1.0 / dist_sq
+                num_u += s["u"] * weight
+                num_v += s["v"] * weight
+                den += weight
+
+            u_data.append(round(num_u / den, 3))
+            v_data.append(round(num_v / den, 3))
+
+    return [
+        {
+            "header": {
+                "parameterCategory": 2, "parameterNumber": 2,
+                "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy
+            },
+            "data": u_data
+        },
+        {
+            "header": {
+                "parameterCategory": 2, "parameterNumber": 3,
+                "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy
+            },
+            "data": v_data
+        }
+    ]
+
+
+def _generate_fallback_wind_field(nx: int = 40, ny: int = 40) -> list[dict]:
+    """
+    Generates a realistic climatological Bay Area wind field (10-14 mph onshore
+    WNW breeze from ~285-295° azimuth) when upstream Open-Meteo API is unreachable,
+    satisfying NFR-R04 (High Availability & Graceful Degradation / AP architecture).
+    """
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+    samples = []
+    for lat in lats:
+        for lon in lons:
+            # Coastal coordinates have slightly stronger winds (~14 mph) than inland (~9 mph)
+            rel_x = (lon - (-122.9)) / (-121.5 - (-122.9))  # 0.0 (coast) to 1.0 (inland)
+            speed_mph = 14.0 - (5.0 * rel_x)
+            dir_deg = 285.0 + (10.0 * rel_x)
+            rad = dir_deg * (math.pi / 180.0)
+            samples.append({
+                "lat": lat, "lon": lon,
+                "u": -speed_mph * math.sin(rad),
+                "v": -speed_mph * math.cos(rad)
+            })
+    return _interpolate_wind_grid(samples, nx=nx, ny=ny)
+
+
 @shared_task(name="harvester.tasks.fetch_wind_data", bind=True, max_retries=3, default_retry_delay=300)
 def fetch_wind_data(self):
     """
     FR-E04: Wind data for animated particle vectors.
-    Queries 9 coordinates across the Bay Area from Open-Meteo and uses
-    Inverse Distance Weighting (IDW) interpolation to generate a true
-    continuous atmospheric vector field.
-    
-    Formats the output strictly to the GFS JSON standard required by
-    WebGL turn-key wind libraries.
+    Queries 25 coordinates covering the Bay Area from Open-Meteo in a single
+    batch request and uses Inverse Distance Weighting (IDW) interpolation
+    to generate a continuous atmospheric vector field (40x40 grid).
+
+    NFR-R04: On network read timeout or external API failure, gracefully falls back
+    to existing cached wind data or calibrated Bay Area climatological vectors so the UI
+    wind overlay is never unseeded or broken.
     """
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+
+    # Build coordinate pairs for single multi-point query to Open-Meteo
+    lat_pairs = [lat for lat in lats for lon in lons]
+    lon_pairs = [lon for lat in lats for lon in lons]
+    lats_str = ",".join(str(x) for x in lat_pairs)
+    lons_str = ",".join(str(x) for x in lon_pairs)
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={lats_str}&longitude={lons_str}"
+        "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
+    )
+
     try:
-        import time
-        # 3x3 Grid covering BayAreaGrid (38.3 to 36.9 lat, -122.9 to -121.5 lon)
-        lats = [38.3, 37.95, 37.6, 37.25, 36.9]
-        lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
-        
+        response = requests.get(url, timeout=12)
+        response.raise_for_status()
+        data = response.json()
+
         samples = []
-        for lat in lats:
-            import time
-            for lon in lons:
-                url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph"
-                try:
-                    res = requests.get(url, timeout=20)
-                except Exception:
-                    time.sleep(1)
-                    res = requests.get(url, timeout=20)
-                time.sleep(0.2) # Avoid Open-Meteo throttling
-                if res.status_code == 200:
-                    data = res.json()
-                    speed_mph = data.get("current", {}).get("wind_speed_10m", 0)
-                    dir_deg = data.get("current", {}).get("wind_direction_10m", 0)
-                    
+        if isinstance(data, list):
+            for item in data:
+                cur = item.get("current", {})
+                speed_mph = cur.get("wind_speed_10m", 0)
+                dir_deg = cur.get("wind_direction_10m", 0)
+                lat = item.get("latitude")
+                lon = item.get("longitude")
+                if lat is not None and lon is not None:
                     rad = dir_deg * (math.pi / 180.0)
                     samples.append({
                         "lat": lat, "lon": lon,
                         "u": -speed_mph * math.sin(rad),
                         "v": -speed_mph * math.cos(rad)
                     })
-                time.sleep(0.1) # Rate limit protection
-                
-        if not samples:
-            raise Exception("Open-Meteo returned no data for all 25 points")
+        elif isinstance(data, dict):
+            cur = data.get("current", {})
+            speed_mph = cur.get("wind_speed_10m", 0)
+            dir_deg = cur.get("wind_direction_10m", 0)
+            rad = dir_deg * (math.pi / 180.0)
+            samples.append({
+                "lat": data.get("latitude", 37.7),
+                "lon": data.get("longitude", -122.2),
+                "u": -speed_mph * math.sin(rad),
+                "v": -speed_mph * math.cos(rad)
+            })
 
-        # 40x40 IDW Interpolation
-        nx, ny = 40, 40
-        la1, lo1 = 38.3, -122.9
-        la2, lo2 = 36.9, -121.5
-        dx, dy = (lo2 - lo1) / (nx - 1), (la2 - la1) / (ny - 1)
-        
-        u_data, v_data = [], []
-        
-        for j in range(ny):
-            lat = la1 + j * dy
-            for i in range(nx):
-                lon = lo1 + i * dx
-                
-                num_u, num_v, den = 0, 0, 0
-                for s in samples:
-                    dist_sq = (s['lon'] - lon)**2 + (s['lat'] - lat)**2
-                    weight = 1e6 if dist_sq < 1e-6 else 1.0 / dist_sq
-                    num_u += s['u'] * weight
-                    num_v += s['v'] * weight
-                    den += weight
-                    
-                u_data.append(round(num_u / den, 3))
-                v_data.append(round(num_v / den, 3))
-                
-        # Export as GFS Wind JSON standard format
-        gfs_payload = [
-            {
-                "header": { "parameterCategory": 2, "parameterNumber": 2, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
-                "data": u_data
-            },
-            {
-                "header": { "parameterCategory": 2, "parameterNumber": 3, "nx": nx, "ny": ny, "lo1": lo1, "la1": la1, "dx": dx, "dy": dy },
-                "data": v_data
-            }
-        ]
-        
+        if not samples:
+            raise ValueError("Open-Meteo returned no usable wind sample data")
+
+        gfs_payload = _interpolate_wind_grid(samples, nx=40, ny=40)
         cache.set(WIND_CACHE_KEY, json.dumps(gfs_payload), timeout=60 * 60 * 24)
-        logger.info('{"event": "fetch_wind_success", "grid_points": %d}', nx * ny)
-        return {"status": "success", "grid_points": nx * ny}
+        logger.info('{"event": "fetch_wind_success", "grid_points": 1600, "samples": %d}', len(samples))
+        return {"status": "success", "grid_points": 1600}
 
     except Exception as exc:
         logger.error('{"event": "fetch_wind_error", "error": "%s"}', str(exc))
-        raise self.retry(exc=exc)
+
+        # Check if Redis already has valid cached wind telemetry
+        existing_cached = cache.get(WIND_CACHE_KEY)
+        if existing_cached:
+            logger.info('{"event": "fetch_wind_fallback", "action": "retaining_cached_wind"}')
+            return {"status": "retained_cache", "grid_points": 1600}
+
+        # Fallback to calibrated synthetic Bay Area wind vectors so cache is never unseeded (NFR-R04)
+        logger.info('{"event": "fetch_wind_fallback", "action": "using_climatological_wind"}')
+        fallback_payload = _generate_fallback_wind_field(nx=40, ny=40)
+        cache.set(WIND_CACHE_KEY, json.dumps(fallback_payload), timeout=60 * 60 * 24)
+        return {"status": "fallback", "grid_points": 1600}
 
 
 def _pm25_to_aqi(pm25_raw: float):
@@ -746,111 +846,228 @@ def fetch_aqi_data(self):
 
 
 # ===========================================================================
-# STARTUP HYDRATION HOOK
-# ===========================================================================
+# Alias fetch_airnow_aqi to fetch_aqi_data for automated Celery startup warmup
+fetch_airnow_aqi = fetch_aqi_data
 
-@worker_ready.connect
-def on_worker_ready(sender, **kwargs):
-    """
-    Startup Hydration Hook: Trigger lightweight telemetry tasks on Celery startup
-    so the frontend UI doesn't remain empty waiting for the first beat interval.
-    """
-    logger.info('{"event": "worker_ready", "action": "triggering_initial_telemetry"}')
-    fetch_aqi_data.delay()
-    fetch_wind_data.delay()
-    fetch_nws_alerts.delay()
 
 
 @shared_task(name="harvester.tasks.run_async_inference", bind=True, max_retries=3, default_retry_delay=60)
-def run_async_inference(self, bbox, model_type="unet"):
+def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, time_horizon=6, date=None, seed_points=None):
     """
     Async inference task decoupled from Django views.
-    Hits the FastAPI ML Adapter and writes results to PostGIS.
+    Hits the FastAPI ML Adapter and writes results to PostGIS linked to FireIncident.
     """
     try:
         url = f"{settings.ML_ADAPTER_URL}/predict/progression"
+        now_iso = date or datetime.now(timezone.utc).isoformat()
         payload = {
             "bbox": bbox,
-            "time_horizon": 24,
+            "time_horizon": time_horizon,
             "model_type": model_type,
-            "mock": settings.MOCK_INFERENCE
+            "date": now_iso,
+            "mock": settings.MOCK_INFERENCE,
         }
-        logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s"}', url, model_type)
+        if seed_points:
+            payload["seed_points"] = seed_points
+        logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s", "incident_id": %s}', url, model_type, incident_id)
         
         response = requests.post(url, json=payload, timeout=120)
         response.raise_for_status()
         
         geojson_result = response.json()
         
-        predictions_written = store_geojson_result(geojson_result)
-        logger.info('{"event": "async_inference_complete", "predictions_written": %d}', predictions_written)
-        return {"status": "success", "predictions_written": predictions_written}
+        predictions_written = store_geojson_result(geojson_result, incident_id=incident_id)
+        logger.info('{"event": "async_inference_complete", "predictions_written": %d, "incident_id": %s}', predictions_written, incident_id)
+        return geojson_result
         
     except Exception as exc:
-        logger.error('{"event": "async_inference_error", "error": "%s"}', str(exc))
+        logger.error('{"event": "async_inference_error", "error": "%s", "incident_id": %s}', str(exc), incident_id)
         raise self.retry(exc=exc)
+
+
+@shared_task(name="harvester.tasks.aggregate_active_predictions")
+def aggregate_active_predictions(results):
+    """
+    Chord callback task: merges GeoJSON FeatureCollections from all active fire tasks
+    and writes model-scoped collections to Redis cache ('ffwai:predictions:current:unet',
+    'ffwai:predictions:current:pinn', and default 'ffwai:predictions:current').
+    Guards against overwriting populated cache with empty features if an asynchronous scan sees zero new burns.
+    Sets Redis TTL to 6 hours (21600 seconds).
+    """
+    features_by_model: dict[str, list[dict]] = {"unet": [], "pinn": []}
+    timestamp = datetime.now(timezone.utc).isoformat()
+    all_features = []
+
+    for res in results:
+        if isinstance(res, dict):
+            model = res.get("metadata", {}).get("source_model", "")
+            features = res.get("features", [])
+            all_features.extend(features)
+            if model in features_by_model:
+                features_by_model[model].extend(features)
+            elif model:
+                features_by_model[model] = list(features)
+
+    # If results did not tag source_model in metadata, check individual feature properties
+    if not features_by_model["unet"] and not features_by_model["pinn"] and all_features:
+        for f in all_features:
+            m = f.get("properties", {}).get("source_model")
+            if m in features_by_model:
+                features_by_model[m].append(f)
+
+    # Empty overwrite guard: do not overwrite a populated cache with features: []
+    if not all_features:
+        existing_cached = cache.get(CURRENT_RISK_CACHE_KEY) or cache.get("ffwai:predictions:current:pinn")
+        if existing_cached:
+            try:
+                data = json.loads(existing_cached) if isinstance(existing_cached, str) else existing_cached
+                if data.get("features"):
+                    logger.info('{"event": "aggregate_active_predictions_skip_empty_overwrite", "reason": "existing cache has features"}')
+                    return {"status": "skipped_empty_overwrite", "total_cells": len(data.get("features", []))}
+            except Exception:
+                pass
+
+    for model_name, feats in features_by_model.items():
+        if feats or not cache.get(f"ffwai:predictions:current:{model_name}"):
+            fc = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": timestamp,
+                    "total_cells": len(feats),
+                    "source_model": model_name,
+                },
+                "features": feats,
+            }
+            cache.set(f"ffwai:predictions:current:{model_name}", json.dumps(fc), timeout=21600)
+
+    # Primary model for default view is pinn (PIML), falling back to unet
+    primary_model = "pinn" if features_by_model["pinn"] else ("unet" if features_by_model["unet"] else "pinn")
+    primary_feats = features_by_model[primary_model] if features_by_model[primary_model] else all_features
+    merged_fc = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": timestamp,
+            "total_cells": len(primary_feats),
+            "source_model": primary_model,
+        },
+        "features": primary_feats,
+    }
+    cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
+    cache.set("ffwai:predictions:current:ensemble", json.dumps({
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": timestamp,
+            "total_cells": len(all_features),
+            "source_model": "ensemble",
+        },
+        "features": all_features,
+    }), timeout=21600)
+    logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(all_features))
+    return {"status": "success", "total_cells": len(all_features)}
 
 
 @shared_task(name="harvester.tasks.trigger_active_inference", bind=True, max_retries=3, default_retry_delay=60)
 def trigger_active_inference(self):
     """
-    Scout task: Queries NASA FIRMS public CSV for active fires.
-    Filters for San Francisco Bay Area bounds.
-    Calculates a 1x1km bounding box for each active fire.
-    Asynchronously fans out inference tasks.
+    Scout task: Fetches NASA FIRMS active fire hotspots for the Bay Area (VIIRS 375m).
+    Suppresses refinery flaring, clusters nearby hotspots into fire incident envelopes (+25km buffer),
+    upserts FireIncident records, and fans out async inference tasks via a Celery chord.
     """
-    import csv
-    from io import StringIO
-    
+    from predictions.models import FireIncident
+
     logger.info('{"event": "trigger_active_inference_start"}')
-    
-    # Bay Area Rough Bounding Box
-    lat_min, lat_max = 36.9, 38.3
-    lon_min, lon_max = -122.9, -121.5
-    
-    url = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_USA_contiguous_and_Hawaii_24h.csv"
-    
-    active_fires = []
-    
+    firms_key = getattr(settings, "FIRMS_MAP_KEY", "")
+
     try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        csv_data = response.text
-        reader = csv.DictReader(StringIO(csv_data))
-        
-        if not reader.fieldnames or 'latitude' not in reader.fieldnames or 'longitude' not in reader.fieldnames:
-            raise ValueError("CSV is missing required 'latitude' or 'longitude' headers")
-            
-        for row in reader:
-            try:
-                lat = float(row['latitude'])
-                lon = float(row['longitude'])
-                if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
-                    active_fires.append((lat, lon))
-            except (ValueError, TypeError, KeyError):
-                continue
+        clusters = fetch_bay_area_hotspots(firms_map_key=firms_key)
     except Exception as exc:
-        logger.warning('{"event": "trigger_active_inference_fetch_error", "error": "%s", "action": "using_mock_data"}', str(exc))
-        # Fallback to mock data if network fails
-        active_fires = [
-            (37.3382, -121.8863),  # San Jose
-            (37.7749, -122.4194),  # San Francisco
+        logger.error('{"event": "trigger_active_inference_fetch_error", "error": "%s"}', str(exc))
+        raise self.retry(exc=exc)
+
+    logger.info('{"event": "trigger_active_inference_clusters", "fire_clusters_detected": %d}', len(clusters))
+
+    # Cache raw satellite hotspots (both wildland detections and suppressed flares)
+    raw_hotspots = getattr(clusters, "raw_hotspots", [])
+    if not raw_hotspots and clusters:
+        for cl in clusters:
+            for pt in getattr(cl, "points", []):
+                raw_hotspots.append({
+                    "latitude": pt.get("latitude"),
+                    "longitude": pt.get("longitude"),
+                    "frp": pt.get("frp", 0.0),
+                    "confidence": pt.get("confidence", "nominal"),
+                    "satellite": pt.get("satellite", "VIIRS"),
+                    "is_industrial_flare": False,
+                    "flare_site_name": None,
+                })
+
+    hotspot_features = [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [pt["longitude"], pt["latitude"]],
+            },
+            "properties": {
+                "latitude": pt["latitude"],
+                "longitude": pt["longitude"],
+                "frp": pt.get("frp", 0.0),
+                "confidence": pt.get("confidence", "nominal"),
+                "satellite": pt.get("satellite", ""),
+                "is_industrial_flare": pt.get("is_industrial_flare", False),
+                "flare_site_name": pt.get("flare_site_name"),
+                "acq_date": pt.get("acq_date", ""),
+                "acq_time": pt.get("acq_time", ""),
+            },
+        }
+        for pt in raw_hotspots
+        if pt.get("latitude") is not None and pt.get("longitude") is not None
+    ]
+    hotspots_geojson = {
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_hotspots": len(hotspot_features),
+        },
+        "features": hotspot_features,
+    }
+    cache.set(FIRMS_HOTSPOTS_CACHE_KEY, json.dumps(hotspots_geojson), timeout=60 * 60 * 24)
+    logger.info('{"event": "trigger_active_inference_cached_hotspots", "total_hotspots": %d}', len(hotspot_features))
+
+    if not clusters:
+        return {"status": "success", "fires_detected": 0}
+
+    header_tasks = []
+    now = datetime.now(timezone.utc)
+
+    for cluster in clusters:
+        incident_name = f"Wildfire Incident #{cluster.cluster_id} ({now.strftime('%m/%d %H:%M')})"
+        incident = FireIncident.objects.create(
+            name=incident_name,
+            start_time=now,
+            is_active=True,
+        )
+        seed_points = [
+            [pt["longitude"], pt["latitude"]]
+            for pt in getattr(cluster, "points", [])
+            if pt.get("latitude") is not None and pt.get("longitude") is not None
         ]
-        
-    logger.info('{"event": "trigger_active_inference_filtered", "fire_count": %d}', len(active_fires))
-    
-    # Calculate 1km x 1km bounding boxes and fan out
-    # 1 deg lat ~ 111 km -> 1km = 0.009 deg (half is 0.0045)
-    # 1 deg lon at 37 deg N ~ 88 km -> 1km = 0.011 deg (half is 0.0055)
-    for lat, lon in active_fires:
-        bbox = [
-            round(lon - 0.0055, 4), round(lat - 0.0045, 4),
-            round(lon + 0.0055, 4), round(lat + 0.0045, 4)
-        ]
-        # delay() fans out the async task
-        run_async_inference.delay(bbox, "unet")
-        
-    return {"status": "success", "fires_detected": len(active_fires)}
+        if not seed_points and getattr(cluster, "centroid_lon", None) is not None and getattr(cluster, "centroid_lat", None) is not None:
+            seed_points = [[cluster.centroid_lon, cluster.centroid_lat]]
+        for model in ("unet", "pinn"):
+            task_sig = run_async_inference.s(
+                cluster.bbox,
+                model_type=model,
+                incident_id=incident.id,
+                time_horizon=6,
+                seed_points=seed_points,
+            )
+            header_tasks.append(task_sig)
+
+    # Fan out in parallel and aggregate via Celery chord
+    chord(header_tasks)(aggregate_active_predictions.s())
+
+    return {"status": "success", "fires_detected": len(clusters)}
 
 
 @shared_task(name="harvester.tasks.trigger_mock_inference", bind=True)
@@ -868,14 +1085,103 @@ def trigger_mock_inference(self):
 @shared_task(name="harvester.tasks.archive_old_predictions")
 def archive_old_predictions():
     """
-    Deletes PredictionPolygon records older than 30 days to prevent database bloat.
+    Automated Incident Containment & Cleanup:
+    - Automatically marks active incidents as contained (is_active=False, containment_time=now)
+      when 24 consecutive hours elapse without any satellite hotspot detections within their bounding box.
+    - Purges their active prediction keys from Redis while keeping historical PostGIS rows permanently intact.
     """
-    from predictions.models import PredictionPolygon
     from datetime import timedelta
-    
-    threshold_date = datetime.now(timezone.utc) - timedelta(days=30)
-    old_predictions = PredictionPolygon.objects.filter(timestamp__lt=threshold_date)
-    deleted_count, _ = old_predictions.delete()
-    
-    logger.info('{"event": "archive_old_predictions", "deleted_count": %d, "threshold_date": "%s"}', deleted_count, threshold_date.isoformat())
-    return {"status": "success", "deleted_count": deleted_count}
+    from django.utils import timezone
+    from django.contrib.gis.db.models import Extent
+    from predictions.models import FireIncident, PredictionPolygon
+
+    now = timezone.now()
+    twenty_four_hours_ago = now - timedelta(hours=24)
+    active_incidents = FireIncident.objects.filter(is_active=True)
+
+    # Fetch cached satellite hotspots (NASA FIRMS)
+    cached_hotspots = cache.get(FIRMS_HOTSPOTS_CACHE_KEY)
+    raw_hotspot_coords = []
+    if cached_hotspots:
+        try:
+            data = json.loads(cached_hotspots) if isinstance(cached_hotspots, str) else cached_hotspots
+            for feat in data.get("features", []):
+                props = feat.get("properties", {})
+                if props.get("is_industrial_flare"):
+                    continue
+                geom = feat.get("geometry", {})
+                coords = geom.get("coordinates")
+                if coords and len(coords) >= 2:
+                    raw_hotspot_coords.append((coords[0], coords[1]))
+        except Exception as exc:
+            logger.warning('{"event": "archive_hotspots_parse_error", "error": "%s"}', str(exc))
+
+    contained_incidents_count = 0
+    for incident in active_incidents:
+        latest_pred = incident.predictions.order_by("-timestamp").first()
+        last_activity_time = latest_pred.timestamp if latest_pred else incident.start_time
+
+        extent = incident.predictions.aggregate(ext=Extent('grid__geometry'))['ext']
+        has_recent_hotspots = False
+        if extent and raw_hotspot_coords:
+            min_lon, min_lat, max_lon, max_lat = extent
+            for lon, lat in raw_hotspot_coords:
+                if min_lon <= lon <= max_lon and min_lat <= lat <= max_lat:
+                    has_recent_hotspots = True
+                    break
+
+        if not has_recent_hotspots and last_activity_time < twenty_four_hours_ago:
+            incident.is_active = False
+            incident.end_time = now
+            incident.containment_status = 100.0
+            incident.save(update_fields=["is_active", "end_time", "containment_status"])
+            contained_incidents_count += 1
+            logger.info('{"event": "incident_auto_contained", "incident_id": %d, "name": "%s"}', incident.id, incident.name)
+
+    remaining_active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
+    remaining_active_count = len(remaining_active_incidents)
+    if contained_incidents_count > 0:
+        active_keys = [
+            CURRENT_RISK_CACHE_KEY,
+            "ffwai:predictions:current:ensemble",
+            "ffwai:predictions:current:unet",
+            "ffwai:predictions:current:pinn",
+            "ffwai:predictions:current:rl",
+        ]
+        if remaining_active_count == 0:
+            for key in active_keys:
+                cache.delete(key)
+            logger.info('{"event": "purged_active_prediction_keys", "contained_count": %d}', contained_incidents_count)
+        else:
+            # Refresh active prediction cache to exclude contained incident polygons
+            active_polys = PredictionPolygon.objects.filter(
+                fire_incident_id__in=remaining_active_incidents,
+                timestamp__gte=now - timedelta(hours=6),
+            ).select_related("grid")
+            from predictions.serializers import PredictionPolygonGeoJSONSerializer
+            serializer = PredictionPolygonGeoJSONSerializer(active_polys, many=True)
+            merged_fc = {
+                "type": "FeatureCollection",
+                "metadata": {
+                    "timestamp": now.isoformat(),
+                    "total_cells": active_polys.count(),
+                    "active_incidents": len(remaining_active_incidents),
+                    "source_model": "ensemble",
+                },
+                "features": serializer.data,
+            }
+            cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
+            cache.set("ffwai:predictions:current:ensemble", json.dumps(merged_fc), timeout=21600)
+            logger.info('{"event": "refreshed_active_prediction_keys", "contained_count": %d, "remaining_active": %d}', contained_incidents_count, remaining_active_count)
+
+    # Clean up orphaned/unlinked test predictions older than 30 days while retaining all incident predictions permanently
+    thirty_days_ago = now - timedelta(days=30)
+    old_unlinked = PredictionPolygon.objects.filter(fire_incident__isnull=True, timestamp__lt=thirty_days_ago)
+    deleted_count, _ = old_unlinked.delete()
+
+    return {
+        "status": "success",
+        "deleted_count": deleted_count,
+        "contained_incidents": contained_incidents_count,
+        "remaining_active": remaining_active_count,
+    }

@@ -20,17 +20,28 @@ The system utilizes a Modular Monolith architecture to minimize deployment overh
 
 ### The Django Monolith (Web & Orchestration)
 
-**Module 1 (The Harvester)**
-The Harvester is redesigned as a **pluggable template** with the following structure:
-- A Celery beat **daily cron schedule** (cadence is daily; configurable in the future)
-- A `trigger_inference()` Celery task — fully implemented — that orchestrates the pipeline and POSTs the target spatial bounds to the FastAPI ML Adapter
-- A `store_geojson_result()` function that writes returned GeoJSON to PostGIS and Redis
-- Data source integration tasks (`fetch_weather_data()`, `fetch_fire_perimeter_update()`) are clearly labeled **PLACEHOLDER stubs** — their implementation is deferred until the ML team confirms required input features
+**Module 1 (The Harvester & Active Fire Scout)**
+The Harvester is designed with two complementary orchestration pipelines:
+- **Automated Celery Startup Warmup (`harvester.signals.on_worker_ready`):** Registered via Celery `@worker_ready.connect` in `backend/harvester/signals.py` and loaded during `HarvesterConfig.ready()`. Automatically dispatches `fetch_wind_data.delay()`, `fetch_airnow_aqi.delay()`, and `trigger_active_inference.delay()` as soon as the Celery worker process initializes, ensuring immediate self-healing and pre-warming of the Redis cache and PostGIS database on startup without executing external scripts.
+- **Daily Baseline Orchestrator (`trigger_daily_inference`):** Scheduled daily at 06:00 UTC by Celery Beat for regional risk mapping across strictly supported horizons (`0h`, `1h`, `3h`, `6h`).
+- **Active Fire Scout (`trigger_active_inference`):** Scheduled every 30 minutes by Celery Beat (`trigger-active-inference-30min`) for near-real-time active wildfire detection and dynamic spread prediction (+1, +3, +6 hours):
+  - Fetches VIIRS 375 m active fire detections from all three operational sensors via NASA FIRMS Area API (`VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT` via `FIRMS_MAP_KEY`) across the expanded Bay Area & Delta bounding box (`BAY_AREA_BBOX = (-122.9, 36.9, -121.2, 38.5)`) using a rolling 2-day window (`/2`), filtered to the 2-calendar-day window ("From Yesterday 00:00:00 UTC to present", up to 48 hours) to maintain 100% parity with the NASA FIRMS web portal. Includes automatic failover to the public keyless 24-hour VIIRS CSVs if the keyed Area API is unreachable or returns invalid/error payloads (NFR-R04).
+  - Deduplicates overlapping detections across satellite orbits within 0.5 km (prioritizing higher Fire Radiative Power).
+  - Filters low-confidence detections and applies spatial exclusion masks around known East Bay and South Bay industrial flaring sites (Chevron Richmond Refinery, Phillips 66 Rodeo Refinery, Martinez Refining Co., Valero Benicia Refinery, and Newby Island Landfill in Alviso) to suppress refinery and landfill flare false alarms.
+  - Caches all raw satellite hotspots (active wildland detections and suppressed flares) in Redis under `ffwai:telemetry:firms_hotspots` with metadata (`latitude`, `longitude`, `frp`, `confidence`, `satellite`, `is_industrial_flare`, `flare_site_name`, `acq_date`, `acq_time`).
+  - Clusters remaining wildland hotspots within 3 km into distinct fire envelopes, applying a +25 km simulation buffer.
+  - Upserts `FireIncident` records in PostGIS to track active incidents across runs.
+  - Dispatches parallel AI inference per incident using a Celery `chord` (`run_async_inference.s(...)`), requesting `model_type="ensemble"`, `time_horizon=6`, current UTC `date`, and passing detected 375 m VIIRS hotspot coordinates as `seed_points`. When GOES-18 has no active 2 km pixel detection (sensor mismatch), U-Net uses the detected VIIRS hotspot coordinates as its ignition seed rather than aborting with zero features.
+  - Aggregates multi-incident predictions in `aggregate_active_predictions`, persisting `PredictionPolygon` rows linked to `FireIncident` and updating the active Redis cache (`ffwai:predictions:current` and `ffwai:predictions:current:ensemble`) with a 6-hour TTL (`timeout=21600`).
+  - Guards against overwriting a populated Redis cache with `features: []` if an asynchronous scan sees zero new burns.
+  - Retains all prediction runs in PostGIS `PredictionPolygon` rows permanently for historical analysis and audits.
+  - Periodically executes `archive_old_predictions`: automatically marks active incidents as contained (`is_active=False`, `containment_time=timezone.now()`) when 24 consecutive hours elapse without any satellite hotspot detections within their bounding box, and purges their active prediction keys from Redis while keeping historical PostGIS rows permanently intact.
+- A `store_geojson_result()` function that writes returned GeoJSON to PostGIS and Redis with a 6-hour TTL (`timeout=21600`).
 
-*Note: Under the new Vertex Native Ingestion architecture, the backend no longer constructs massive NumPy array tensors. Instead, it passes lightweight bounding boxes to the ML Adapter.*
+*Note: Under the new Vertex Native Ingestion architecture, the backend no longer constructs massive NumPy array tensors. Instead, it passes lightweight bounding boxes and ignition seeds to the ML Adapter.*
 
 **Module 2 (Database Engine)**
-The Database Engine module manages all persistent and transient spatial data storage for the platform. This module utilizes the GeoDjango framework to receive incoming predictive GeoJSON outputs generated by the external ML Inference Engine. Upon reception, the engine executes spatial database inserts into a PostgreSQL database augmented with the PostGIS extension, establishing a historical archive for longitudinal fire tracking and model auditing. Simultaneously, to ensure low-latency data retrieval for the frontend application, the module overwrites the active `current_risk_map` key within an in-memory Redis cache. Furthermore, the Database Engine holds responsibility for querying and serving static, mission-critical geospatial coordinates, such as the Federal Emergency Management Agency (FEMA) and California Governor's Office of Emergency Services (CalOES) designated emergency shelter locations directly from the PostGIS instance.
+The Database Engine module manages all persistent and transient spatial data storage for the platform. This module utilizes the GeoDjango framework to receive incoming predictive GeoJSON outputs generated by the external ML Inference Engine. Upon reception, the engine executes spatial database inserts into a PostgreSQL database augmented with the PostGIS extension, establishing a permanent historical archive for longitudinal fire tracking and model auditing (PredictionPolygon records are retained permanently). Simultaneously, to ensure low-latency data retrieval for the frontend application, the module maintains active prediction keys within an in-memory Redis cache with 6-hour TTL. Furthermore, the Database Engine holds responsibility for querying and serving static, mission-critical geospatial coordinates, such as the Federal Emergency Management Agency (FEMA) and California Governor's Office of Emergency Services (CalOES) designated emergency shelter locations directly from the PostGIS instance.
 
 The Django model for the GeoJSON output contract is defined as follows:
 - `timestamp` (DateTimeField, indexed)
@@ -40,18 +51,19 @@ The Django model for the GeoJSON output contract is defined as follows:
 - `ml_metrics` (JSONField for raw model output parameters)
 
 **Module 3 (API & Alerts)**
-The API module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. Dynamic turn-by-turn routing is currently out-of-scope; instead, the system focuses on alternative alerting methods such as Safe Shelter Handoff and Zone-Based Warnings. The frontend polls the REST API every 5 minutes to check for updated predictions and active zone warnings; no WebSocket connection is required for the MVP. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
+The API module functions as the primary communication interface between the backend monolith and the frontend client. This module utilizes the Django REST Framework (DRF) to expose secure HTTP endpoints for data retrieval. Dynamic turn-by-turn routing is currently out-of-scope; instead, the system focuses on alternative alerting methods such as Safe Shelter Handoff and Zone-Based Warnings. The frontend polls the REST API every 5 minutes to check for updated predictions and active zone warnings; no WebSocket connection is required for the MVP. The `GET /api/predictions/current/` endpoint incorporates an API Fallback Guard: if the Redis cache is empty or returns `features: []`, it automatically queries active PostGIS `PredictionPolygon` records before serving empty data. Forecast horizons are strictly constrained to integer values `[0, 1, 3, 6]`. Auto-generated OpenAPI 3.0 documentation is served at `/api/docs/` via `drf-spectacular`.
 
 ### The FastAPI ML Adapter (Cloud Run)
 
 The FastAPI ML Adapter serves as an isolated translation layer between the Django/Celery backend and the ML models hosted on Vertex AI. It receives lightweight bounding box parameters, orchestrates necessary data, invokes the appropriate Vertex AI model endpoint(s), and normalizes their diverse outputs into a standard unified GeoJSON FeatureCollection.
 
-- **Endpoint:** `POST /predict/progression` — Runs U-Net, PINN, and/or RL models for fire spread prediction based on payload `bbox`, `time_horizon`, and `model_type`.
-- **Endpoint:** `POST /predict/ensemble` — Combines outputs from multiple models via weighted voting (extends Paper 3's Cellular Automata Rule 30 pattern)
-- **Endpoint:** `GET /health` — Returns service status and mock mode flag
-- **Month 1 behavior:** Normalizes and unifies multiple static Bay Area GeoJSON fixture files when `MOCK_INFERENCE=true`.
-- **Month 2 behavior:** Invokes Vertex AI endpoints for trained U-Net (`.keras`), PINN, and RL agent (DQN/PPO) models
+- **Endpoint:** `POST /predict/progression` — Runs U-Net, PINN, and/or RL models for fire spread prediction based on payload `bbox`, `time_horizon` (0, 1, 3, 6), `model_type`, and `seed_points`.
+- **Endpoint:** `POST /predict/ensemble` — Combines outputs from multiple models via weighted voting (extends Paper 3's Cellular Automata Rule 30 pattern).
+- **Endpoint:** `GET /health` — Returns service status and mock mode flag.
+- **Mock Mode & Fixture Purge:** Pre-recorded Santa Cruz GeoJSON mock fixtures and synthetic coordinate translations have been completely purged. When live models report 0 features, the adapter cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"` without synthetic shifting.
+- **Live Dispatch:** Forwards requests and `seed_points` down to containerized inference microservices (U-Net on port 8081, PINN on port 8082).
 - Always returns the standard unified GeoJSON FeatureCollection output contract. (See [Vertex AI Endpoint Output Contract](vertex-ai-endpoint-contract.md) for Month 2 ML Integration requirements).
+
 
 **ML Model Ensemble:**
 The FastAPI adapter orchestrates three complementary model types, extending all three of the advisor's research papers:
@@ -79,20 +91,24 @@ This stack ensures total Python parity between the AI developers and the backend
 
 ## 3. External Data Sources
 
-### Category A — Backend-Owned Sources (Celery Harvester Tasks):
+### 3.1 Category A — Backend-Owned Sources (Celery Harvester Tasks):
 - **Google Earth Engine (GEE):** NDVI / EVI / NDWI vegetation indices from Landsat 8/9 (`LANDSAT/LC09/C02/T1_L2`). Critical ML training feature (used in all three advisor papers).
 - **GOES-18 via GEE:** Fire Detection & Characterization (`NOAA/GOES/18/FDCC`) and Cloud/Moisture Imagery (`NOAA/GOES/18/MCMIPC`). High-temporal (5 min), low-spatial (2 km) satellite imagery. Daily composite exported to GCS.
 - **VIIRS via GEE:** Near-real-time active fire hotspots (`NASA/VIIRS/002/VNP09GA`). High-spatial (375 m), low-temporal (12–24 hr). Paired with GOES-18 for potential super-resolution training by the ML team.
-- **NOAA / OpenWeather:** Wind speed, direction, temperature, humidity for Deck.gl wind particles and ML features.
+- **NOAA / Open-Meteo / OpenWeather:** Wind speed, direction, temperature, humidity for Deck.gl wind particles and ML features. Uses single-batch multi-coordinate querying and falls back gracefully to calibrated Bay Area climatological vectors on upstream network read timeout (NFR-R04).
 - **NWS Alerts API:** Red Flag Warnings for map overlay polygons.
 - **CA Energy Commission:** Static powerline GIS data — ignition risk feature from Paper 1.
 - **FEMA/CalOES shelter data:** Static emergency POIs loaded into PostGIS.
 - **CAL FIRE FRAP:** Historical fire perimeters for model validation and demo scenarios (CZU Lightning Complex, August 2020).
-- **NASA FIRMS:** Active fire data for fire detection validation.
-- **OpenAQ / PurpleAir:** Live PM2.5 / AQI — *delayed but kept in plan* for future air quality overlay.
+- **NASA FIRMS:** Near-real-time active fire hotspots from Suomi-NPP, NOAA-20, and NOAA-21 (VIIRS 375 m). Used for Active Fire Scout detection and ground-truth pins.
+- **Sensor Resolution Mismatch & VIIRS Ignition Fallback:** GOES-18 ABI provides high-temporal (5 min) but coarse-spatial (2 km) pixel resolution, whereas VIIRS provides fine 375 m resolution. When early or small fires are detected by VIIRS but fall below the GOES-18 2 km pixel threshold, the pipeline automatically injects the VIIRS 375 m hotspot coordinates as `seed_points` (ignition seeds) into the U-Net inference tensor channels rather than aborting with zero features.
+- **AirNow API:** Live PM2.5 / AQI measurements across Bay Area monitoring stations for environmental hazard overlays.
 
-### Category B — ML Pipeline Sources (ML team-owned, backend provides data):
+### 3.2 Category B — ML Pipeline Sources, Model Contracts & Automated Lifecycle:
 - **USGS 3DEP DEM:** Static terrain data (elevation, slope, aspect, hillshade) ingested directly by the ML pipeline / Vertex AI during model training. Backend terrain extraction (`TerrainFeature` model and `load_terrain` command) has been retired.
+- **Automated Celery Startup Warmup (`@worker_ready.connect`):** Registered in `backend/harvester/signals.py` and loaded during `HarvesterConfig.ready()`. Automatically dispatches `fetch_wind_data.delay()`, `fetch_airnow_aqi.delay()`, and `trigger_active_inference.delay()` immediately upon worker boot, ensuring that the Redis cache and PostGIS database pre-warm automatically without executing manual `seed_cache.py` scripts.
+- **Complete Purge of Mock Fixtures & Synthetic Translations:** Pre-recorded Santa Cruz GeoJSON mock fixture files and artificial coordinate translations have been purged. When live models report 0 features, the system cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"`, preventing misleading synthetic fire perimeters from displaying on unburned land.
+- **Strictly Scoped Forecast Horizons (`0h`, `1h`, `3h`, `6h`):** All prediction interfaces (Frontend TimeScrubber HUD, MapCanvas layer filters, DRF API views, Celery tasks, and ML Adapter payloads) strictly constrain forecast horizons to `[0, 1, 3, 6]` hours. The legacy +24h day-ahead horizon has been completely retired to maintain contract fidelity with the hourly U-Net and PINN microservices.
 - **NOAA HRRR:** Short-range weather forecasts (if ML team requires forecast-horizon features).
 - **LANDFIRE fuel models:** Vegetation fuel type classification.
 - **Google Drive (free unlimited student storage):** Potential shared workspace for large training datasets between backend and ML teams. *Note: Google Drive has API rate limits and is not suitable for programmatic high-frequency access. Use GCS for production data and Google Drive as a secondary backup for large files the ML team needs to access manually.*
@@ -216,11 +232,12 @@ Given the timeline and academic constraints, the following features are explicit
 
 | Method | Endpoint | Purpose | Response |
 |---|---|---|---|
-| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache) | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
-| `GET` | `/api/predictions/history/` | Historical predictions with date range filter | Paginated GeoJSON FeatureCollection list |
+| `GET` | `/api/predictions/current/` | Latest fire risk prediction (from Redis cache with 6-hour TTL / timeout=21600). Supports `?model=ensemble\|unet\|pinn` and `?horizon=0\|1\|3\|6` (strictly scoped to `[0, 1, 3, 6]`; legacy +24h horizon removed). Uses model-scoped Redis cache keys (`ffwai:predictions:current[:model]`). Includes API Fallback Guard: if cache is cold or has empty features (`features: []`), automatically queries active PostGIS `PredictionPolygon` records before serving empty data. | GeoJSON FeatureCollection + metadata (staleness, model version, data completeness) |
+| `GET` | `/api/predictions/history/` | Historical predictions with date range filter (reads permanently retained `PredictionPolygon` PostGIS records) | Paginated GeoJSON FeatureCollection list |
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
 | `GET` | `/api/telemetry/alerts/` | Active NWS Red Flag Warnings | GeoJSON FeatureCollection (Polygons) |
+| `GET` | `/api/telemetry/hotspots/` | NASA FIRMS raw satellite hotspots (wildland detections & suppressed flares) | GeoJSON FeatureCollection (Points with FRP, confidence, satellite, flare metadata) |
 | `GET` | `/api/metrics/` | Model performance metrics (ROC-AUC, F1, accuracy) | JSON array of `ModelPerformanceMetric` records |
 | `GET` | `/api/health/` | System health check | JSON: `{db, redis, last_inference, staleness, workers}` |
 | `GET` | `/api/docs/` | Auto-generated OpenAPI 3.0 documentation | Swagger UI (via `drf-spectacular`) |
@@ -229,10 +246,17 @@ Given the timeline and academic constraints, the following features are explicit
 
 | Method | Endpoint | Purpose | Response |
 |---|---|---|---|
-| `POST` | `/predict/progression` | Trigger U-Net + PINN + RL fire spread prediction | GeoJSON FeatureCollection |
-| `POST` | `/predict/ensemble` | Explicit ensemble: combine all available model outputs | GeoJSON FeatureCollection |
+| `POST` | `/predict/progression` | Trigger U-Net + PINN + RL fire spread prediction. Accepts `bbox`, `time_horizon` (0, 1, 3, 6), `model_type`, `date`, `mock`, and `seed_points: list[tuple[float, float]]` (or `ignition_points`). Pre-recorded mock fixtures are purged; when live models report 0 features, cleanly returns `features: []` with `status: "no_active_fire"`. | GeoJSON FeatureCollection |
+| `POST` | `/predict/ensemble` | Explicit ensemble: combine all available model outputs via weighted scaling. Supports `seed_points`. When models report 0 features, returns `features: []` with `status: "no_active_fire"`. | GeoJSON FeatureCollection |
 | `GET` | `/health` | ML Adapter health check + mock mode status | JSON: `{status, mock, models_loaded}` |
 | `GET` | `/docs` | Auto-generated Swagger documentation | Swagger UI (built-in FastAPI) |
+
+
+### Incident Containment Lifecycle & Cache Cleanup
+- **Permanent Retention:** All prediction runs (`PredictionPolygon` rows in PostGIS) are permanently retained to maintain an immutable audit trail for longitudinal research (FR-E01).
+- **Automated Containment:** `archive_old_predictions` executes periodically. Active incidents (`FireIncident.objects.filter(is_active=True)`) with no satellite hotspot detections within their bounding box for 24 consecutive hours are automatically marked as contained (`is_active=False`, `containment_time=timezone.now()`).
+- **Partial Containment Cache Refresh:** When some incidents are contained while others remain active, `archive_old_predictions` immediately refreshes active Redis prediction cache keys (`ffwai:predictions:current` and `ffwai:predictions:current:ensemble`) to exclude contained incidents, serving only remaining active incidents' polygons.
+- **Full Containment Redis Purge:** When all active incidents are contained (`remaining_active_count == 0`), transient active prediction keys (`ffwai:predictions:current*`) are purged from Redis while historical PostGIS rows remain intact.
 
 ### C. External APIs (Outbound — Celery Harvester to Third-Party)
 
@@ -244,7 +268,7 @@ Given the timeline and academic constraints, the following features are explicit
 | Google Earth Engine | SDK | `NASA/VIIRS/002/VNP09GA` | VIIRS active fire hotspots (375 m) | Daily |
 | NOAA / OpenWeather | `GET` | `api.openweathermap.org/data/2.5/...` | Wind speed, direction, temperature, humidity | Daily |
 | NWS Alerts API | `GET` | `api.weather.gov/alerts/active` | Red Flag Warnings (Bay Area zone) | Every 6 hours |
-| NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/...` | Active fire data for validation | Daily |
+| NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/area/...` | VIIRS 375 m active fire hotspots for scout | Every 30 minutes |
 
 ---
 
@@ -270,18 +294,20 @@ The frontend MVP was developed as a standalone showcase of the system's capabili
 
 ### 9.2 Map Layering & Visual Hierarchy (Strict Z-Index)
 To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
-1. **Base Topography:** Mapbox `dark-v11` base map with 1.5x 3D terrain exaggeration.
+1. **Base Topography:** Mapbox `dark-v11` / `outdoors-v12` base map with 3D terrain exaggeration.
 2. **Red Flag Warning Zone:** A static NWS environmental danger polygon rendered as a translucent red area.
-3. **Fire Detection (ML Engine):** Solid red circle layers representing initial thermal anomalies.
-4. **Predictive Spread (U-Net):** Semi-transparent orange (Day 0) and yellow (Day +1) polygons representing predicted fire progression.
-5. **Deck.gl Wind Particles:** An animated WebGL `TextLayer` of Unicode arrows (➔) calculating offset per frame to simulate continuous wind flow over the map.
-6. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
+3. **AQI 45-Mile Radial Grid:** Dynamic air quality mesh interpolated across regional reporting sensors.
+4. **Predictive Spread (U-Net / PINN / Ensemble):** Semi-transparent color ramp polygons representing predicted fire progression filtered by time horizon.
+5. **Deck.gl Wind Particles:** An animated WebGL vector field simulating continuous atmospheric breeze and gust patterns.
+6. **Satellite Hotspots (NASA FIRMS):** Ground-truth infrared detections persisting across all time horizons (pulsing red rings for active wildland detections, distinct grey factory pins for suppressed petrochemical/landfill flaring sites with interactive hover tooltips).
+7. **Static POIs & Markers:** Custom HTML markers (using `lucide-react` icons) for FEMA Evacuation Shelters and the User Location, anchored to the top of the map.
 
 ### 9.3 HUD (Heads-Up Display) Components
-- **Telemetry Card:** A dynamic floating panel displaying simulated environmental data (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow that physically aligns with the Deck.gl particles.
-- **Time Scrubber:** An interactive slider allowing users to scrub between current conditions (Day 0) and predictive windows (Day +1), updating the map polygons in real time.
-- **RAG Chatbot Drawer:** A floating action button (FAB) that opens a simulated AI chat interface. It detects specific user inputs (e.g., "Where should I go?") and outputs localized advice citing the NWS and CalOES.
-- **Dynamic Legend:** A key mapping the visual layers (e.g., "Red Flag Warning Zone", "Official Evac Shelter", "Predicted Fire Spread") to their real-world meanings.
+- **Model Selector & Timeline Bar Integration:** The model selector is integrated directly into the header of the bottom **Time Scrubber** bar (eliminating floating map canvas clutter and removing redundant duplicate tabs from the Layers drawer). It employs pure typography and distinct model accent colors: **PIML** (Scientific Teal `bg-teal-600`, with teal forecast badge `bg-teal-50 text-teal-800 border-teal-200` and teal scrubber accent), **U-Net** (Neural Indigo `bg-indigo-600`, with indigo forecast badge and scrubber accent), and **Ensemble** (Composite Purple `bg-purple-600`, disabled pending AI/ML specifications). This separates PIML cleanly from the Ember Orange branding used across the rest of the application. Switching models dynamically adapts the Time Scrubber's active time badge and slider thumb accents, and queries `/api/predictions/current/?model={model}` with model-scoped Redis caching.
+- **Telemetry Card:** A dynamic floating panel displaying environmental telemetry (AQI, Wind Speed/Direction, and Vulnerability). It features a conditionally rendered, pulsing red banner when a Red Flag Warning is active, and a rotating SVG wind arrow physically aligned with the animated wind field.
+- **Time Scrubber:** An interactive bottom timeline slider strictly scoped to 4 discrete forecast horizons: `0h` (Current Observed Fire), `+1h`, `+3h`, and `+6h`, filtering vector features client-side on the Mapbox GPU at 60 FPS (`filter: ['==', ['get', 'horizon_hours'], timeScrub]`) without network latency. Its top header houses the integrated Model Selector and the dynamic Active Forecast Time Badge.
+- **Map Layers & Dynamic Legend:** A drawer providing toggles for optional secondary environmental overlays (**AQI Grid Layer** and **Emergency Shelters**), while core situational awareness layers (Fire Probability Polygons and Satellite Hotspots) remain permanently active on the map canvas. Houses the comprehensive visual legend for Red Flag Warnings, active wildland hotspots, suppressed flares, emergency shelters, and fire probability color gradients.
+- **RAG Chatbot Drawer:** A floating action button (FAB) that opens an AI assistant interface that detects user inputs (e.g., evacuation routes, shelter capacity) and outputs localized advice citing NWS and CalOES.
 
 <!-- ### 9.4 Scenario Orchestration (The "Golden Path" Script)
 To bypass the lack of a live backend during the defense presentation, the prototype utilizes a `ScenarioController` to manually step through predefined JSON mock states (`mockData/geojsonStates.js` and `windGrids.js`).
@@ -349,17 +375,45 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 - **Continuous Integration (CI):** GitHub Actions automatically trigger on every Pull Request to run `eslint`, `pytest`, and build verifications.
 - **Continuous Deployment (CD):** Upon merging to the `main` branch, the CI/CD pipeline builds new Docker images, pushes them to **Google Artifact Registry**, and triggers a rolling update on the Cloud Run services.
 
+### 13.3 Local Development Stack & Lifecycle Ordering
+To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
+1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d --build`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
+2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
+3. **Application Process Launch:** Spawns isolated terminals for Django (8000), Celery Worker, Celery Beat, FastAPI ML Adapter (8001), and React Frontend (5173).
+4. **Service Health Gate:** Actively polls FastAPI ML Adapter (`GET /health`) on port 8001 until HTTP 200 is confirmed.
+5. **Automated Cache, Database Warmup & Incident Containment (`@worker_ready.connect`):**
+   - Retires the need to manually invoke `scripts/seed_cache.py` or any manual cleanup script.
+   - Celery worker startup signal hook (`harvester.signals.on_worker_ready`) automatically dispatches:
+     - `archive_old_predictions.delay()` (evaluates PostgreSQL incidents, automatically containing any with no recent detections)
+     - `fetch_wind_data.delay()` (live wind vector telemetry)
+     - `fetch_airnow_aqi.delay()` (live PM2.5 / AQI telemetry)
+     - `trigger_active_inference.delay()` (NASA FIRMS VIIRS 375m active fire scout using 2-day rolling window)
+   - Automatically pre-warms Redis and PostGIS across strictly supported forecast horizons (`0h`, `1h`, `3h`, `6h`).
+   - Incident containment runs continuously on Celery Beat every 30 minutes (`archive-old-predictions-30min`).
+
 ---
 
 ## 14. ML Integration Contract
 
-- **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter.
-- **Output Contract (ML Engine → Django Backend):** The exact GeoJSON FeatureCollection format including all field types (`fire_probability`, `geometry`, `timestamp`).
-- **Input Contract (Django → ML Engine):** Finalized in [`docs/vertex-ai-endpoint-contract.md`](./vertex-ai-endpoint-contract.md). Django/Celery operates as an Active Fire Scout (querying NASA FIRMS), calculates a 1km x 1km bounding box, and submits a lightweight `PredictionRequest` JSON payload (`bbox`, `time_horizon`, `model_type`, `date`). The ML engine performs native ingestion internally.
-- **Mock Fixture:** When `MOCK_INFERENCE=true`, the FastAPI adapter returns a static GeoJSON fixture of Bay Area coordinates for development and CI/CD.
-- **Inference Cadence:** Daily Celery cron job (configurable via environment variable).
-- **Ensemble Models:** U-Net (spatial segmentation), PINN (physics-constrained spread), RL Agent DQN/PPO (dynamic progression). Ensemble combiner uses weighted voting / probability averaging.
+- **Plug-and-Play System:** The system treats the ML Inference Engine as a plug-and-play black box. The backend and ML teams are decoupled via the FastAPI ML Adapter and containerized inference services (`ml_services/`).
+- **Inference Services Structure & Ports:**
+  - **FastAPI ML Adapter (`ml_adapter/`):** Listens on port 8001. Proxies requests to downstream containerized services (`UNET_SERVICE_URL=http://localhost:8081` and `PINN_SERVICE_URL=http://localhost:8082`), handles health probing (`GET /health`), and multi-model ensemble blending (`POST /predict/ensemble`).
+  - **U-Net Service (`ml_services/unet_service/`):** Listens on port 8081 (`AIP_HTTP_PORT=8081`). Exposes `GET /health` and `POST /predict`. Bundles pre-trained weights (`models/goes_h1`, `models/goes_h3`, `models/goes_h6`) and California 1 km terrain cache (`static_ca_1km.npz`). Uses native NOAA GOES-18 ABI and Open-Meteo ingestion with isotonic calibration. Post-processing enforces a calibrated emission threshold of `P_EMIT = 0.05` (5%) and `MIN_CONFIDENCE = 0.01` (1%). This threshold functions as a noise gate that blocks convolutional background floating-point static and false-positive artifacts over non-burnable water bodies (e.g., Suisun Bay, Pacific Ocean) and unburned valleys, ensuring U-Net emits fire spread polygons only when supported by genuine statistical confidence ($\ge 5\%$).
+    - **High Availability & Weather Fallback (NFR-R04):** Weather ingestion from Open-Meteo enforces a reduced 15s timeout and an in-memory spatial grid cache (`_WEATHER_CACHE`). If Open-Meteo public API times out, rate limits (HTTP 429), or errors, U-Net gracefully degrades to a calibrated Bay Area climatological weather field (`TMP=20.0 °C`, `DPT=10.0 °C`, `UGRD=2.5 m/s`, `VGRD=-1.2 m/s`, `GUST=5.0 m/s`, `ACPC01=0.0 mm`) rather than failing downstream tasks. NOAA S3 downloads are safeguarded with exception handling and cached across container lifecycles via a named Docker volume (`goes_cache:/tmp/goes_cache`). General exceptions in `serve.py` log tracebacks and return structured 500 error details.
+  - **PINN / PIML Service (`ml_services/ml_pinn_service/`):** Listens on port 8082 (`AIP_HTTP_PORT=8082`). Exposes `GET /health` and `POST /predict`. Implements calibrated Physics-Informed Machine Learning (v0.3.1 PIML) fire spread simulation using Ridge regression trained on 218 CAL FIRE historical fires predicting growth multipliers that drive a 10-member level-set physics ensemble. Enforces a built-in LANDFIRE FBFM40 fuel check (`min_burnable_share = 0.25`), deliberately excluding agricultural crop residue burns (such as farmland in Courtland/Hood) while actively simulating wildland fires in burnable grass, brush, and timber. Runs with a unified +20 km buffer.
+- **Contract Interface:**
+  - **Input Payload:** JSON with `bbox` (4-float tuple), `date` (ISO-8601 string, optional — defaults to UTC now), `time_horizon` (int hours: 0, 1, 3, 6), and `model_type` ("unet", "pinn", "piml", or "ensemble").
+  - **Output Contract (ML Engine → Django Backend):** Standard unified GeoJSON `FeatureCollection` containing per-cell features with `grid_id`, `fire_probability` (0.0–1.0), `risk_label`, `horizon_hours` (0, 1, 3, 6), `source_model`, `w_unet`, and `members`.
+  - **Dedicated Parallel Inference Fan-Out & Multi-Incident Cumulative Cache:** The Celery active fire scout (`harvester.tasks.trigger_active_inference`) fans out separate parallel inference tasks for both `unet` and `pinn` (PIML) for each detected wildfire cluster across the expanded Bay Area & Sacramento Delta boundary (`BAY_AREA_BBOX = (-122.9, 36.9, -121.2, 38.5)`). Results are written directly to PostGIS (`PredictionPolygon` rows tagged with `source_model="unet"` and `source_model="pinn"`). When updating Redis (`ffwai:predictions:current:unet` and `ffwai:predictions:current:pinn`), `store_geojson_result` aggregates predictions across all currently active fire incidents within the last 6 hours, preventing concurrent incidents (e.g., Courtland, Galt, Rio Vista) from overwriting each other in the cache.
+  - **Ensemble Status:** Blending disparate models not trained together is paused pending formal mathematical combination specification (weighting, Bayesian updating, or cellular automata voting) from the AI/ML research team.
+- **Mock Fixture Purge & Clean Empty Output:**
+  - Mock GeoJSON fixture files and synthetic coordinate translations have been purged.
+  - When live models detect 0 features, the adapter cleanly returns a GeoJSON FeatureCollection with `features: []` and `status: "no_active_fire"`, avoiding any fallback or translation of pre-recorded Santa Cruz files onto the map.
+- **Inference Cadence:** Daily Celery cron job (`harvester.tasks.trigger_daily_inference` at 06:00 UTC) plus 30-minute Active Fire Scout (`harvester.tasks.trigger_active_inference`). Uses NASA FIRMS Area API rolling 2-day window (`/2`) filtered to the NASA FIRMS 2-calendar-day window ("From Yesterday 00:00:00 UTC to present", up to 48 hours), guaranteeing uninterrupted detection telemetry across UTC calendar rollover and 1:1 parity with the NASA FIRMS web portal.
+- **Active Models:** U-Net (spatial segmentation), PIML (Physics-Informed Machine Learning spread), RL Agent DQN/PPO (dynamic progression).
+- **Incident Lifecycle Guard:** Current risk endpoint (`/api/predictions/current/`) strictly rejects contained or historical incidents (>6h old). When no active wildland fires are burning, it returns `features: []` with `status: "no_active_fire"`, preventing resurrection of past incidents.
 - **Research Lineage:** U-Net extends Paper 1 (Malik et al., 2021), RL extends Paper 2 (Adhikari et al., 2024), Ensemble extends Paper 3 (Malik et al., 2022).
 - **ML Black-Box Serving & LLM Implementation Prompt:** Formatted hand-off prompt and schema guide located at [`docs/ml-implementation-prompt.md`](./ml-implementation-prompt.md).
+
 
 

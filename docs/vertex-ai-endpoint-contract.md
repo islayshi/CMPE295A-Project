@@ -61,7 +61,7 @@ The FastAPI adapter forwards a thin payload that tells the model which area and 
 | `bbox` | `float[]` (4) | ✅ | `[west, south, east, north]` in WGS‑84 degrees. Must exactly match the Bay Area bounding box used by the Django pipeline. |
 | `time_horizon` | `int` | ✅ | Hours from the start of the prediction (e.g., `0`, `1`, `3`, `6`). |
 | `model_type` | `string` | ✅ | One of `"unet"`, `"pinn"`, `"rl"`. Determines which Vertex AI endpoint to invoke. |
-| `date` | `string` (ISO‑8601) | ✅ | The **reference date** for the forecast (UTC). |
+| `date` | `string` (ISO‑8601) | Optional (defaults to now) | The **reference date/timestamp** for the forecast (UTC). When omitted or null, models evaluate against latest live satellite/weather data. |
 | `additional_params` | `object` | ❌ | Optional key‑value pairs for future extensions (e.g., custom thresholds). |
 
 ### Example JSON
@@ -87,8 +87,8 @@ Every GeoJSON **Feature** must contain a **`properties`** object. The UI and Cel
 | (required)`fire_probability` | `float` | `0.0` – `1.0` | Used for heat‑map intensity and stored in Django `FloatField`. |
 | (required)`grid_id` | `int` | Positive integer | Primary lookup key for the `BayAreaGrid` FK in Django. |
 | (required)`horizon_hours` | `int` | `0`, `1`, `3`, `6` | Enables the time‑scrubber; the UI filters on this field. |
-| (in consideration)`w_unet` | `float` | Any (model‑specific metric) | Captured for analytics; stored in `ml_metrics` JSONField. Stands for "weight of the U_Net model, represents how much the U-Net contributed to the final probability vs PINN or RL|
-| (in consideration)`members` | `int` | Positive integer | Likewise stored for debugging and model‑performance dashboards. Number of ensemble members that "voted" on the fire spreading to this cell |
+| (optional/ensemble)`w_unet` | `float` | `0.0` – `1.0` | Model contribution weight of U-Net in ensemble outputs. Optional on standalone services; attached by ML Adapter during ensemble combination. Captured in `ml_metrics` JSONField. |
+| (optional/ensemble)`members` | `int` | Positive integer | Stored for debugging and model‑performance dashboards. Number of ensemble members that voted or contributed to this cell (default 1 for standalone models). |
 
 ### Full Feature Example (nested properties)
 ```json

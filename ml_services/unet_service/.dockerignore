@@ -1,0 +1,12 @@
+u_net_files/
+u_net_files
+tests/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.ipynb
+*.md
+unet_service_notes_for_backend.txt
+.DS_Store
+.git

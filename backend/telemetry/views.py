@@ -7,7 +7,7 @@ import logging
 import os
 import ee
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from django.conf import settings
 from django.http import JsonResponse
 from django.core.cache import cache
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 WIND_CACHE_KEY = "ffwai:wind_current"
 ALERTS_CACHE_KEY = "ffwai:nws_alerts"
 AQI_CACHE_KEY = "ffwai:aqi_data"
+FIRMS_HOTSPOTS_CACHE_KEY = "ffwai:telemetry:firms_hotspots"
 
 # --- Earth Engine Initialization ---
 SERVICE_ACCOUNT_FILE = settings.BASE_DIR / 'gee_service_account.json'
@@ -211,7 +212,56 @@ def emergency_shelters(request):
         "total": len(features),
         "features": features,
     })
-    
+
+
+@api_view(["GET"])
+def hotspots_telemetry(request):
+    """
+    GET /api/telemetry/hotspots/
+    Returns a GeoJSON FeatureCollection of satellite hotspots (active wildland detections
+    and suppressed refinery/landfill flares) cached from NASA FIRMS ingestion in O(1) time.
+    """
+    cached = cache.get(FIRMS_HOTSPOTS_CACHE_KEY)
+    if cached:
+        try:
+            data = json.loads(cached) if isinstance(cached, str) else cached
+            if isinstance(data, dict) and data.get("type") == "FeatureCollection":
+                return Response(data)
+            if isinstance(data, list):
+                features = [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [pt["longitude"], pt["latitude"]],
+                        },
+                        "properties": pt,
+                    }
+                    for pt in data
+                    if isinstance(pt, dict) and "latitude" in pt and "longitude" in pt
+                ]
+                return Response({
+                    "type": "FeatureCollection",
+                    "metadata": {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "total_hotspots": len(features),
+                    },
+                    "features": features,
+                })
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("hotspots_telemetry: Failed deserializing cached hotspots payload: %s", exc)
+
+    logger.warning("hotspots_telemetry: Redis cache miss — returning empty FeatureCollection.")
+    return Response({
+        "type": "FeatureCollection",
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_hotspots": 0,
+        },
+        "features": [],
+    })
+
+
 FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
 
 @api_view(["GET"])

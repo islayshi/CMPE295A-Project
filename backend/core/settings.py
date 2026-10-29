@@ -15,6 +15,7 @@ NFR References:
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from celery.schedules import crontab
@@ -35,7 +36,7 @@ SECRET_KEY = os.environ.get(
     "django-insecure-fallback-key-replace-before-production"
 )
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
 
 # ---------------------------------------------------------------------------
 # Application Definition
@@ -123,6 +124,14 @@ DATABASES = {
     }
 }
 
+if os.environ.get("USE_SPATIALITE") == "1" or "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.contrib.gis.db.backends.spatialite",
+            "NAME": ":memory:",
+        }
+    }
+
 # ---------------------------------------------------------------------------
 # Redis Cache — GeoJSON cache + Celery broker
 # Design Doc §2: Memorystore (Redis) in production
@@ -138,6 +147,14 @@ CACHES = {
         "KEY_PREFIX": "ffwai",
     }
 }
+
+if os.environ.get("USE_SPATIALITE") == "1" or "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ffwai-test-cache",
+        }
+    }
 
 # ---------------------------------------------------------------------------
 # Celery — Task queue for data harvesting and ML inference
@@ -170,9 +187,9 @@ CELERY_BEAT_SCHEDULE = {
         "task": "harvester.tasks.fetch_nws_alerts",
         "schedule": 900,  # 15 minutes in seconds
     },
-    "archive-old-predictions-nightly": {
+    "archive-old-predictions-30min": {
         "task": "harvester.tasks.archive_old_predictions",
-        "schedule": crontab(minute=0, hour=0),
+        "schedule": 1800,  # 30 minutes in seconds
     },
     "trigger-active-inference-30min": {
         "task": "harvester.tasks.trigger_active_inference",
@@ -229,6 +246,7 @@ VERTEX_RL_ENDPOINT_ID = os.environ.get("VERTEX_RL_ENDPOINT_ID", "")
 # External API Keys
 # ---------------------------------------------------------------------------
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
+FIRMS_MAP_KEY = os.environ.get("FIRMS_MAP_KEY", "")
 NWS_API_USER_AGENT = os.environ.get(
     "NWS_API_USER_AGENT",
     "FightFireWithAI/1.0 (contact@example.com)"
