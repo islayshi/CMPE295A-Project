@@ -27,6 +27,8 @@ curl.exe -s -X POST http://localhost:8082/predict -H "Content-Type: application/
 python -m pinn_service.validate_contract response.json
 ```
 
+Accuracy checks: `POST /verify` (or `/predict` with `"task": "verify"` on Vertex AI) scores a past forecast against the satellite passes that came after it (new-area IoU, F1, precision, recall). Request format and suggested backend wiring: `pinn_service/SCORECARD.md`.
+
 Without a key or network, use replay mode, which serves a synthetic Santa Cruz Mountains fire: `python -m pinn_service.make_test_features`, then `$env:INGESTION="npz"`, `python serve.py`, and request `"date":"2026-10-16"`.
 
 Tests (no network needed): `python -m unittest pinn_service.tests.test_service`. Docker: see the header of `Dockerfile`.
