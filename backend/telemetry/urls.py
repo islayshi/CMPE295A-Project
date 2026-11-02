@@ -14,6 +14,7 @@ from .views import (
     get_gridmet_telemetry,
     get_ndws_telemetry,
     get_gpw_telemetry,
+    get_viirs_telemetry,
 )
 
 urlpatterns = [
@@ -31,4 +32,5 @@ urlpatterns = [
     path("gridmet/", get_gridmet_telemetry, name="telemetry-gridmet"),
     path("ndws/", get_ndws_telemetry, name="telemetry-ndws"),
     path("gpw/", get_gpw_telemetry, name="telemetry-gpw"),
+    path("viirs/", get_viirs_telemetry, name="telemetry-viirs"),
 ]
