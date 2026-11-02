@@ -1,0 +1,125 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 1,
+      "properties": {
+        "OBJECTID": 1,
+        "Incid_Name": "LNU LIGHTNING COMPLEX",
+        "FIRE_YEAR": 2020,
+        "Ig_Date": "2020-08-17",
+        "BurnBndAc": 363220,
+        "Incid_Type": "Wildfire"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.35, 38.50],
+            [-122.10, 38.65],
+            [-121.90, 38.45],
+            [-122.15, 38.30],
+            [-122.35, 38.50]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 2,
+      "properties": {
+        "OBJECTID": 2,
+        "Incid_Name": "SCU LIGHTNING COMPLEX",
+        "FIRE_YEAR": 2020,
+        "Ig_Date": "2020-08-16",
+        "BurnBndAc": 396624,
+        "Incid_Type": "Wildfire"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-121.65, 37.40],
+            [-121.30, 37.55],
+            [-121.20, 37.25],
+            [-121.50, 37.10],
+            [-121.65, 37.40]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 3,
+      "properties": {
+        "OBJECTID": 3,
+        "Incid_Name": "GLASS FIRE",
+        "FIRE_YEAR": 2020,
+        "Ig_Date": "2020-09-27",
+        "BurnBndAc": 67484,
+        "Incid_Type": "Wildfire"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.55, 38.55],
+            [-122.40, 38.60],
+            [-122.35, 38.45],
+            [-122.50, 38.42],
+            [-122.55, 38.55]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 4,
+      "properties": {
+        "OBJECTID": 4,
+        "Incid_Name": "KINCADE FIRE",
+        "FIRE_YEAR": 2019,
+        "Ig_Date": "2019-10-23",
+        "BurnBndAc": 77758,
+        "Incid_Type": "Wildfire"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.80, 38.78],
+            [-122.65, 38.82],
+            [-122.60, 38.68],
+            [-122.75, 38.65],
+            [-122.80, 38.78]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 5,
+      "properties": {
+        "OBJECTID": 5,
+        "Incid_Name": "TUBBS FIRE",
+        "FIRE_YEAR": 2017,
+        "Ig_Date": "2017-10-08",
+        "BurnBndAc": 36810,
+        "Incid_Type": "Wildfire"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.70, 38.52],
+            [-122.55, 38.60],
+            [-122.50, 38.48],
+            [-122.65, 38.42],
+            [-122.70, 38.52]
+          ]
+        ]
+      }
+    }
+  ]
+}

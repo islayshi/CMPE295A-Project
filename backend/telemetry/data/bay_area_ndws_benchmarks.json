@@ -1,0 +1,150 @@
+{
+  "dataset": "Next Day Wildfire Spread (NDWS) Benchmark",
+  "spatialScope": "SF Bay Area Bounding Box [-123.1, 36.8, -121.2, 38.9]",
+  "events": [
+    {
+      "id": "lnu-lightning-2020",
+      "name": "LNU Lightning Complex",
+      "county": "Napa / Sonoma / Solano",
+      "t0_date": "2020-08-18",
+      "t1_date": "2020-08-19",
+      "acreage_t0": 32000,
+      "acreage_t1": 124000,
+      "growth_rate_pct": 287.5,
+      "center": [38.52, -122.28],
+      "channels": {
+        "elevation_m": { "label": "Elevation (SRTM)", "value": 412, "unit": "m" },
+        "slope_deg": { "label": "Slope Angle", "value": 18.4, "unit": "°" },
+        "ndvi": { "label": "Vegetation Index (NDVI)", "value": 0.42, "unit": "index" },
+        "population_density": { "label": "Population Density (GPW)", "value": 14.2, "unit": "p/km²" },
+        "tmax": { "label": "Max Temperature (tmmx)", "value": 38.5, "unit": "°C" },
+        "rmin": { "label": "Min Relative Humidity (rmin)", "value": 11.0, "unit": "%" },
+        "wind_speed": { "label": "Max Wind Speed (vs)", "value": 28.5, "unit": "km/h" },
+        "wind_dir": { "label": "Wind Direction", "value": 45, "unit": "° (NE)" },
+        "precip": { "label": "Precipitation (pr)", "value": 0.0, "unit": "mm" },
+        "erc": { "label": "Energy Release Component", "value": 88.0, "unit": "percentile" },
+        "fuel_model": { "label": "Dominant Fuel Type", "value": "Chaparral / Dry Grass", "unit": "category" }
+      },
+      "geometry_t0": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.35, 38.48], [-122.22, 38.48], [-122.22, 38.56], [-122.35, 38.56], [-122.35, 38.48]
+        ]]
+      },
+      "geometry_t1": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.42, 38.42], [-122.15, 38.42], [-122.15, 38.62], [-122.42, 38.62], [-122.42, 38.42]
+        ]]
+      }
+    },
+    {
+      "id": "scu-lightning-2020",
+      "name": "SCU Lightning Complex",
+      "county": "Santa Clara / Alameda",
+      "t0_date": "2020-08-19",
+      "t1_date": "2020-08-20",
+      "acreage_t0": 85000,
+      "acreage_t1": 137000,
+      "growth_rate_pct": 61.2,
+      "center": [37.45, -121.52],
+      "channels": {
+        "elevation_m": { "label": "Elevation (SRTM)", "value": 620, "unit": "m" },
+        "slope_deg": { "label": "Slope Angle", "value": 22.1, "unit": "°" },
+        "ndvi": { "label": "Vegetation Index (NDVI)", "value": 0.31, "unit": "index" },
+        "population_density": { "label": "Population Density (GPW)", "value": 8.1, "unit": "p/km²" },
+        "tmax": { "label": "Max Temperature (tmmx)", "value": 37.1, "unit": "°C" },
+        "rmin": { "label": "Min Relative Humidity (rmin)", "value": 14.0, "unit": "%" },
+        "wind_speed": { "label": "Max Wind Speed (vs)", "value": 24.0, "unit": "km/h" },
+        "wind_dir": { "label": "Wind Direction", "value": 135, "unit": "° (SE)" },
+        "precip": { "label": "Precipitation (pr)", "value": 0.0, "unit": "mm" },
+        "erc": { "label": "Energy Release Component", "value": 82.0, "unit": "percentile" },
+        "fuel_model": { "label": "Oak Woodland / Grass", "value": "Grass/Shrub", "unit": "category" }
+      },
+      "geometry_t0": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-121.60, 37.38], [-121.45, 37.38], [-121.45, 37.52], [-121.60, 37.52], [-121.60, 37.38]
+        ]]
+      },
+      "geometry_t1": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-121.68, 37.32], [-121.38, 37.32], [-121.38, 37.58], [-121.68, 37.58], [-121.68, 37.32]
+        ]]
+      }
+    },
+    {
+      "id": "kincade-2019",
+      "name": "Kincade Fire",
+      "county": "Sonoma County",
+      "t0_date": "2019-10-26",
+      "t1_date": "2019-10-27",
+      "acreage_t0": 25400,
+      "acreage_t1": 54000,
+      "growth_rate_pct": 112.6,
+      "center": [38.79, -122.78],
+      "channels": {
+        "elevation_m": { "label": "Elevation (SRTM)", "value": 510, "unit": "m" },
+        "slope_deg": { "label": "Slope Angle", "value": 24.5, "unit": "°" },
+        "ndvi": { "label": "Vegetation Index (NDVI)", "value": 0.48, "unit": "index" },
+        "population_density": { "label": "Population Density (GPW)", "value": 28.5, "unit": "p/km²" },
+        "tmax": { "label": "Max Temperature (tmmx)", "value": 29.0, "unit": "°C" },
+        "rmin": { "label": "Min Relative Humidity (rmin)", "value": 8.0, "unit": "%" },
+        "wind_speed": { "label": "Max Wind Speed (vs)", "value": 68.0, "unit": "km/h" },
+        "wind_dir": { "label": "Wind Direction", "value": 30, "unit": "° (NNE Diablo Wind)" },
+        "precip": { "label": "Precipitation (pr)", "value": 0.0, "unit": "mm" },
+        "erc": { "label": "Energy Release Component", "value": 96.0, "unit": "percentile" },
+        "fuel_model": { "label": "Timber Litter / Brush", "value": "Heavy Fuel", "unit": "category" }
+      },
+      "geometry_t0": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.84, 38.74], [-122.72, 38.74], [-122.72, 38.84], [-122.84, 38.84], [-122.84, 38.74]
+        ]]
+      },
+      "geometry_t1": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.92, 38.68], [-122.65, 38.68], [-122.65, 38.89], [-122.92, 38.89], [-122.92, 38.68]
+        ]]
+      }
+    },
+    {
+      "id": "tubbs-2017",
+      "name": "Tubbs Fire",
+      "county": "Napa / Sonoma",
+      "t0_date": "2017-10-08",
+      "t1_date": "2017-10-09",
+      "acreage_t0": 1200,
+      "acreage_t1": 27000,
+      "growth_rate_pct": 2150.0,
+      "center": [38.60, -122.63],
+      "channels": {
+        "elevation_m": { "label": "Elevation (SRTM)", "value": 380, "unit": "m" },
+        "slope_deg": { "label": "Slope Angle", "value": 16.2, "unit": "°" },
+        "ndvi": { "label": "Vegetation Index (NDVI)", "value": 0.51, "unit": "index" },
+        "population_density": { "label": "Population Density (GPW)", "value": 142.0, "unit": "p/km² (WUI)" },
+        "tmax": { "label": "Max Temperature (tmmx)", "value": 27.5, "unit": "°C" },
+        "rmin": { "label": "Min Relative Humidity (rmin)", "value": 9.0, "unit": "%" },
+        "wind_speed": { "label": "Max Wind Speed (vs)", "value": 74.0, "unit": "km/h" },
+        "wind_dir": { "label": "Wind Direction", "value": 20, "unit": "° (NNE Diablo Wind)" },
+        "precip": { "label": "Precipitation (pr)", "value": 0.0, "unit": "mm" },
+        "erc": { "label": "Energy Release Component", "value": 98.0, "unit": "percentile" },
+        "fuel_model": { "label": "Grass / Oak Woodland / WUI", "value": "Urban Interface", "unit": "category" }
+      },
+      "geometry_t0": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.65, 38.58], [-122.61, 38.58], [-122.61, 38.62], [-122.65, 38.62], [-122.65, 38.58]
+        ]]
+      },
+      "geometry_t1": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.76, 38.48], [-122.58, 38.48], [-122.58, 38.65], [-122.76, 38.65], [-122.76, 38.48]
+        ]]
+      }
+    }
+  ]
+}

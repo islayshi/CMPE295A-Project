@@ -9,6 +9,11 @@ import 'react-datepicker/dist/react-datepicker.css';
 import FirmsHotspotMap from '../components/FirmsHotspotMap';
 import WeatherTelemetryPanel from '../components/WeatherTelemetryPanel';
 import GoesFireTrackingPanel from '../components/GoesFireTrackingPanel';
+import MtbsHistoricalPanel from '../components/MtbsHistoricalPanel';
+import GridmetPanel from '../components/GridmetPanel';
+import NdwsPanel from '../components/NDWSPanel';
+import GpwPanel from '../components/GpwPanel';
+import ViirsPanel from '../components/ViirsPanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -17,6 +22,11 @@ const categories = [
   'Weather & Meteorology',
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
+  'MTBS Burn Severity',
+  'GRIDMET Fire Weather Surface Meteorology',
+  'NDWS Benchmark Tensor Layers',
+  'GPW Population Density',
+  'Viirs NDVI (VNP13A1)',
 ];
 
 const bayAreaStations = [
@@ -219,7 +229,7 @@ const DataPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 relative z-[1001]">
+              <div className="flex items-center gap-2 relative z-10">
                 <label className="text-sm font-medium text-gray-700">Target Date:</label>
                 <DatePicker
                   selected={selectedDate}
@@ -320,6 +330,33 @@ const DataPage = () => {
             selectedDate={selectedDate}
             formatDateString={formatDateString}
           />
+        ) : selectedCategory === 'MTBS Burn Severity' ? (
+          <MtbsHistoricalPanel />
+        ) : selectedCategory === 'GRIDMET Fire Weather Surface Meteorology' ? (
+          <GridmetPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'NDWS Benchmark Tensor Layers' ? (
+          <NdwsPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'GPW Population Density' ? (
+          <GpwPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ): selectedCategory === 'Viirs NDVI (VNP13A1)' ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              NASA VIIRS NDVI (VNP13A1) 16-Day Composite
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Fetching 500-meter 16-day composite granules directly from NASA LP DAAC.
+            </p>
+            <ViirsPanel />
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDatasets.map((data) => (

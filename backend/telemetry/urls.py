@@ -10,6 +10,11 @@ from .views import (
     wind_telemetry,
     nws_alerts,
     emergency_shelters,
+    get_mtbs_historical_perimeters,
+    get_gridmet_telemetry,
+    get_ndws_telemetry,
+    get_gpw_telemetry,
+    get_viirs_telemetry,
     hotspots_telemetry,
 )
 
@@ -24,5 +29,10 @@ urlpatterns = [
     path("wind/", wind_telemetry, name="telemetry-wind"),
     path("alerts/", nws_alerts, name="telemetry-alerts"),
     path("shelters/", emergency_shelters, name="telemetry-shelters"),
+    path("mtbs/", get_mtbs_historical_perimeters, name="mtbs_perimeters"),
+    path("gridmet/", get_gridmet_telemetry, name="telemetry-gridmet"),
+    path("ndws/", get_ndws_telemetry, name="telemetry-ndws"),
+    path("gpw/", get_gpw_telemetry, name="telemetry-gpw"),
+    path("viirs/", get_viirs_telemetry, name="telemetry-viirs"),
     path("hotspots/", hotspots_telemetry, name="hotspots-telemetry"),
 ]
