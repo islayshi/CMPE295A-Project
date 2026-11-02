@@ -8,9 +8,10 @@ import TimeScrubber from '../components/HUD/TimeScrubber';
 import ChatDrawer from '../components/HUD/ChatDrawer';
 
 import { fetchCurrentPredictions } from '../api/predictions';
-import { fetchShelters, fetchWindData, fetchAqiData } from '../api/telemetry';
+import { fetchShelters, fetchWindData, fetchAqiData, fetchFirmsHotspots } from '../api/telemetry';
 
 export default function Dashboard() {
+  const [selectedModel, setSelectedModel] = useState('pinn');
   const [timeScrub, setTimeScrub] = useState(0);
   const [isAqiVisible, setIsAqiVisible] = useState(false);
   const [isSheltersVisible, setIsSheltersVisible] = useState(false);
@@ -47,10 +48,10 @@ export default function Dashboard() {
     }
   }, []);
   
-  // React Query - Poll predictions every 5 minutes (300,000 ms)
+  // React Query - Poll predictions every 5 minutes (300,000 ms), scoped by selected model
   const { data: predictions } = useQuery({
-    queryKey: ['predictions', 'current'],
-    queryFn: fetchCurrentPredictions,
+    queryKey: ['predictions', 'current', selectedModel],
+    queryFn: () => fetchCurrentPredictions({ model: selectedModel }),
     refetchInterval: 300000, 
   });
 
@@ -70,11 +71,20 @@ export default function Dashboard() {
     refetchInterval: 300000,  // Poll every 5 minutes
   });
 
-  // Calculate dynamic available horizons based on predictions data
+  const { data: hotspotsData } = useQuery({
+    queryKey: ['telemetry', 'hotspots'],
+    queryFn: fetchFirmsHotspots,
+    refetchInterval: 300000,  // Poll every 5 minutes
+  });
+
+  // Calculate dynamic available horizons based on predictions data (strictly [0, 1, 3, 6])
   const parsedHorizons = predictions?.features 
-    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))].sort((a, b) => a - b)
+    ? [...new Set(predictions.features.map(f => f.properties.horizon_hours ?? f.properties.lead_time_hours ?? 0))]
+        .filter(h => [0, 1, 3, 6].includes(h))
+        .sort((a, b) => a - b)
     : [];
   const availableHorizons = parsedHorizons.length > 0 ? parsedHorizons : [0, 1, 3, 6];
+
   
   // Find the largest horizon that is <= the current slider value
   const activeHorizon = [...availableHorizons].reverse().find(h => h <= timeScrub) ?? 0;
@@ -87,7 +97,10 @@ export default function Dashboard() {
         predictions={predictions}
         shelters={shelters}
         windData={windData}
+        hotspotsData={hotspotsData}
         userLocation={userLocation}
+        isFireRiskVisible={true}
+        isHotspotsVisible={true}
         isAqiVisible={isAqiVisible}
         isSheltersVisible={isSheltersVisible}
         aqiData={aqiData}
@@ -109,7 +122,13 @@ export default function Dashboard() {
       />
         
       <div className="absolute bottom-0 left-0 w-full z-40 pointer-events-auto">
-        <TimeScrubber timeScrub={activeHorizon} setTimeScrub={setTimeScrub} availableHorizons={availableHorizons} />
+        <TimeScrubber 
+          timeScrub={activeHorizon} 
+          setTimeScrub={setTimeScrub} 
+          availableHorizons={availableHorizons}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
+        />
       </div>
 
       <ChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />

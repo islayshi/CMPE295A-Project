@@ -29,7 +29,10 @@ const FirmsHotspotMap = ({ selectedDate, setSelectedDate, formatDateString }) =>
 
   // Initial load for selected date's month
   useEffect(() => {
-    fetchActiveDatesForMonth(selectedDate);
+    const loadInitialDates = async () => {
+      await fetchActiveDatesForMonth(selectedDate);
+    };
+    loadInitialDates();
   }, [selectedDate, fetchActiveDatesForMonth]);
 
   // Fetch FIRMS hotspots for selected date & pass

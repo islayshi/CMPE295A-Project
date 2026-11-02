@@ -59,3 +59,6 @@ celerybeat-schedule*
 
 #GEE key
 gee_service_account.json
+
+# ML raw offline training/sample data
+ml_services/unet_service/u_net_files/

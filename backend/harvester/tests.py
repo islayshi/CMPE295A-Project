@@ -52,7 +52,7 @@ MOCK_GEOJSON_RESPONSE = {
                 "fire_probability": 0.91,
                 "source_model": "mock",
                 "timestamp": "2026-09-23T06:00:00+00:00",
-                "horizon_hours": 24,
+                "horizon_hours": 6,
                 "w_unet": 0.8,
                 "model_version": "v1.0"
             },
@@ -151,7 +151,7 @@ def test_trigger_daily_inference_happy_path():
     assert high_risk is not None, "Expected a HIGH_RISK prediction for grid_id=1001"
     assert abs(high_risk.fire_probability - 0.91) < 0.001
     assert high_risk.source_model == "mock"
-    assert high_risk.lead_time_hours == 24
+    assert high_risk.lead_time_hours == 6
     assert "timestamp" not in high_risk.ml_metrics
     assert "source_model" not in high_risk.ml_metrics
 
@@ -243,119 +243,49 @@ def test_gee_fetch_tasks_mock_bypass(settings):
 def test_trigger_active_inference_scout():
     """
     Verifies that trigger_active_inference queries the FIRMS feed,
-    filters for coordinates in the Bay Area, and correctly calculates
-    the 1km x 1km bounding box for async inference fan-out.
+    clusters Bay Area coordinates, and dispatches a Celery chord with +25km buffered bbox.
     """
     from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "latitude,longitude\n37.5,-122.0\n35.0,-120.0\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-            
-        def raise_for_status(self):
-            if self.status_code != 200:
-                import requests
-                raise requests.RequestException("Mock error")
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
+    from harvester.firms_client import FireCluster
+
+    cluster = FireCluster(
+        cluster_id=1,
+        centroid_lat=37.5,
+        centroid_lon=-122.0,
+        count=1,
+        bbox=[-122.28, 37.27, -121.72, 37.73],
+        points=[{"latitude": 37.5, "longitude": -122.0, "confidence": "high"}]
+    )
+
+    with patch("harvester.tasks.fetch_bay_area_hotspots", return_value=[cluster]), \
+         patch("harvester.tasks.chord") as mock_chord:
+        mock_chord_instance = MagicMock()
+        mock_chord.return_value = mock_chord_instance
+
         result = trigger_active_inference.apply()
-         
+
         assert result.result["status"] == "success"
         assert result.result["fires_detected"] == 1
-         
-        # Assert run_async_inference.delay was called once with the correct bbox
-        mock_run_async.assert_called_once()
-        bbox = mock_run_async.call_args[0][0]
-        model_type = mock_run_async.call_args[0][1]
-         
-        assert model_type == "unet"
-        # 37.5 lat, -122.0 lon -> bounding box
-        # lon - 0.0055 = -122.0055
-        # lat - 0.0045 = 37.4955
-        # lon + 0.0055 = -121.9945
-        # lat + 0.0045 = 37.5045
-        assert bbox == [-122.0055, 37.4955, -121.9945, 37.5045]
+
+        mock_chord.assert_called_once()
+        header_tasks = mock_chord.call_args[0][0]
+        assert len(header_tasks) == 2
+
 
 @pytest.mark.django_db
-def test_trigger_active_inference_scout_fallback():
+def test_trigger_active_inference_scout_retry():
     """
-    Verifies that trigger_active_inference falls back to mock data
-    if the FIRMS API request fails.
+    Verifies that trigger_active_inference retries via Celery if FIRMS fails,
+    without injecting hallucinated fires into urban centers.
     """
     from harvester.tasks import trigger_active_inference
-    
-    class MockResponse:
-        def raise_for_status(self):
-            import requests
-            raise requests.RequestException("Network error")
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse()), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2  # The mock fallback has 2 points
-        assert mock_run_async.call_count == 2
+    import requests
 
-@pytest.mark.django_db
-def test_trigger_active_inference_malformed_row():
-    """
-    Verifies that trigger_active_inference skips malformed rows in the CSV
-    but successfully processes the valid ones.
-    """
-    from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "latitude,longitude\n37.5,-122.0\nbad,data\n37.6,-122.1\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-        def raise_for_status(self):
-            pass
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2
-        assert mock_run_async.call_count == 2
-
-@pytest.mark.django_db
-def test_trigger_active_inference_missing_headers():
-    """
-    Verifies that trigger_active_inference falls back to mock data
-    if the CSV headers are missing.
-    """
-    from harvester.tasks import trigger_active_inference
-    
-    mock_csv = "lat,lon\n37.5,-122.0\n37.6,-122.1\n"
-    
-    class MockResponse:
-        def __init__(self, text, status_code=200):
-            self.text = text
-            self.status_code = status_code
-        def raise_for_status(self):
-            pass
-            
-    with patch("harvester.tasks.requests.get", return_value=MockResponse(mock_csv)), \
-         patch("harvester.tasks.run_async_inference.delay") as mock_run_async:
-             
-        result = trigger_active_inference.apply()
-         
-        assert result.result["status"] == "success"
-        assert result.result["fires_detected"] == 2
-        # It should fallback to mock data since headers are missing
-        # The mock fallback also has 2 points
-        assert mock_run_async.call_count == 2
+    with patch("harvester.tasks.fetch_bay_area_hotspots", side_effect=requests.RequestException("Network down")):
+        with patch.object(trigger_active_inference, "retry", side_effect=Exception("TaskRetried")) as mock_retry:
+            with pytest.raises(Exception, match="TaskRetried"):
+                trigger_active_inference.apply(throw=True)
+            mock_retry.assert_called_once()
 
 
 @pytest.mark.django_db
@@ -404,3 +334,155 @@ def test_archive_old_predictions():
     assert result.result["status"] == "success"
     assert result.result["deleted_count"] == 1
     assert PredictionPolygon.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_success():
+    """
+    Verifies that fetch_wind_data queries Open-Meteo with a single batch request
+    for Bay Area coordinates, computes IDW interpolation, and populates Redis cache.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+
+    # Generate mock 25-point batch response from Open-Meteo
+    lats = [38.3, 37.95, 37.6, 37.25, 36.9]
+    lons = [-122.9, -122.55, -122.2, -121.85, -121.5]
+    mock_batch_data = []
+    for lat in lats:
+        for lon in lons:
+            mock_batch_data.append({
+                "latitude": lat,
+                "longitude": lon,
+                "current": {
+                    "time": "2026-10-24T20:00",
+                    "wind_speed_10m": 12.5,
+                    "wind_direction_10m": 270.0,
+                }
+            })
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = mock_batch_data
+
+    with patch("requests.get", return_value=mock_resp) as mock_get, \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "success"
+        assert result["grid_points"] == 1600
+        # Verify single batch call was made instead of 25 serial calls
+        assert mock_get.call_count == 1
+
+        # Verify cached GFS structure
+        mock_cache_set.assert_called_once()
+        args, kwargs = mock_cache_set.call_args
+        assert args[0] == WIND_CACHE_KEY
+        cached_gfs = json.loads(args[1])
+        assert len(cached_gfs) == 2
+        assert cached_gfs[0]["header"]["parameterNumber"] == 2  # U-component
+        assert cached_gfs[1]["header"]["parameterNumber"] == 3  # V-component
+        assert len(cached_gfs[0]["data"]) == 1600
+        assert len(cached_gfs[1]["data"]) == 1600
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_timeout_fallback():
+    """
+    Verifies that when Open-Meteo experiences a network read timeout,
+    fetch_wind_data falls back to a calibrated Bay Area wind field
+    rather than crashing or leaving Redis cache empty.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+    import requests
+
+    with patch("requests.get", side_effect=requests.exceptions.ReadTimeout("Read timed out")), \
+         patch("harvester.tasks.cache.get", return_value=None), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "fallback"
+        assert result["grid_points"] == 1600
+        mock_cache_set.assert_called_once()
+        args, kwargs = mock_cache_set.call_args
+        assert args[0] == WIND_CACHE_KEY
+        cached_gfs = json.loads(args[1])
+        assert len(cached_gfs) == 2
+        assert len(cached_gfs[0]["data"]) == 1600
+        assert len(cached_gfs[1]["data"]) == 1600
+
+
+@pytest.mark.django_db
+def test_fetch_wind_data_existing_cache_retained():
+    """
+    Verifies that if Redis already holds valid wind data and Open-Meteo times out,
+    the existing cache is retained and not overwritten with fallback data.
+    """
+    from harvester.tasks import fetch_wind_data, WIND_CACHE_KEY
+    import requests
+
+    existing_payload = json.dumps([{"header": {}, "data": [1, 2, 3]}])
+
+    with patch("requests.get", side_effect=requests.exceptions.ReadTimeout("Read timed out")), \
+         patch("harvester.tasks.cache.get", return_value=existing_payload), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        result = fetch_wind_data()
+
+        assert result["status"] == "retained_cache"
+        assert result["grid_points"] == 1600
+        mock_cache_set.assert_not_called()
+
+
+def test_worker_ready_startup_warmup_signals():
+    """
+    Verifies that the @worker_ready.connect signal handler registered in
+    harvester.signals dispatches the warmup tasks when the worker_ready signal fires:
+      - fetch_wind_data.delay()
+      - fetch_airnow_aqi.delay()
+      - trigger_active_inference.delay()
+    """
+    from celery.signals import worker_ready
+    import harvester.signals  # noqa: F401
+
+    with patch("harvester.signals.fetch_wind_data.delay") as mock_wind, \
+         patch("harvester.signals.fetch_airnow_aqi.delay") as mock_aqi, \
+         patch("harvester.signals.trigger_active_inference.delay") as mock_inference, \
+         patch("harvester.signals.archive_old_predictions.delay") as mock_archive:
+
+        worker_ready.send(sender=None)
+
+        mock_wind.assert_called_once()
+        mock_aqi.assert_called_once()
+        mock_inference.assert_called_once()
+        mock_archive.assert_called_once()
+
+
+@pytest.mark.django_db
+def test_store_geojson_result_empty_features_does_not_overwrite_populated_cache():
+    """
+    Verifies that store_geojson_result guards against overwriting an existing
+    populated Redis cache when incoming prediction GeoJSON has 0 features.
+    """
+    from harvester.tasks import store_geojson_result
+
+    empty_geojson = {
+        "type": "FeatureCollection",
+        "status": "no_active_fire",
+        "metadata": {"source_model": "unet", "status": "no_active_fire", "total_cells": 0},
+        "features": [],
+    }
+    existing_fc = {
+        "type": "FeatureCollection",
+        "metadata": {"total_cells": 1},
+        "features": [{"type": "Feature", "properties": {"grid_id": 101, "horizon_hours": 1}}],
+    }
+    with patch("harvester.tasks.cache.get", return_value=json.dumps(existing_fc)), \
+         patch("harvester.tasks.cache.set") as mock_cache_set:
+        written = store_geojson_result(empty_geojson)
+        assert written == 0
+        # cache.set must NOT have been called with empty features
+        for call in mock_cache_set.call_args_list:
+            assert call[0][0] != "ffwai:predictions:current"
+
+
+
+

@@ -1,0 +1,40 @@
+{
+ "created_utc": "2026-09-30T02:37:24+00:00",
+ "model_version": "unet-goes-h1-v1",
+ "horizon_hours": 1,
+ "target": "calibrated P(GOES fire detection in 1 km cell within the next 1 h)",
+ "train_fires": [
+  "ANTELOPE_2021",
+  "AUGUST_COMPLEX_2020",
+  "CALDOR_2021",
+  "CASTLE_2020",
+  "CREEK_2020",
+  "DIXIE_2021",
+  "HAYPRESS_2021",
+  "HENNESSEY_2020",
+  "KINCADE_2019",
+  "MCFARLAND_2021",
+  "MONUMENT_2021",
+  "NORTH_COMPLEX_2020",
+  "SCU_LIGHTNING_COMPLEX_2020",
+  "WALKER_2019",
+  "WILDCAT_2022"
+ ],
+ "val_fires": [
+  "MCKINNEY_2022",
+  "CAMPBELL_2022",
+  "FAIRVIEW_2022"
+ ],
+ "test_fires": [
+  "MOSQUITO_2022",
+  "YORK_2023",
+  "KELLY_2023",
+  "MOSQUITO_2023",
+  "CASTLE_RIDGE_2024"
+ ],
+ "test_new_fire_pr_auc": 0.09948219197578564,
+ "sources": {
+  "fire": "GOES-17/18 FDCC",
+  "weather": "RTMA (training) / Open-Meteo (live)"
+ }
+}

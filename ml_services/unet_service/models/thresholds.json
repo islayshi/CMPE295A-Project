@@ -1,0 +1,11 @@
+{
+ "mode": "validation",
+ "validation": {
+  "MODERATE_RISK": 0.0055870721116662025,
+  "HIGH_RISK": 0.157753124833107
+ },
+ "fixed": {
+  "MODERATE_RISK": 0.3,
+  "HIGH_RISK": 0.6
+ }
+}

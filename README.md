@@ -100,16 +100,18 @@ cp .env.example .env
 Open `.env` and fill in your local values. Keep `MOCK_INFERENCE=True` during early development.
 
 **3. Start the local infrastructure (Docker):**
-*Context: Docker allows us to run isolated "containers" for PostgreSQL (our database) and Redis (our caching layer) without having to manually install and configure them on your computer.*
+*Context: Docker allows us to run isolated containers for PostgreSQL (PostGIS spatial database), Redis (caching and task queue), and the containerized U-Net and PINN machine learning microservices.*
 ```bash
 docker compose up -d
 docker compose ps
 ```
 **Expected Output:**
 ```
-NAME             IMAGE                    COMMAND                  SERVICE   STATUS                  PORTS
-ffwai_postgres   postgis/postgis:16-3.4   "docker-entrypoint.s..." db        Up (healthy)            0.0.0.0:5432->5432/tcp
-ffwai_redis      redis:7-alpine           "docker-entrypoint.s..." redis     Up (healthy)            0.0.0.0:6379->6379/tcp
+NAME                 IMAGE                           COMMAND                  SERVICE        STATUS                  PORTS
+ffwai_postgres       postgis/postgis:16-3.4          "docker-entrypoint.s..." db             Up (healthy)            0.0.0.0:5432->5432/tcp
+ffwai_redis          redis:7-alpine                  "docker-entrypoint.s..." redis          Up (healthy)            0.0.0.0:6379->6379/tcp
+ffwai_unet_service   cmpe295a-project-unet-service   "/bin/sh -c 'exec uv..." unet-service   Up                      0.0.0.0:8081->8081/tcp
+ffwai_pinn_service   cmpe295a-project-pinn-service   "sh -c 'python serve..." pinn-service   Up (healthy)            0.0.0.0:8082->8082/tcp
 ```
 
 **4. Create a virtual environment and install dependencies:**
@@ -174,35 +176,87 @@ export GEOS_LIBRARY_PATH="/usr/local/opt/geos/lib/libgeos_c.dylib"
 
 ## Running Locally
 
-We have provided an automated script that starts Docker and opens all five required terminal windows on macOS.
+We have provided automated scripts within [`scripts/`](file:///Users/earlpadron/Desktop/Spring%202026%20Courses/CMPE%20295A/CMPE295A-Project/scripts/) to automate the entire stack (Docker microservices, telemetry cache warmup, Celery task queue, FastAPI ML Adapter, Django REST backend, and Vite React UI) in one click.
+
+### Developer Scripts Overview
+
+* **[`scripts/seed_cache.py`](file:///Users/earlpadron/Desktop/Spring%202026%20Courses/CMPE%20295A/CMPE295A-Project/scripts/seed_cache.py):**
+  * Fetches live wind telemetry from Open-Meteo and builds the 1,600-point vector grid in Redis (`ffwai:wind_current`).
+  * Fetches live AQI stations from AirNow into Redis (`ffwai:aqi_data`).
+  * Runs the NASA FIRMS VIIRS 375m Active Fire Scout (`trigger_active_inference`).
+  * Dispatches live inference to the containerized U-Net (port 8081) and PINN (port 8082) via the ML Adapter, pre-populating fire prediction polygons across all 5 horizons (`0h`, `+1h`, `+3h`, `+6h`, and `24h`) for **U-Net**, **PINN**, and **Ensemble**.
+* **[`scripts/run_local.sh`](file:///Users/earlpadron/Desktop/Spring%202026%20Courses/CMPE%20295A/CMPE295A-Project/scripts/run_local.sh):**
+  * Starts Docker containers (`docker compose up -d` for PostGIS, Redis, U-Net, and PINN).
+  * Runs `scripts/seed_cache.py` so the cache and PostGIS database are immediately warm on launch.
+  * Spawns all 5 components in dedicated Terminal windows:
+    * **Terminal 1:** Django REST Backend (`python manage.py runserver 8000`)
+    * **Terminal 2:** Celery Worker (`celery -A core worker -l info --pool=solo`)
+    * **Terminal 3:** Celery Beat (`celery -A core beat -l info`)
+    * **Terminal 4:** FastAPI ML Adapter in live mode (`MOCK_INFERENCE=false uvicorn ml_adapter.main:app --port 8001`)
+    * **Terminal 5:** Vite React Frontend (`npm run dev`)
+* **[`scripts/stop_local.sh`](file:///Users/earlpadron/Desktop/Spring%202026%20Courses/CMPE%20295A/CMPE295A-Project/scripts/stop_local.sh):**
+  * Cleanly terminates all processes running on ports 8000, 8001, 5173, shuts down Celery workers, and stops the Docker containers.
+
+---
+
+### Option A: One-Command Automated Launch (Recommended)
+
+In your terminal at the project root, run:
 
 ```bash
 ./scripts/run_local.sh
 ```
 
-**If you prefer to start them manually, open five terminal windows at the project root:**
+This starts all Docker containers, runs `seed_cache.py` to warm up Redis with live telemetry and predictions, and opens the 5 terminal tabs automatically.
 
-1. **Django REST API:** `cd backend && source ../.venv/bin/activate && python manage.py runserver`
-2. **Celery Worker:** `cd backend && source ../.venv/bin/activate && celery -A core worker -l info --pool=solo`
-3. **React Frontend:** `cd frontend && npm run dev`
-4. **FastAPI ML Adapter:** `cd ml_adapter && source ../.venv/bin/activate && uvicorn main:app --port 8001 --reload`
-5. **Celery Beat:** `cd backend && source ../.venv/bin/activate && celery -A core beat -l info`
-
-### Triggering Mock Inference
-If `MOCK_INFERENCE=True` is set in your `.env` file, you can manually trigger the Celery pipeline to fetch the mock GeoJSON fire polygons and send them to the frontend UI. 
-
-Open a new terminal window at the project root and run:
+To shut down all services and containers when done:
 ```bash
-source .venv/bin/activate
-cd backend
-python manage.py shell
+./scripts/stop_local.sh
 ```
-Inside the interactive Python shell, execute:
-```python
-from harvester.tasks import trigger_mock_inference
-trigger_mock_inference()
+
+---
+
+### Option B: Manual Terminal Execution
+
+If you prefer to start each service manually in separate terminal windows:
+
+```bash
+# 1. Start Docker Containers (Postgres, Redis, U-Net, PINN)
+docker compose up -d
+
+# 2. Warm up Redis cache & PostGIS predictions
+./.venv/bin/python scripts/seed_cache.py
+
+# 3. Terminal 1: Django Backend (port 8000)
+source .venv/bin/activate && cd backend && python manage.py runserver 8000
+
+# 4. Terminal 2: Celery Worker
+source .venv/bin/activate && export PYTHONPATH=backend:ml_adapter:ml_services/unet_service && cd backend && celery -A core worker -l info --pool=solo
+
+# 5. Terminal 3: Celery Beat Scheduler
+source .venv/bin/activate && cd backend && celery -A core beat -l info
+
+# 6. Terminal 4: FastAPI ML Adapter (Live Docker mode)
+source .venv/bin/activate && export PYTHONPATH=backend:ml_adapter:ml_services/unet_service && MOCK_INFERENCE=false uvicorn ml_adapter.main:app --port 8001 --reload
+
+# 7. Terminal 5: Vite React Frontend (port 5173)
+cd frontend && npm run dev
 ```
-The polygons should immediately render on the Mapbox frontend (http://localhost:5173/) and you can interact with the time scrubber to view the +1, +3, +6, and +24 hour predictions!
+
+---
+
+### Testing Live Satellite Mode vs. Mock Demonstration Mode
+
+You can control whether the application runs in **Live Satellite Mode** or **Mock Demonstration Mode** via the `MOCK_INFERENCE` setting in `.env`:
+
+* **Live Satellite Mode (`MOCK_INFERENCE=False`)**:
+  * Real-time NASA FIRMS VIIRS 375m scout + NOAA GOES-18 satellite feeds from AWS S3.
+  * Dispatches to live Docker containers (`ffwai_unet_service` on 8081, `ffwai_pinn_service` on 8082).
+  * If no natural wildfires are active in the Bay Area today, the map displays zero fire polygons (clean satellite conditions).
+* **Mock Demonstration Mode (`MOCK_INFERENCE=True`)**:
+  * Serves calibrated historical wildfire spread fixtures (Santa Cruz Mountains) across all 5 horizons (`0h`, `+1h`, `+3h`, `+6h`, `+24h`).
+  * Used for frontend UI/UX evaluation and demonstration of the Model Selector (U-Net vs. PINN vs. Ensemble) without waiting for real-world fire events.
+  * To activate: set `MOCK_INFERENCE=True` in `.env` and re-run `./.venv/bin/python scripts/seed_cache.py`.
 
 
 ---
