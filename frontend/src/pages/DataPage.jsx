@@ -14,6 +14,8 @@ import GridmetPanel from '../components/GridmetPanel';
 import NdwsPanel from '../components/NDWSPanel';
 import GpwPanel from '../components/GpwPanel';
 import ViirsPanel from '../components/ViirsPanel';
+import UsgsPanel from '../components/UsgsPanel';
+import RtmaPanel from '../components/RtmaPanel';  
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -23,10 +25,12 @@ const categories = [
   'Topography & Fuel Beds',
   'EPA AirNow / Open-Meteo',
   'MTBS Burn Severity',
-  'GRIDMET Fire Weather Surface Meteorology',
+  'GRIDMET Fire Weather Surface Meteorology + GRIDMET DROUGHT',
   'NDWS Benchmark Tensor Layers',
   'GPW Population Density',
   'Viirs NDVI (VNP13A1)',
+  'USGS 30m Terrain & Topography',
+  'RTMA'
 ];
 
 const bayAreaStations = [
@@ -357,6 +361,13 @@ const DataPage = () => {
             </p>
             <ViirsPanel />
           </div>
+        ) : selectedCategory === 'USGS 30m Terrain & Topography' ? (
+          <UsgsPanel />
+        ) : selectedCategory === 'RTMA' ? (
+          <RtmaPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDatasets.map((data) => (
