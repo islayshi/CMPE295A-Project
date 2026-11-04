@@ -16,6 +16,7 @@ import GpwPanel from '../components/GpwPanel';
 import ViirsPanel from '../components/ViirsPanel';
 import UsgsPanel from '../components/UsgsPanel';
 import RtmaPanel from '../components/RtmaPanel';  
+import PalisadesTimelinePanel from '../components/PalisadesTimelinePanel';
 
 const categories = [
   'Remote Sensing/Satellite',
@@ -30,7 +31,8 @@ const categories = [
   'GPW Population Density',
   'Viirs NDVI (VNP13A1)',
   'USGS 30m Terrain & Topography',
-  'RTMA'
+  'RTMA',
+  'Palisades Event Data',
 ];
 
 const bayAreaStations = [
@@ -336,7 +338,7 @@ const DataPage = () => {
           />
         ) : selectedCategory === 'MTBS Burn Severity' ? (
           <MtbsHistoricalPanel />
-        ) : selectedCategory === 'GRIDMET Fire Weather Surface Meteorology' ? (
+        ) : selectedCategory === 'GRIDMET Fire Weather Surface Meteorology + GRIDMET DROUGHT' ? (
           <GridmetPanel
             selectedDate={selectedDate}
             formatDateString={formatDateString}
@@ -365,6 +367,11 @@ const DataPage = () => {
           <UsgsPanel />
         ) : selectedCategory === 'RTMA' ? (
           <RtmaPanel
+            selectedDate={selectedDate}
+            formatDateString={formatDateString}
+          />
+        ) : selectedCategory === 'Palisades Event Data' ? (
+          <PalisadesTimelinePanel
             selectedDate={selectedDate}
             formatDateString={formatDateString}
           />

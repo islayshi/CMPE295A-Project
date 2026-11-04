@@ -18,6 +18,7 @@ from .views import (
     hotspots_telemetry,
     get_usgs_telemetry,
     get_rtma_telemetry,
+    get_palisades_event_telemetry,
 )
 
 urlpatterns = [
@@ -39,4 +40,5 @@ urlpatterns = [
     path("hotspots/", hotspots_telemetry, name="hotspots-telemetry"),
     path("usgs/", get_usgs_telemetry, name="telemetry-usgs"),
     path("rtma/", get_rtma_telemetry, name="telemetry-rtma"),
+    path("palisades/", get_palisades_event_telemetry, name="telemetry-palisades"),
 ]
