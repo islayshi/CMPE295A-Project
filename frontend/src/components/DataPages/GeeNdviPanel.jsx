@@ -74,7 +74,7 @@ export default function GeeNdviPanel({ selectedDate, setSelectedDate, formatDate
           </p>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10">
+        <div className="flex items-center gap-2 relative z-[1000]">
           <label className="text-sm font-medium text-gray-700">Target Date:</label>
           <DatePicker
             selected={selectedDate}
@@ -82,7 +82,16 @@ export default function GeeNdviPanel({ selectedDate, setSelectedDate, formatDate
             includeDates={availableDates}
             dateFormat="yyyy-MM-dd"
             placeholderText="Select date with data"
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            popperPlacement="bottom-end"
+            popperModifiers={[
+              {
+                name: 'preventOverflow',
+                options: {
+                  rootBoundary: 'viewport',
+                },
+              },
+            ]}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer relative z-[1000]"
           />
         </div>
       </div>
@@ -99,7 +108,7 @@ export default function GeeNdviPanel({ selectedDate, setSelectedDate, formatDate
         </div>
       )}
 
-      <div className="h-[550px] w-full rounded-lg overflow-hidden border border-gray-200 relative">
+      <div className="h-[550px] w-full rounded-lg overflow-hidden border border-gray-200 relative z-0">
         <MapContainer center={[37.6, -122.1]} zoom={9} style={{ height: '100%', width: '100%' }}>
           <LayersControl position="topright">
             <LayersControl.BaseLayer checked name="OpenStreetMap Standard">
