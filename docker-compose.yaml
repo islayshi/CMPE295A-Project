@@ -4,14 +4,11 @@ version: '3.8'
 # Fight Fire With AI — Local Development Docker Compose
 # ============================================================
 # Replicates the GCP production topology locally:
-#   - PostGIS  → replaces Cloud SQL (PostgreSQL + PostGIS)
-#   - Redis    → replaces Memorystore
-#   - backend  → Django REST API (runs with `python manage.py runserver`)
-#
-# Usage:
-#   docker compose up -d        # start all services in background
-#   docker compose down         # stop all services
-#   docker compose logs -f db   # tail postgres logs
+#   - PostGIS      → replaces Cloud SQL (PostgreSQL + PostGIS)
+#   - Redis        → replaces Memorystore
+#   - backend      → Django REST API
+#   - unet-service → U-Net ML model service
+#   - pinn-service → PINN ML model service
 # ============================================================
 
 services:
@@ -23,15 +20,15 @@ services:
     image: postgis/postgis:16-3.4
     container_name: ffwai_postgres
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-ffwai_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ffwai_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,6 +49,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ----------------------------------------------------------
+  # Django Backend API (Port 8000)
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ffwai_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-ffwai_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - REDIS_URL=redis://redis:6379/0
+      - UNET_SERVICE_URL=http://unet-service:8081
+      - PINN_SERVICE_URL=http://pinn-service:8082
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      unet-service:
+        condition: service_started
+      pinn-service:
+        condition: service_started
 
   # ----------------------------------------------------------
   # U-Net Inference Service (Port 8081)

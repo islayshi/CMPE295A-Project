@@ -20,7 +20,8 @@ django-cors-headers>=4.4,<5.0     # CORS for React frontend polling
 # Design Doc §2: PostGIS for spatial queries
 # --------------------------------------------------------------
 psycopg2-binary>=2.9,<3.0         # PostgreSQL driver (binary for Cloud Run)
-GDAL>=3.7                         # Geospatial library — required by GeoDjango
+#In GeoDjango, you do not need GDAL in requirements.txt. Django’s django.contrib.gis uses the system's C-library gdal-bin / libgdal-dev directly via ctypes.
+#GDAL>=3.7                         # Geospatial library — required by GeoDjango
 
 # --------------------------------------------------------------
 # OpenAPI Documentation — NFR-U01
