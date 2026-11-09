@@ -26,3 +26,6 @@ USER app
 EXPOSE 8082
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"AIP_HTTP_PORT\",\"8082\")}/health')"
 CMD ["sh", "-c", "python serve.py --port ${AIP_HTTP_PORT:-8082}"]
+
+# Inside ml_services/ml_pinn_service/Dockerfile
+COPY validation_data /app/data/validation

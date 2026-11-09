@@ -1600,3 +1600,31 @@ def get_firms_available_dates(request):
         'status': 'success',
         'dates': valid_dates
     })
+
+# Note: If running Django locally (python manage.py runserver), use 127.0.0.1.
+# If Django is running inside Docker Compose, use http://unet-service:8081 and http://pinn-service:8082
+UNET_SERVICE_URL = "http://127.0.0.1:8081/api/v1/metrics"
+PINN_SERVICE_URL = "http://127.0.0.1:8082/api/v1/metrics"
+
+@api_view(["GET"])
+def get_model_dashboard_metrics(request):
+    """
+    GET /api/telemetry/models/metrics/?service=unet
+    Proxies metric requests to the respective ML container service.
+    """
+    service = request.GET.get("service", "unet")
+    target_url = UNET_SERVICE_URL if service == "unet" else PINN_SERVICE_URL
+
+    try:
+        res = requests.get(target_url, timeout=5)
+        if res.status_code == 200:
+            return JsonResponse(res.json())
+        return JsonResponse(
+            {"status": "error", "message": f"ML Service returned HTTP {res.status_code}"}, 
+            status=502
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"status": "error", "message": f"Could not connect to ML service: {str(e)}"}, 
+            status=503
+        )

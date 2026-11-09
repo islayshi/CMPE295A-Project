@@ -6,3 +6,6 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8081
 CMD exec uvicorn serve:app --host 0.0.0.0 --port ${AIP_HTTP_PORT:-8081}
+
+# Inside ml_services/unet_service/Dockerfile
+COPY validation_data /app/data/validation

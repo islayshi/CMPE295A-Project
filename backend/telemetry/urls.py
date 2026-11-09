@@ -20,6 +20,7 @@ from .views import (
     get_rtma_telemetry,
     get_palisades_event_telemetry,
     get_firms_available_dates,
+    get_model_dashboard_metrics,
 )
 
 urlpatterns = [
@@ -42,5 +43,6 @@ urlpatterns = [
     path("usgs/", get_usgs_telemetry, name="telemetry-usgs"),
     path("rtma/", get_rtma_telemetry, name="telemetry-rtma"),
     path("palisades/", get_palisades_event_telemetry, name="telemetry-palisades"),
-    path("firms/available-dates/", get_firms_available_dates, name="telemetry-firms-available-dates")
+    path("firms/available-dates/", get_firms_available_dates, name="telemetry-firms-available-dates"),
+    path("models/metrics/", get_model_dashboard_metrics, name="model-metrics"),
 ]

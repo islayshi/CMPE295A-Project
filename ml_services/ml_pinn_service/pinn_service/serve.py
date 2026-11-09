@@ -123,3 +123,54 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
+import numpy as np
+from fastapi import FastAPI, HTTPException
+# Import your inference runner and evaluation data loader
+from inference import run_inference, load_validation_batch
+
+app = FastAPI()
+
+@app.get("/api/v1/metrics")
+def get_live_metrics():
+    """
+    GET /api/v1/metrics
+    Calculates live metrics against the validation dataset batch.
+    """
+    try:
+        # 1. Load validation inputs (X_val) and ground truth masks (y_true)
+        # These are stored inside the container at /app/data/validation or mounted volumes
+        X_val, y_true = load_validation_batch()
+
+        # 2. Run model inference to get raw output logits/probabilities
+        y_pred_probs = run_inference(X_val)
+
+        # 3. Apply binary threshold (0.5) for segmentation
+        y_pred = (y_pred_probs > 0.5).astype(np.uint8)
+        y_true = y_true.astype(np.uint8)
+
+        # 4. Compute Confusion Matrix Elements (Pixel-wise)
+        tp = np.sum((y_pred == 1) & (y_true == 1))
+        fp = np.sum((y_pred == 1) & (y_true == 0))
+        fn = np.sum((y_pred == 0) & (y_true == 1))
+        tn = np.sum((y_pred == 0) & (y_true == 0))
+
+        # 5. Calculate Metrics
+        total_pixels = tp + fp + fn + tn
+        accuracy = (tp + tn) / total_pixels if total_pixels > 0 else 0.0
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+
+        return {
+            "status": "success",
+            "service": "unet-service",
+            "metrics": {
+                "accuracy": round(float(accuracy) * 100, 1),
+                "precision": round(float(precision) * 100, 1),
+                "recall": round(float(recall) * 100, 1),
+                "f1Score": round(float(f1_score) * 100, 1)
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Metrics evaluation failed: {str(e)}")
