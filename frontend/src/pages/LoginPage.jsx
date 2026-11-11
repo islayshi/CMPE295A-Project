@@ -5,7 +5,7 @@ const LoginPage = () => {
 
   {/* TO DELETE LATER THIS IS ONLY TO SEE IF DJANGO AND REACT CAN TALK TO EACH OTHER */}
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/test/')
+    fetch('/api/test/')
         .then(response => response.json())
         .then(data => {
             console.log("Backend connection successful:", data.message);

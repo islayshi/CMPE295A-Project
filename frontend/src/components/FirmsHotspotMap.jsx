@@ -16,7 +16,7 @@ const FirmsHotspotMap = ({ selectedDate, setSelectedDate, formatDateString }) =>
     try {
       const year = dateObj.getFullYear();
       const month = dateObj.getMonth() + 1; // 1-indexed month
-      const res = await fetch(`http://127.0.0.1:8000/api/telemetry/firms/active-dates/?year=${year}&month=${month}`);
+      const res = await fetch(`/api/telemetry/firms/active-dates/?year=${year}&month=${month}`);
       const data = await res.json();
       if (res.ok && data.status === 'success') {
         const dateObjs = data.dates.map((dStr) => new Date(dStr + 'T00:00:00'));
@@ -43,7 +43,7 @@ const FirmsHotspotMap = ({ selectedDate, setSelectedDate, formatDateString }) =>
 
       try {
         const dateStr = formatDateString(selectedDate);
-        let url = `http://127.0.0.1:8000/api/telemetry/firms/?date=${dateStr}`;
+        let url = `/api/telemetry/firms/?date=${dateStr}`;
         if (selectedPassTime) {
           url += `&time=${selectedPassTime}`;
         }

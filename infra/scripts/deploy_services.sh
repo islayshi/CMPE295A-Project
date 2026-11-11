@@ -75,7 +75,13 @@ gcloud run deploy ml-adapter \
 ADAPTER_URL=$(gcloud run services describe ml-adapter --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
 
 # Query Redis host from Terraform outputs or Cloud Memorystore
-REDIS_HOST=$(gcloud redis instances describe ffwai-redis --region="${REGION}" --project="${PROJECT_ID}" --format='value(host)' 2>/dev/null || echo "10.0.1.3")
+REDIS_HOST=$(gcloud redis instances describe ffwai-redis --region="${REGION}" --project="${PROJECT_ID}" --format='value(host)' 2>/dev/null || echo "10.178.96.131")
+
+# Query Cloud SQL private IP and instance name
+DB_INSTANCE=$(gcloud sql instances list --project="${PROJECT_ID}" --format='value(name)' 2>/dev/null | grep ffwai-postgres | head -n1 || echo "ffwai-postgres-7764938b")
+DB_HOST=$(gcloud sql instances describe "${DB_INSTANCE}" --project="${PROJECT_ID}" --format='value(ipAddresses[0].ipAddress)' 2>/dev/null || echo "10.178.0.5")
+
+echo "==> Using Database Host: ${DB_HOST} (${DB_INSTANCE}) and Redis: ${REDIS_HOST}"
 
 echo "==> 4. Deploying Django REST API Backend..."
 gcloud run deploy django-backend \
@@ -89,7 +95,7 @@ gcloud run deploy django-backend \
     --vpc-egress=private-ranges-only \
     --service-account="sa-django-backend@${PROJECT_ID}.iam.gserviceaccount.com" \
     --set-secrets="DB_PASSWORD=ffwai-db-password:latest,SECRET_KEY=django-secret-key:latest,FIRMS_MAP_KEY=firms-map-key:latest" \
-    --set-env-vars="DEBUG=False,ALLOWED_HOSTS=*,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,ML_ADAPTER_URL=${ADAPTER_URL}" \
+    --set-env-vars="DEBUG=False,ALLOWED_HOSTS=*,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
     --min-instances=0 \
     --max-instances=5 \
     --port=8000 \
@@ -103,19 +109,39 @@ gcloud run deploy celery-worker \
     --image="${REGISTRY}/django-backend:${TAG}" \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
+    --ingress=internal \
+    --no-allow-unauthenticated \
     --no-cpu-throttling \
     --network="${NETWORK}" \
     --subnet="${SUBNET}" \
     --vpc-egress=private-ranges-only \
     --service-account="sa-celery-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
     --set-secrets="DB_PASSWORD=ffwai-db-password:latest,SECRET_KEY=django-secret-key:latest,FIRMS_MAP_KEY=firms-map-key:latest" \
-    --set-env-vars="DEBUG=False,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,ML_ADAPTER_URL=${ADAPTER_URL}" \
-    --command="celery" \
-    --args="-A,core,worker,-l,info,--concurrency=2" \
+    --set-env-vars="DEBUG=False,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
+    --command="python" \
+    --args="run_celery_worker.py" \
+    --port=8080 \
     --min-instances=1 \
     --max-instances=3 \
     --memory=2Gi \
     --cpu=1
+
+echo "==> 6. Updating Cloud Scheduler jobs with Django Backend URL..."
+gcloud scheduler jobs update http ffwai-daily-inference-trigger \
+    --project="${PROJECT_ID}" \
+    --location="${REGION}" \
+    --uri="${DJANGO_URL}/api/telemetry/harvest/trigger/" \
+    --oidc-service-account-email="sa-cloud-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --oidc-token-audience="${DJANGO_URL}" \
+    --quiet || true
+
+gcloud scheduler jobs update http ffwai-active-fire-scout-trigger \
+    --project="${PROJECT_ID}" \
+    --location="${REGION}" \
+    --uri="${DJANGO_URL}/api/telemetry/scout/trigger/" \
+    --oidc-service-account-email="sa-cloud-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --oidc-token-audience="${DJANGO_URL}" \
+    --quiet || true
 
 echo "=============================================================================="
 echo "Deployment Complete!"

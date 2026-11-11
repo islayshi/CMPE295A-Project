@@ -105,3 +105,44 @@ def test_hotspots_telemetry_with_cached_list(api_client):
         assert data["features"][0]["properties"]["frp"] == 18.0
 
 
+@patch("harvester.tasks.trigger_daily_inference.delay")
+def test_trigger_harvest_endpoint(mock_delay, api_client):
+    """POST /api/telemetry/harvest/trigger/ queues daily inference task."""
+    class DummyTask:
+        id = "dummy-harvest-task-123"
+
+    mock_delay.return_value = DummyTask()
+    response = api_client.post("/api/telemetry/harvest/trigger/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "dummy-harvest-task-123"
+    assert data["pipeline"] == "daily_harvest"
+    mock_delay.assert_called_once()
+
+
+@patch("harvester.tasks.trigger_active_inference.delay")
+def test_trigger_scout_endpoint(mock_delay, api_client):
+    """POST /api/telemetry/scout/trigger/ queues active fire scout task."""
+    class DummyTask:
+        id = "dummy-scout-task-456"
+
+    mock_delay.return_value = DummyTask()
+    response = api_client.post("/api/telemetry/scout/trigger/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "dummy-scout-task-456"
+    assert data["pipeline"] == "firms_scout"
+    mock_delay.assert_called_once()
+
+
+def test_trigger_endpoints_method_not_allowed(api_client):
+    """GET /api/telemetry/harvest/trigger/ returns 405 Method Not Allowed."""
+    response = api_client.get("/api/telemetry/harvest/trigger/")
+    assert response.status_code == 405
+    response = api_client.get("/api/telemetry/scout/trigger/")
+    assert response.status_code == 405
+
+
+

@@ -32,12 +32,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from ml_adapter.services_client import (
-    call_unet,
-    call_pinn,
-    combine_ensemble_features,
-    probe_services_health,
-)
+try:
+    from ml_adapter.services_client import (
+        call_unet,
+        call_pinn,
+        combine_ensemble_features,
+        probe_services_health,
+    )
+except (ImportError, ModuleNotFoundError):
+    from services_client import (
+        call_unet,
+        call_pinn,
+        combine_ensemble_features,
+        probe_services_health,
+    )
 
 logger = logging.getLogger(__name__)
 

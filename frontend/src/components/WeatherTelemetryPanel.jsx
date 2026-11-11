@@ -16,7 +16,7 @@ const WeatherTelemetryPanel = ({ selectedDate, formatDateString }) => {
 
       try {
         const dateStr = formatDateString(activeDate);
-        const res = await fetch(`http://127.0.0.1:8000/api/telemetry/weather/?date=${dateStr}`);
+        const res = await fetch(`/api/telemetry/weather/?date=${dateStr}`);
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {

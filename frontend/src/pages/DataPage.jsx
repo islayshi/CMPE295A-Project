@@ -93,7 +93,7 @@ const DataPage = () => {
   useEffect(() => {
     const fetchAvailableDates = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/telemetry/gee/available-dates/');
+        const res = await fetch('/api/telemetry/gee/available-dates/');
         const data = await res.json();
         if (res.ok && data.status === 'success') {
           const dateObjects = data.dates.map(dateStr => new Date(dateStr + 'T00:00:00'));
@@ -123,7 +123,7 @@ const DataPage = () => {
         const startDate = new Date(selectedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
         const startDateStr = formatDateString(startDate);
 
-        const url = `http://127.0.0.1:8000/api/telemetry/gee/ndvi-tile/?start_date=${startDateStr}&end_date=${dateStr}`;
+        const url = `/api/telemetry/gee/ndvi-tile/?start_date=${startDateStr}&end_date=${dateStr}`;
         
         const res = await fetch(url);
         const data = await res.json();

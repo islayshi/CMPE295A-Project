@@ -47,9 +47,9 @@ USER django
 
 EXPOSE 8000
 
-# Health check probing Django telemetry endpoint
+# Health check probing Django health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/api/telemetry/health/ || exit 1
+    CMD curl -f http://localhost:${PORT}/api/health/ || exit 1
 
 # Default entrypoint for Cloud Run HTTP service
 CMD exec gunicorn core.wsgi:application \

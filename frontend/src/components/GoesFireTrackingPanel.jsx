@@ -18,7 +18,7 @@ const GoesFireTrackingPanel = ({ selectedDate, formatDateString }) => {
 
       try {
         const dateStr = formatDateString(activeDate);
-        const res = await fetch(`http://127.0.0.1:8000/api/telemetry/goes/?date=${dateStr}&channel=${channel}`);
+        const res = await fetch(`/api/telemetry/goes/?date=${dateStr}&channel=${channel}`);
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {

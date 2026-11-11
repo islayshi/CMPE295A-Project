@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.gitignore
+.venv
+venv/
+node_modules/
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+celerybeat-schedule*
+*.sqlite3
+dump.rdb

@@ -38,8 +38,9 @@ __pycache__/
 media/
 staticfiles/
 
-# Docker
-*.tar
+# Firebase
+.firebase/
+
 
 # Environment secrets — NEVER commit
 .env

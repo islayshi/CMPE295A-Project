@@ -8,7 +8,8 @@ import os
 import ee
 from pathlib import Path
 from datetime import datetime, timedelta, date
-from datetime import datetime, timedelta, timezone
+import sys
+from django.utils import timezone as django_tz
 from django.conf import settings
 from django.http import JsonResponse
 from django.core.cache import cache
@@ -30,12 +31,13 @@ FIRMS_HOTSPOTS_CACHE_KEY = "ffwai:telemetry:firms_hotspots"
 # --- Earth Engine Initialization ---
 SERVICE_ACCOUNT_FILE = settings.BASE_DIR / 'gee_service_account.json'
 
-try:
-    credentials = ee.ServiceAccountCredentials(key_file=str(SERVICE_ACCOUNT_FILE))
-    ee.Initialize(credentials)
-    logger.info("Google Earth Engine initialized successfully in telemetry app.")
-except Exception as e:
-    logger.warning(f"GEE Initialization Warning: {e}")
+if "pytest" not in sys.modules and not any("test" in arg for arg in sys.argv):
+    try:
+        credentials = ee.ServiceAccountCredentials(key_file=str(SERVICE_ACCOUNT_FILE))
+        ee.Initialize(credentials)
+        logger.info("Google Earth Engine initialized successfully in telemetry app.")
+    except Exception as e:
+        logger.warning(f"GEE Initialization Warning: {e}")
 
 
 @api_view(["GET"])
@@ -1435,4 +1437,38 @@ def get_palisades_event_telemetry(request):
             "gis_sources": "CAL FIRE GIS, NASA FIRMS, USGS SRTM, NOAA RTMA",
             "timeline": timeline
         }
+    })
+
+
+@api_view(["POST"])
+def trigger_harvest(request):
+    """
+    POST /api/telemetry/harvest/trigger/
+    Triggered by Cloud Scheduler to dispatch the daily data harvest and ML pipeline.
+    """
+    from harvester.tasks import trigger_daily_inference
+    logger.info("Received Cloud Scheduler trigger for daily harvest.")
+    task = trigger_daily_inference.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "daily_harvest",
+        "timestamp": django_tz.now().isoformat(),
+    })
+
+
+@api_view(["POST"])
+def trigger_scout(request):
+    """
+    POST /api/telemetry/scout/trigger/
+    Triggered by Cloud Scheduler to dispatch the active wildfire hotspot scout.
+    """
+    from harvester.tasks import trigger_active_inference
+    logger.info("Received Cloud Scheduler trigger for FIRMS active fire scout.")
+    task = trigger_active_inference.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "firms_scout",
+        "timestamp": django_tz.now().isoformat(),
     })

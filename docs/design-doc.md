@@ -358,20 +358,34 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 
 ### 13.1 Infrastructure Architecture
 - **Containerization:** All operational workloads (Django REST API, FastAPI ML Adapter, U-Net, PIML, Celery Workers) are containerized using **Docker** and managed via `docker-compose` for local parity.
-- **Cloud Provider:** Deployed on **Google Cloud Platform (GCP)** using a cost-optimized, serverless architecture:
-  - **Backend API:** Django REST API hosted on **Cloud Run** (serverless, scales to zero at $0 idle cost). Connects to private VPC resources via **Direct VPC Egress** (`--network=ffwai-vpc --subnet=ffwai-subnet --vpc-egress=private-ranges-only`).
-  - **ML Adapter:** FastAPI hosted on **Cloud Run** (internal ingress only, coordinating U-Net and PIML microservices).
-  - **ML Model Microservices:** Standalone **Cloud Run** microservices for U-Net (port 8081) and PIML (port 8082) with scale-to-zero capability.
-  - **Database:** **Cloud SQL** for PostgreSQL 16 with PostGIS extension enabled, exposed strictly via private RFC 1918 VPC peering.
-  - **Cache & Task Broker:** **Memorystore for Redis 7.0** on private VPC peering for Celery queues and 30-minute GeoJSON cache.
+- **Cloud Provider:** Deployed on **Google Cloud Platform (GCP)** under project `ffwai-prod` (region `us-central1`) using a cost-optimized, serverless architecture:
+  - **Frontend Distribution:** Static React 19 SPA hosted on **Firebase Hosting** (`https://ffwai-prod.web.app`) with global edge CDN, automated SSL, and `/api/**` URL rewrites to Cloud Run `django-backend` (eliminating CORS and load balancer costs).
+  - **Backend API:** Django REST API hosted on **Cloud Run** (`https://django-backend-492249904968.us-central1.run.app`) (serverless, scales to zero at $0 idle cost). Connects to private VPC resources via **Direct VPC Egress** (`--network=ffwai-vpc --subnet=ffwai-subnet --vpc-egress=private-ranges-only`).
+  - **Background Worker:** Celery Worker Consumer running on **Cloud Run** (`celery-worker`). Uses a custom unprivileged runner (`run_celery_worker.py`) that manages the Celery worker process (`celery -A core worker -l INFO -c 2`) alongside an embedded daemon HTTP health server on `$PORT` to satisfy Cloud Run startup and liveness probes. Connected to Redis via Direct VPC Egress with result persistence (`CELERY_RESULT_BACKEND`).
+  - **Scheduled Triggers:** **Google Cloud Scheduler** dispatching authenticated HTTPS POST requests via OIDC to trigger daily harvests (`ffwai-daily-inference-trigger` at 06:00 UTC targeting `/api/telemetry/harvest/trigger/`) and active wildfire scouting (`ffwai-active-fire-scout-trigger` every 30m targeting `/api/telemetry/scout/trigger/`), replacing continuous Celery Beat VM instances.
+  - **ML Adapter:** FastAPI hosted on **Cloud Run** (`https://ml-adapter-492249904968.us-central1.run.app`) coordinating U-Net and PIML microservices.
+  - **ML Model Microservices:** Standalone **Cloud Run** microservices for U-Net (`https://unet-service-492249904968.us-central1.run.app` on port 8081) and PIML (`https://piml-service-492249904968.us-central1.run.app` on port 8082) with scale-to-zero capability.
+  - **Database:** **Cloud SQL** for PostgreSQL 16 with PostGIS extension enabled (`ffwai-postgres-7764938b` at `10.178.0.5:5432`), exposed strictly via private RFC 1918 VPC peering.
+  - **Cache & Task Broker:** **Memorystore for Redis 7.0** (`ffwai-redis` at `10.178.96.131:6379`) on private VPC peering for Celery queues and 30-minute GeoJSON cache.
   - **Object Storage:** **Google Cloud Storage (GCS)** (`fightfirewai-features-${PROJECT_ID}`) for satellite imagery rasters and feature caches.
-  - **Frontend Distribution:** Static React SPA hosted on **Firebase Hosting** (Spark free tier) with global edge CDN, automated SSL, and `/api/**` URL rewrites to Cloud Run (eliminating CORS and load balancer costs).
-  - **Background Workers:** Celery Worker Consumers running in **Cloud Run Worker Pools** with Direct VPC Egress.
-  - **Scheduled Triggers:** **Google Cloud Scheduler** dispatching authenticated HTTPS POST requests via OIDC to trigger daily harvests (06:00 UTC) and active wildfire scouting (every 30m), replacing continuous Celery Beat VM instances.
   - **Secrets Management:** **Google Cloud Secret Manager** (`SECRET_KEY`, `DB_PASSWORD`, `FIRMS_MAP_KEY`) mounted into containers at runtime.
   - **Satellite Auth:** **Google Earth Engine** authenticated via Application Default Credentials (ADC) attached to Cloud Run Service Accounts (`roles/earthengine.viewer`), eliminating static JSON key files.
 
-### 13.2 Infrastructure as Code & CI/CD Lifecycle
+### 13.2 Production Deployment Registry & Endpoints
+| Component | Service Name / Target | URL / Connection | Status |
+| :--- | :--- | :--- | :--- |
+| **Frontend SPA** | Firebase Hosting (`ffwai-prod`) | `https://ffwai-prod.web.app` | Active / Deployed |
+| **Django Backend API** | Cloud Run (`django-backend`) | `https://django-backend-492249904968.us-central1.run.app` | Active / Healthy |
+| **Celery Worker** | Cloud Run (`celery-worker`) | Internal (`run_celery_worker.py` on `$PORT`) | Active / Healthy |
+| **FastAPI ML Adapter**| Cloud Run (`ml-adapter`) | `https://ml-adapter-492249904968.us-central1.run.app` | Active / Healthy |
+| **U-Net Microservice**| Cloud Run (`unet-service`) | `https://unet-service-492249904968.us-central1.run.app` | Active / Healthy |
+| **PIML Microservice** | Cloud Run (`piml-service`) | `https://piml-service-492249904968.us-central1.run.app` | Active / Healthy |
+| **Cloud SQL PostGIS** | Cloud SQL (`ffwai-postgres-7764938b`)| `10.178.0.5:5432` (VPC Peering) | Active / Healthy |
+| **Memorystore Redis** | Redis 7.0 (`ffwai-redis`) | `10.178.96.131:6379` (VPC Peering) | Active / Healthy |
+| **Daily Inference** | Cloud Scheduler (`ffwai-daily-inference-trigger`)| `0 6 * * * (UTC)` -> `/api/telemetry/harvest/trigger/` | Enabled |
+| **Active Fire Scout** | Cloud Scheduler (`ffwai-active-fire-scout-trigger`)| `*/30 * * * * (UTC)` -> `/api/telemetry/scout/trigger/` | Enabled |
+
+### 13.3 Infrastructure as Code & CI/CD Lifecycle
 - **Infrastructure as Code (IaC):** Modular **Terraform** (`infra/terraform/`) manages foundational stateful resources (VPC, Cloud SQL PostGIS, Memorystore Redis, Secret Manager, Cloud Storage, IAM Service Accounts, Cloud Scheduler) with remote state tracked in GCS (`infra/scripts/bootstrap_gcs_state.sh`).
 - **Database Lifecycle Management:** Run-to-completion **Cloud Run Jobs** executed during deployment:
   1. `migrate-job`: runs `python manage.py migrate`
@@ -381,7 +395,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 - **Continuous Integration (CI):** GitHub Actions triggers on Pull Requests to run `pytest`, `eslint`, and container build validation.
 - **Continuous Deployment (CD):** GitHub Actions / Cloud Build builds container images, pushes to **Google Artifact Registry** (`ffwai-docker-repo`), executes lifecycle Cloud Run Jobs, and rolls out serving revisions to Cloud Run services.
 
-### 13.3 Local Development Stack & Lifecycle Ordering
+### 13.4 Local Development Stack & Lifecycle Ordering
 To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
 1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d --build`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
 2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
