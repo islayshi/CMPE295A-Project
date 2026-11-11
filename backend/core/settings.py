@@ -236,7 +236,7 @@ SPECTACULAR_SETTINGS = {
 # MOCK_INFERENCE=True during Month 1 — returns bay_area_fixture.json
 # MOCK_INFERENCE=False during Month 2 — invokes Vertex AI endpoints
 # ---------------------------------------------------------------------------
-MOCK_INFERENCE = os.environ.get("MOCK_INFERENCE", "True") == "True"
+MOCK_INFERENCE = os.environ.get("MOCK_INFERENCE", "False").lower() == "true"
 ML_ADAPTER_URL = os.environ.get("ML_ADAPTER_URL", "http://localhost:8001")
 
 # GCP Vertex AI — populated by ML team after model deployment (Month 2)

@@ -84,6 +84,7 @@ def trigger_daily_inference(self):
         # Step 1: Harvest environmental data (run in parallel in future)
         fetch_nws_alerts.delay()
         fetch_wind_data.delay()
+        fetch_aqi_data.delay()
         fetch_vegetation_indices.delay()
         fetch_goes18_imagery.delay()
         fetch_viirs_hotspots.delay()
@@ -148,6 +149,24 @@ def _build_feature_payload() -> dict:
     }
 
 
+def _get_oidc_token(target_url: str) -> str | None:
+    """
+    Fetches a Google IAM OIDC ID token for authenticated service-to-service Cloud Run calls.
+    Returns None if running locally without Google ADC or outside GCP.
+    """
+    try:
+        from urllib.parse import urlparse
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+        parsed = urlparse(target_url)
+        audience = f"{parsed.scheme}://{parsed.netloc}"
+        auth_req = google.auth.transport.requests.Request()
+        return google.oauth2.id_token.fetch_id_token(auth_req, audience)
+    except Exception as exc:
+        logger.warning('{"event": "get_oidc_token_failed", "url": "%s", "error": "%s"}', target_url, str(exc))
+        return None
+
+
 def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
     """
     POSTs the feature payload to the FastAPI ML Adapter and returns GeoJSON.
@@ -164,7 +183,11 @@ def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
                 '{"event": "ml_adapter_request", "attempt": %d, "url": "%s"}',
                 attempt, url,
             )
-            response = requests.post(url, json=payload, timeout=120)
+            headers = {"Accept": "application/json"}
+            token = _get_oidc_token(url)
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as exc:
@@ -871,7 +894,11 @@ def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, tim
             payload["seed_points"] = seed_points
         logger.info('{"event": "async_inference_start", "url": "%s", "model_type": "%s", "incident_id": %s}', url, model_type, incident_id)
         
-        response = requests.post(url, json=payload, timeout=120)
+        headers = {"Accept": "application/json"}
+        token = _get_oidc_token(url)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        response = requests.post(url, json=payload, headers=headers, timeout=120)
         response.raise_for_status()
         
         geojson_result = response.json()

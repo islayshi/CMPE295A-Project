@@ -384,6 +384,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 | **Memorystore Redis** | Redis 7.0 (`ffwai-redis`) | `10.178.96.131:6379` (VPC Peering) | Active / Healthy |
 | **Daily Inference** | Cloud Scheduler (`ffwai-daily-inference-trigger`)| `0 6 * * * (UTC)` -> `/api/telemetry/harvest/trigger/` | Enabled |
 | **Active Fire Scout** | Cloud Scheduler (`ffwai-active-fire-scout-trigger`)| `*/30 * * * * (UTC)` -> `/api/telemetry/scout/trigger/` | Enabled |
+| **AQI Telemetry** | Cloud Scheduler (`ffwai-aqi-trigger`)| `*/30 * * * * (UTC)` -> `/api/telemetry/aqi/trigger/` | Enabled |
 
 ### 13.3 Infrastructure as Code & CI/CD Lifecycle
 - **Infrastructure as Code (IaC):** Modular **Terraform** (`infra/terraform/`) manages foundational stateful resources (VPC, Cloud SQL PostGIS, Memorystore Redis, Secret Manager, Cloud Storage, IAM Service Accounts, Cloud Scheduler) with remote state tracked in GCS (`infra/scripts/bootstrap_gcs_state.sh`).

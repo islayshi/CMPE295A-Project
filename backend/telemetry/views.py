@@ -142,7 +142,16 @@ def aqi_data(request):
     if cached:
         return Response(json.loads(cached))
 
-    logger.warning("aqi_data: Redis cache miss — harvester has not populated AQI data yet.")
+    logger.warning("aqi_data: Redis cache miss — executing live fetch to populate cache.")
+    try:
+        from harvester.tasks import fetch_aqi_data
+        fetch_aqi_data.apply()
+        cached = cache.get(AQI_CACHE_KEY)
+        if cached:
+            return Response(json.loads(cached))
+    except Exception as exc:
+        logger.error(f"aqi_data: Self-healing fetch failed: {exc}")
+
     return Response({"aqi": None, "status": "Unavailable", "pm25": None})
 
 
@@ -1472,3 +1481,21 @@ def trigger_scout(request):
         "pipeline": "firms_scout",
         "timestamp": django_tz.now().isoformat(),
     })
+
+
+@api_view(["POST"])
+def trigger_aqi(request):
+    """
+    POST /api/telemetry/aqi/trigger/
+    Triggered by Cloud Scheduler to dispatch the periodic Air Quality Index fetch.
+    """
+    from harvester.tasks import fetch_aqi_data
+    logger.info("Received Cloud Scheduler trigger for periodic AQI fetch.")
+    task = fetch_aqi_data.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "aqi_fetch",
+        "timestamp": django_tz.now().isoformat(),
+    })
+

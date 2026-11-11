@@ -21,11 +21,13 @@ from .views import (
     get_palisades_event_telemetry,
     trigger_harvest,
     trigger_scout,
+    trigger_aqi,
 )
 
 urlpatterns = [
     path("harvest/trigger/", trigger_harvest, name="telemetry-harvest-trigger"),
     path("scout/trigger/", trigger_scout, name="telemetry-scout-trigger"),
+    path("aqi/trigger/", trigger_aqi, name="telemetry-aqi-trigger"),
     path("gee/ndvi-tile/", get_gee_ndvi_tile, name="telemetry-gee-ndvi-tile"),
     path("gee/available-dates/", get_gee_available_dates, name="telemetry-gee-available-dates"),
     path("firms/", get_firms_hotspots, name="telemetry-firms-hotspots"),

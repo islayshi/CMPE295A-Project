@@ -32,7 +32,8 @@ gcloud run deploy unet-service \
     --image="${REGISTRY}/unet-service:${TAG}" \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --ingress=internal \
+    --ingress=all \
+    --no-allow-unauthenticated \
     --service-account="sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
     --min-instances=0 \
     --max-instances=2 \
@@ -47,7 +48,8 @@ gcloud run deploy piml-service \
     --image="${REGISTRY}/piml-service:${TAG}" \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --ingress=internal \
+    --ingress=all \
+    --no-allow-unauthenticated \
     --service-account="sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
     --set-secrets="FIRMS_MAP_KEY=firms-map-key:latest" \
     --min-instances=0 \
@@ -63,9 +65,13 @@ gcloud run deploy ml-adapter \
     --image="${REGISTRY}/ml-adapter:${TAG}" \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --ingress=internal \
+    --ingress=all \
+    --no-allow-unauthenticated \
+    --network="${NETWORK}" \
+    --subnet="${SUBNET}" \
+    --vpc-egress=private-ranges-only \
     --service-account="sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
-    --set-env-vars="UNET_SERVICE_URL=${UNET_URL},PINN_SERVICE_URL=${PIML_URL}" \
+    --set-env-vars="MOCK_INFERENCE=false,UNET_SERVICE_URL=${UNET_URL},PINN_SERVICE_URL=${PIML_URL}" \
     --min-instances=0 \
     --max-instances=3 \
     --port=8001 \
@@ -95,7 +101,7 @@ gcloud run deploy django-backend \
     --vpc-egress=private-ranges-only \
     --service-account="sa-django-backend@${PROJECT_ID}.iam.gserviceaccount.com" \
     --set-secrets="DB_PASSWORD=ffwai-db-password:latest,SECRET_KEY=django-secret-key:latest,FIRMS_MAP_KEY=firms-map-key:latest" \
-    --set-env-vars="DEBUG=False,ALLOWED_HOSTS=*,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
+    --set-env-vars="DEBUG=False,ALLOWED_HOSTS=*,MOCK_INFERENCE=false,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
     --min-instances=0 \
     --max-instances=5 \
     --port=8000 \
@@ -117,7 +123,7 @@ gcloud run deploy celery-worker \
     --vpc-egress=private-ranges-only \
     --service-account="sa-celery-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
     --set-secrets="DB_PASSWORD=ffwai-db-password:latest,SECRET_KEY=django-secret-key:latest,FIRMS_MAP_KEY=firms-map-key:latest" \
-    --set-env-vars="DEBUG=False,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
+    --set-env-vars="DEBUG=False,MOCK_INFERENCE=false,DB_HOST=${DB_HOST},DB_PORT=5432,DB_NAME=ffwai_db,DB_USER=ffwai_user,REDIS_URL=redis://${REDIS_HOST}:6379/0,CELERY_BROKER_URL=redis://${REDIS_HOST}:6379/0,CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:6379/1,ML_ADAPTER_URL=${ADAPTER_URL}" \
     --command="python" \
     --args="run_celery_worker.py" \
     --port=8080 \
@@ -126,7 +132,32 @@ gcloud run deploy celery-worker \
     --memory=2Gi \
     --cpu=1
 
-echo "==> 6. Updating Cloud Scheduler jobs with Django Backend URL..."
+echo "==> 6. Setting inter-service Cloud Run IAM bindings..."
+gcloud run services add-iam-policy-binding ml-adapter \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:sa-celery-worker@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" --quiet || true
+
+gcloud run services add-iam-policy-binding ml-adapter \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:sa-django-backend@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" --quiet || true
+
+gcloud run services add-iam-policy-binding unet-service \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" --quiet || true
+
+gcloud run services add-iam-policy-binding piml-service \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" --quiet || true
+
+echo "==> 7. Updating Cloud Scheduler jobs with Django Backend URL..."
 gcloud scheduler jobs update http ffwai-daily-inference-trigger \
     --project="${PROJECT_ID}" \
     --location="${REGION}" \
@@ -139,6 +170,25 @@ gcloud scheduler jobs update http ffwai-active-fire-scout-trigger \
     --project="${PROJECT_ID}" \
     --location="${REGION}" \
     --uri="${DJANGO_URL}/api/telemetry/scout/trigger/" \
+    --oidc-service-account-email="sa-cloud-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --oidc-token-audience="${DJANGO_URL}" \
+    --quiet || true
+
+gcloud scheduler jobs create http ffwai-aqi-trigger \
+    --project="${PROJECT_ID}" \
+    --location="${REGION}" \
+    --schedule="*/30 * * * *" \
+    --uri="${DJANGO_URL}/api/telemetry/aqi/trigger/" \
+    --http-method=POST \
+    --oidc-service-account-email="sa-cloud-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --oidc-token-audience="${DJANGO_URL}" \
+    --quiet 2>/dev/null || \
+gcloud scheduler jobs update http ffwai-aqi-trigger \
+    --project="${PROJECT_ID}" \
+    --location="${REGION}" \
+    --schedule="*/30 * * * *" \
+    --uri="${DJANGO_URL}/api/telemetry/aqi/trigger/" \
+    --http-method=POST \
     --oidc-service-account-email="sa-cloud-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" \
     --oidc-token-audience="${DJANGO_URL}" \
     --quiet || true
