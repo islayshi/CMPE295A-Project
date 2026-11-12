@@ -396,6 +396,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
 - **Continuous Integration (CI):** `.github/workflows/ci.yaml` triggers on Pull Requests and branch pushes to run `pytest` (backend & ML adapter), ESLint, and frontend production build checks.
 - **Manual Production Deployment Trigger (`workflow_dispatch`):** `.github/workflows/manual_deploy.yaml` provides a controlled, interactive "Run workflow" button in the GitHub repository UI, allowing any authorized team member to trigger deployments directly to GCP project `ffwai-prod`.
   - **Keyless OIDC Authentication:** Leverages **Google Cloud Workload Identity Federation** (`github-actions-pool` / `github-actions-provider`) allowing GitHub Actions to impersonate `sa-github-deployer@ffwai-prod.iam.gserviceaccount.com` without generating or storing long-lived JSON private key files. Configured via `infra/scripts/setup_workload_identity.sh`. Dedicated permissions include:
+    - `roles/viewer`: Project-level viewer permissions required to poll and stream Google Cloud Build execution logs.
     - `roles/run.admin`: Deploy and configure Cloud Run services and jobs.
     - `roles/iam.serviceAccountUser`: Act as runtime service accounts (`sa-django-backend`, `sa-celery-worker`, `sa-ml-services`).
     - `roles/cloudbuild.builds.editor`: Submit container builds to Google Cloud Build.

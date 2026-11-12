@@ -135,6 +135,7 @@ run_cmd gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
 # 7. Grant required deployment roles to the deployer service account
 echo "Step 6: Granting required deployment permissions to $SA_EMAIL..."
 DEPLOYMENT_ROLES=(
+    "roles/viewer"
     "roles/run.admin"
     "roles/iam.serviceAccountUser"
     "roles/artifactregistry.writer"
