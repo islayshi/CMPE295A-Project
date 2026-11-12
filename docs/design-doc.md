@@ -406,6 +406,7 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
     - `roles/firebasehosting.admin`: Deploy the React 19 SPA to Firebase Hosting.
     - `roles/cloudsql.client`: Connect to Cloud SQL PostGIS for migrations.
   - **Modular Component Selector:** Workflow input dropdown allows selective deployment: `all` (default), `frontend` (Firebase Hosting via Application Default Credentials), `backend` (Django REST API & Celery Worker), or `ml` (FastAPI Adapter, U-Net, and PIML microservices).
+  - **Frontend Build Configuration:** Injects `VITE_MAPBOX_ACCESS_TOKEN` directly into Vite's production compilation step (`npm run build`) via GitHub repository secrets, enabling Mapbox GL JS vector basemap tiles to render in production.
   - **Production Quality Gates:** Restricts production rollout strictly to the `main` branch. Executes pre-flight test suites prior to container compilation with an emergency bypass flag (`skip_tests`).
   - **Automated Database Lifecycle:** Runs Cloud Run Job `ffwai-migrate-job` to execute schema migrations against Cloud SQL PostGIS before rolling out backend revisions.
 
