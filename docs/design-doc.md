@@ -395,7 +395,15 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
   Decoupling database lifecycle tasks from container startup eliminates race conditions across autoscaling Cloud Run instances.
 - **Continuous Integration (CI):** `.github/workflows/ci.yaml` triggers on Pull Requests and branch pushes to run `pytest` (backend & ML adapter), ESLint, and frontend production build checks.
 - **Manual Production Deployment Trigger (`workflow_dispatch`):** `.github/workflows/manual_deploy.yaml` provides a controlled, interactive "Run workflow" button in the GitHub repository UI, allowing any authorized team member to trigger deployments directly to GCP project `ffwai-prod`.
-  - **Keyless OIDC Authentication:** Leverages **Google Cloud Workload Identity Federation** (`github-actions-pool` / `github-actions-provider`) allowing GitHub Actions to impersonate `sa-github-deployer@ffwai-prod.iam.gserviceaccount.com` without generating or storing long-lived JSON private key files. Configured via `infra/scripts/setup_workload_identity.sh`.
+  - **Keyless OIDC Authentication:** Leverages **Google Cloud Workload Identity Federation** (`github-actions-pool` / `github-actions-provider`) allowing GitHub Actions to impersonate `sa-github-deployer@ffwai-prod.iam.gserviceaccount.com` without generating or storing long-lived JSON private key files. Configured via `infra/scripts/setup_workload_identity.sh`. Dedicated permissions include:
+    - `roles/run.admin`: Deploy and configure Cloud Run services and jobs.
+    - `roles/iam.serviceAccountUser`: Act as runtime service accounts (`sa-django-backend`, `sa-celery-worker`, `sa-ml-services`).
+    - `roles/cloudbuild.builds.editor`: Submit container builds to Google Cloud Build.
+    - `roles/storage.admin`: Read and write source tarballs to the Cloud Build staging bucket (`gs://ffwai-prod_cloudbuild`).
+    - `roles/serviceusage.serviceUsageConsumer`: Consume Cloud Build project service quota.
+    - `roles/artifactregistry.writer`: Push container images into Artifact Registry (`ffwai-docker-repo`).
+    - `roles/firebasehosting.admin`: Deploy the React 19 SPA to Firebase Hosting.
+    - `roles/cloudsql.client`: Connect to Cloud SQL PostGIS for migrations.
   - **Modular Component Selector:** Workflow input dropdown allows selective deployment: `all` (default), `frontend` (Firebase Hosting via Application Default Credentials), `backend` (Django REST API & Celery Worker), or `ml` (FastAPI Adapter, U-Net, and PIML microservices).
   - **Production Quality Gates:** Restricts production rollout strictly to the `main` branch. Executes pre-flight test suites prior to container compilation with an emergency bypass flag (`skip_tests`).
   - **Automated Database Lifecycle:** Runs Cloud Run Job `ffwai-migrate-job` to execute schema migrations against Cloud SQL PostGIS before rolling out backend revisions.
