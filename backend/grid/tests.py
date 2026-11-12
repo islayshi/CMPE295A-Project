@@ -77,6 +77,6 @@ def test_generate_grid_idempotent_when_cells_exist():
     call_command("generate_grid", stdout=out)
     output = out.getvalue()
     assert "already contains" in output or "already populated" in output
-    assert "Skipping generation" in output
+    assert "skipping generation" in output.lower()
 
 
