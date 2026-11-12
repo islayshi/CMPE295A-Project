@@ -39,7 +39,7 @@ const MtbsHistoricalPanel = () => {
 
       try {
         const res = await fetch(
-          `http://127.0.0.1:8000/api/telemetry/mtbs/?year_min=${yearMin}&year_max=${yearMax}`
+          `/api/telemetry/mtbs/?year_min=${yearMin}&year_max=${yearMax}`
         );
         const data = await res.json();
 

@@ -12,7 +12,7 @@ export default function WildfireMap() {
 
   useEffect(() => {
     // Fetch live tile URL template from Django backend
-    fetch('http://127.0.0.1:8000/api/telemetry/gee/ndvi-tile/')
+    fetch('/api/telemetry/gee/ndvi-tile/')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();

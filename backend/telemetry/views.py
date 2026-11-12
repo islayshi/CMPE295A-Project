@@ -8,7 +8,8 @@ import os
 import ee
 from pathlib import Path
 from datetime import datetime, timedelta, date
-from datetime import datetime, timedelta, timezone
+import sys
+from django.utils import timezone as django_tz
 from django.conf import settings
 from django.http import JsonResponse
 from django.core.cache import cache
@@ -31,12 +32,13 @@ FIRMS_HOTSPOTS_CACHE_KEY = "ffwai:telemetry:firms_hotspots"
 # --- Earth Engine Initialization ---
 SERVICE_ACCOUNT_FILE = settings.BASE_DIR / 'gee_service_account.json'
 
-try:
-    credentials = ee.ServiceAccountCredentials(key_file=str(SERVICE_ACCOUNT_FILE))
-    ee.Initialize(credentials)
-    logger.info("Google Earth Engine initialized successfully in telemetry app.")
-except Exception as e:
-    logger.warning(f"GEE Initialization Warning: {e}")
+if "pytest" not in sys.modules and not any("test" in arg for arg in sys.argv):
+    try:
+        credentials = ee.ServiceAccountCredentials(key_file=str(SERVICE_ACCOUNT_FILE))
+        ee.Initialize(credentials)
+        logger.info("Google Earth Engine initialized successfully in telemetry app.")
+    except Exception as e:
+        logger.warning(f"GEE Initialization Warning: {e}")
 
 
 @api_view(["GET"])
@@ -141,7 +143,16 @@ def aqi_data(request):
     if cached:
         return Response(json.loads(cached))
 
-    logger.warning("aqi_data: Redis cache miss — harvester has not populated AQI data yet.")
+    logger.warning("aqi_data: Redis cache miss — executing live fetch to populate cache.")
+    try:
+        from harvester.tasks import fetch_aqi_data
+        fetch_aqi_data.apply()
+        cached = cache.get(AQI_CACHE_KEY)
+        if cached:
+            return Response(json.loads(cached))
+    except Exception as exc:
+        logger.error(f"aqi_data: Self-healing fetch failed: {exc}")
+
     return Response({"aqi": None, "status": "Unavailable", "pm25": None})
 
 
@@ -1523,6 +1534,57 @@ def get_palisades_event_telemetry(request):
         }
     })
 
+@api_view(["POST"])
+def trigger_harvest(request):
+    """
+    POST /api/telemetry/harvest/trigger/
+    Triggered by Cloud Scheduler to dispatch the daily data harvest and ML pipeline.
+    """
+    from harvester.tasks import trigger_daily_inference
+    logger.info("Received Cloud Scheduler trigger for daily harvest.")
+    task = trigger_daily_inference.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "daily_harvest",
+        "timestamp": django_tz.now().isoformat(),
+    })
+
+
+@api_view(["POST"])
+def trigger_scout(request):
+    """
+    POST /api/telemetry/scout/trigger/
+    Triggered by Cloud Scheduler to dispatch the active wildfire hotspot scout.
+    """
+    from harvester.tasks import trigger_active_inference
+    logger.info("Received Cloud Scheduler trigger for FIRMS active fire scout.")
+    task = trigger_active_inference.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "firms_scout",
+        "timestamp": django_tz.now().isoformat(),
+    })
+
+
+@api_view(["POST"])
+def trigger_aqi(request):
+    """
+    POST /api/telemetry/aqi/trigger/
+    Triggered by Cloud Scheduler to dispatch the periodic Air Quality Index fetch.
+    """
+    from harvester.tasks import fetch_aqi_data
+    logger.info("Received Cloud Scheduler trigger for periodic AQI fetch.")
+    task = fetch_aqi_data.delay()
+    return JsonResponse({
+        "status": "queued",
+        "task_id": str(task.id),
+        "pipeline": "aqi_fetch",
+        "timestamp": django_tz.now().isoformat(),
+    })
+
+
 # SF Bay Area Bounding Box: West, South, East, North
 BAY_AREA_BBOX = "-123.1,36.8,-121.5,38.8"
 
@@ -1562,39 +1624,6 @@ def get_firms_available_dates(request):
     # Cache valid dates for 60 minutes (3600 seconds)
     if valid_dates:
         cache.set(cache_key, valid_dates, timeout=3600)
-
-    return JsonResponse({
-        'status': 'success',
-        'dates': valid_dates
-    })
-def get_firms_available_dates(request):
-    """
-    GET /api/telemetry/firms/available-dates/
-    Queries recent dates and returns ONLY dates with at least 1 hotspot inside the SF Bay Area.
-    """
-    valid_dates = []
-    today = datetime.utcnow().date()
-
-    # Cycle backward through the last 30 days to find active Bay Area hotspot dates
-    for days_back in range(30):
-        target_date = (today - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        
-        # FIRMS Area API query with specific date
-        url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{BAY_AREA_BBOX}/1/{target_date}"
-        
-        try:
-            res = requests.get(url, timeout=4)
-            if res.status_code == 200 and res.text.strip():
-                lines = res.text.strip().splitlines()
-                # Check if we have data rows beyond the header
-                if len(lines) > 1:
-                    valid_dates.append(target_date)
-                    # Limit dropdown list to the 10 most recent active sighting dates
-                    if len(valid_dates) >= 10:
-                        break
-        except Exception as e:
-            logger.warning(f"FIRMS date check failed for {target_date}: {e}")
-            continue
 
     return JsonResponse({
         'status': 'success',

@@ -35,19 +35,20 @@ The backend is a modular Django monolith (Cloud Run) paired with a separate Fast
 - **FastAPI:** Lightweight ML Adapter bridging Django to Vertex AI.
 
 ### Infrastructure (GCP)
-- **Cloud Run:** Serverless hosting for Django REST API and FastAPI Adapter.
-- **Compute Engine (e2-micro):** Persistent Celery worker and Beat scheduler.
-- **Cloud SQL (PostgreSQL 16 + PostGIS 3.4):** Spatial database.
-- **Memorystore (Redis 7):** Celery message broker and GeoJSON cache.
-- **Google Cloud Storage (GCS):** Processed feature files and model weights.
-- **Vertex AI:** Managed ML model endpoints (U-Net, PINN, RL Agent).
-- **Google Earth Engine (GEE):** Free academic-tier satellite data access.
+- **Cloud Run:** Serverless compute for Django REST API, FastAPI ML Adapter, and Celery Worker Pools with Direct VPC Egress.
+- **Cloud Scheduler:** Managed cron triggers replacing Celery Beat for daily inference and active fire scouting.
+- **Firebase Hosting:** Global edge CDN and automated SSL with native `/api/**` rewrites to Cloud Run.
+- **Cloud SQL (PostgreSQL 16 + PostGIS 3.4):** Managed spatial database via private RFC 1918 VPC peering.
+- **Memorystore (Redis 7):** In-memory Celery broker and 30-minute GeoJSON cache.
+- **Google Cloud Storage (GCS):** Satellite imagery feature cache (`fightfirewai-features`).
+- **Secret Manager:** Centralized credential management with zero plaintext keys.
+- **Google Earth Engine (GEE):** Satellite data access authenticated via Application Default Credentials (ADC).
 
 ### ML Models
-- **U-Net:** Spatial fire risk segmentation (extends Paper 1).
-- **PINN:** Physics-Informed Neural Network for fire spread.
+- **U-Net:** Spatial fire risk segmentation microservice on Cloud Run (port 8081).
+- **PIML:** Calibrated Physics-Informed Machine Learning fire spread simulation microservice on Cloud Run (port 8082).
 - **RL Agent (DQN/PPO):** Dynamic step-by-step fire progression (extends Paper 2).
-- **Ensemble Combiner:** Cellular Automata Rule 30 majority voting (extends Paper 3).
+- **Ensemble Combiner:** Cellular Automata majority voting (extends Paper 3).
 
 ### Frontend
 - **React 19 + Vite:** Single-page application.
@@ -123,8 +124,10 @@ ffwai_pinn_service   cmpe295a-project-pinn-service   "sh -c 'python serve..." pi
 **5. Run Database Migrations:**
 *Context: "Migrations" are how Django translates our Python code (the data models) into actual SQL tables in the PostgreSQL database. This command applies those changes to the database running inside your Docker container.*
 ```bash
+cd backend
 python manage.py makemigrations
 python manage.py migrate
+cd ..
 ```
 **Expected Output:**
 ```
@@ -140,7 +143,9 @@ Running migrations:
 **6. Generate the Spatial Grid:**
 *Context: This is a custom command we built to divide the San Francisco Bay Area into 1x1 kilometer squares (over 19,000 cells) and store them in the database for spatial analysis.*
 ```bash
+cd backend
 python manage.py generate_grid
+cd ..
 ```
 **Expected Output:**
 ```

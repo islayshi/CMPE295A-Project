@@ -1,0 +1,37 @@
+# ==============================================================================
+# Fight Fire With AI - Terraform Variables Template
+# Copy this file to terraform.tfvars and fill in your project values:
+# cp terraform.tfvars.example terraform.tfvars
+# ==============================================================================
+
+# Required: Google Cloud Project ID
+project_id = "your-gcp-project-id"
+
+# Default region for all resources
+region = "us-central1"
+
+# Environment identifier
+environment = "production"
+
+# Network configuration
+network_name = "ffwai-vpc"
+subnet_cidr  = "10.0.0.0/20"
+
+# Cloud SQL PostgreSQL 16
+db_instance_name = "ffwai-postgres"
+db_instance_tier = "db-custom-2-7680" # Use "db-f1-micro" for low-cost dev testing
+db_name          = "ffwai_db"
+db_user          = "ffwai_user"
+# db_password    = "your-custom-db-password" # Leave empty to auto-generate a secure random password
+
+# Memorystore Redis 7.0
+redis_instance_name  = "ffwai-redis"
+redis_memory_size_gb = 1
+
+# Secrets (Optional here; can be injected via Secret Manager directly)
+# firms_map_key     = "your-nasa-firms-api-key"
+# django_secret_key = "your-django-production-secret-key"
+
+# Cloud Scheduler target (can be updated after initial Cloud Run deploy)
+django_backend_url = "https://placeholder-django-backend-url.run.app"
+

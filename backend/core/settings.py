@@ -161,8 +161,12 @@ if os.environ.get("USE_SPATIALITE") == "1" or "pytest" in sys.modules or any("py
 # Design Doc §1.1 Module 1: Celery Beat daily cron
 # Architecture Guide: Celery is the async task coordinator
 # ---------------------------------------------------------------------------
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND",
+    (REDIS_URL.rsplit("/", 1)[0] + "/1") if "/" in REDIS_URL else "redis://localhost:6379/1"
+)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -232,7 +236,7 @@ SPECTACULAR_SETTINGS = {
 # MOCK_INFERENCE=True during Month 1 — returns bay_area_fixture.json
 # MOCK_INFERENCE=False during Month 2 — invokes Vertex AI endpoints
 # ---------------------------------------------------------------------------
-MOCK_INFERENCE = os.environ.get("MOCK_INFERENCE", "True") == "True"
+MOCK_INFERENCE = os.environ.get("MOCK_INFERENCE", "False").lower() == "true"
 ML_ADAPTER_URL = os.environ.get("ML_ADAPTER_URL", "http://localhost:8001")
 
 # GCP Vertex AI — populated by ML team after model deployment (Month 2)

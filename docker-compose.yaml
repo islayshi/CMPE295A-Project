@@ -85,7 +85,7 @@ services:
     environment:
       AIP_HTTP_PORT: 8082
       INGESTION: ${PINN_INGESTION:-native}
-      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-b4858267b75c999edb2cc1b152881eb0}
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
     ports:
       - "8082:8082"
     restart: unless-stopped

@@ -18,9 +18,11 @@ django-cors-headers>=4.4,<5.0     # CORS for React frontend polling
 # --------------------------------------------------------------
 # GeoDjango + PostGIS (spatial capabilities)
 # Design Doc §2: PostGIS for spatial queries
+# Note: GeoDjango loads the system C libraries (libgdal, libgeos) directly
+# via Python ctypes; the PyPI GDAL Python wrapper is not required and causes
+# native C-library version mismatch build failures across OS platforms.
 # --------------------------------------------------------------
 psycopg2-binary>=2.9,<3.0         # PostgreSQL driver (binary for Cloud Run)
-GDAL>=3.7                         # Geospatial library — required by GeoDjango
 
 # --------------------------------------------------------------
 # OpenAPI Documentation — NFR-U01
@@ -35,7 +37,7 @@ drf-spectacular>=0.27,<1.0
 # --------------------------------------------------------------
 celery>=5.4,<6.0                  # Async task worker
 celery[redis]>=5.4,<6.0           # Redis transport for Celery
-redis>=5.0,<6.0                   # Redis Python client (cache + broker)
+redis>=6.1.0                      # Redis Python client (cache + broker; kombu 5.7+ requires redis >= 6.1.0)
 django-celery-beat>=2.7,<3.0      # Celery Beat cron scheduler in Django admin
 
 # --------------------------------------------------------------

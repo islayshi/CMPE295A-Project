@@ -105,3 +105,90 @@ def test_hotspots_telemetry_with_cached_list(api_client):
         assert data["features"][0]["properties"]["frp"] == 18.0
 
 
+@patch("harvester.tasks.trigger_daily_inference.delay")
+def test_trigger_harvest_endpoint(mock_delay, api_client):
+    """POST /api/telemetry/harvest/trigger/ queues daily inference task."""
+    class DummyTask:
+        id = "dummy-harvest-task-123"
+
+    mock_delay.return_value = DummyTask()
+    response = api_client.post("/api/telemetry/harvest/trigger/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "dummy-harvest-task-123"
+    assert data["pipeline"] == "daily_harvest"
+    mock_delay.assert_called_once()
+
+
+@patch("harvester.tasks.trigger_active_inference.delay")
+def test_trigger_scout_endpoint(mock_delay, api_client):
+    """POST /api/telemetry/scout/trigger/ queues active fire scout task."""
+    class DummyTask:
+        id = "dummy-scout-task-456"
+
+    mock_delay.return_value = DummyTask()
+    response = api_client.post("/api/telemetry/scout/trigger/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "dummy-scout-task-456"
+    assert data["pipeline"] == "firms_scout"
+    mock_delay.assert_called_once()
+
+
+def test_trigger_endpoints_method_not_allowed(api_client):
+    """GET /api/telemetry/harvest/trigger/ returns 405 Method Not Allowed."""
+    response = api_client.get("/api/telemetry/harvest/trigger/")
+    assert response.status_code == 405
+    response = api_client.get("/api/telemetry/scout/trigger/")
+    assert response.status_code == 405
+    response = api_client.get("/api/telemetry/aqi/trigger/")
+    assert response.status_code == 405
+
+
+@patch("harvester.tasks.fetch_aqi_data.delay")
+def test_trigger_aqi_endpoint(mock_delay, api_client):
+    """POST /api/telemetry/aqi/trigger/ queues AQI fetch task."""
+    class DummyTask:
+        id = "dummy-aqi-task-789"
+
+    mock_delay.return_value = DummyTask()
+    response = api_client.post("/api/telemetry/aqi/trigger/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "dummy-aqi-task-789"
+    assert data["pipeline"] == "aqi_fetch"
+    mock_delay.assert_called_once()
+
+
+@patch("harvester.tasks.fetch_aqi_data.apply")
+def test_aqi_data_cache_miss_self_heals(mock_apply, api_client):
+    """GET /api/telemetry/aqi/ self-heals on cache miss by invoking fetch_aqi_data."""
+    from django.core.cache import cache
+    from telemetry.views import AQI_CACHE_KEY
+
+    cache.delete(AQI_CACHE_KEY)
+
+    def side_effect():
+        cache.set(AQI_CACHE_KEY, json.dumps({
+            "aqi": 35,
+            "status": "Good",
+            "pm25": 8.4,
+            "sensors": [{"lat": 37.6688, "lon": -122.0808, "pm25": 8.4}]
+        }), timeout=60 * 35)
+
+    mock_apply.side_effect = side_effect
+
+    response = api_client.get("/api/telemetry/aqi/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["aqi"] == 35
+    assert data["status"] == "Good"
+    assert data["pm25"] == 8.4
+    mock_apply.assert_called_once()
+
+
+
+

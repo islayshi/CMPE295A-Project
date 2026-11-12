@@ -19,12 +19,46 @@ DEFAULT_W_UNET = float(os.getenv("DEFAULT_W_UNET", "0.6"))
 DEFAULT_W_PINN = float(os.getenv("DEFAULT_W_PINN", "0.4"))
 
 
+def _get_oidc_token(target_url: str) -> str | None:
+    """
+    Fetches a Google IAM OIDC ID token for authenticated service-to-service Cloud Run calls.
+    Attempts google-auth library first; falls back to GCP compute metadata server identity endpoint.
+    Returns None if running locally without Google ADC or outside GCP.
+    """
+    from urllib.parse import urlparse
+    parsed = urlparse(target_url)
+    audience = f"{parsed.scheme}://{parsed.netloc}"
+
+    try:
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+        auth_req = google.auth.transport.requests.Request()
+        return google.oauth2.id_token.fetch_id_token(auth_req, audience)
+    except ImportError:
+        try:
+            import urllib.request
+            meta_url = f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={audience}"
+            req = urllib.request.Request(meta_url, headers={"Metadata-Flavor": "Google"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                return resp.read().decode("utf-8").strip()
+        except Exception as meta_exc:
+            logger.warning("Metadata server token fetch failed for %s: %s", audience, meta_exc)
+            return None
+    except Exception as exc:
+        logger.warning("Failed to fetch ID token for %s: %s", audience, exc)
+        return None
+
+
 async def call_inference_service(url: str, payload: dict[str, Any], timeout: float = 120.0) -> dict[str, Any]:
     """Posts a prediction payload to a downstream inference service."""
     predict_endpoint = f"{url.rstrip('/')}/predict"
     logger.info("Calling inference service: %s", predict_endpoint)
+    headers = {"Accept": "application/json"}
+    token = _get_oidc_token(url)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(predict_endpoint, json=payload)
+        response = await client.post(predict_endpoint, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
 
@@ -222,14 +256,22 @@ async def probe_services_health() -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=5.0) as client:
         # Check U-Net
         try:
-            r = await client.get(f"{UNET_SERVICE_URL.rstrip('/')}/health")
+            h_unet = {}
+            t_unet = _get_oidc_token(UNET_SERVICE_URL)
+            if t_unet:
+                h_unet["Authorization"] = f"Bearer {t_unet}"
+            r = await client.get(f"{UNET_SERVICE_URL.rstrip('/')}/health", headers=h_unet)
             results["unet"] = r.json() if r.status_code == 200 else {"status": "error", "code": r.status_code}
         except Exception as exc:
             results["unet"] = {"status": "unreachable", "error": str(exc)}
 
         # Check PINN
         try:
-            r = await client.get(f"{PINN_SERVICE_URL.rstrip('/')}/health")
+            h_pinn = {}
+            t_pinn = _get_oidc_token(PINN_SERVICE_URL)
+            if t_pinn:
+                h_pinn["Authorization"] = f"Bearer {t_pinn}"
+            r = await client.get(f"{PINN_SERVICE_URL.rstrip('/')}/health", headers=h_pinn)
             results["pinn"] = r.json() if r.status_code == 200 else {"status": "error", "code": r.status_code}
         except Exception as exc:
             results["pinn"] = {"status": "unreachable", "error": str(exc)}

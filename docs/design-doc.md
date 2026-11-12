@@ -5,14 +5,14 @@ This document describes the design and implementation of the Master System Archi
 
 This project directly extends the wildfire prediction research established by Dr. Jerry Gao and collaborators across three key publications: grid-based risk prediction using Combined Random Forest models (Malik et al., *Atmosphere* 2021), wildfire progression modeling using Deep Reinforcement Learning (Adhikari et al., *IEEE CCWC* 2024), and ensemble-based risk prediction and detection using Cellular Automata majority voting (Malik et al., *IEEE CCWC* 2022). Fight Fire With AI builds upon these foundations by integrating U-Net spatial segmentation, Physics-Informed Neural Networks (PINN), and Reinforcement Learning (RL) into a unified ML ensemble, served through a cloud-native platform on **Google Cloud Platform (GCP)** with automated data harvesting and real-time visualization.
 
-The frontend prototype serves as an interactive showcase of these capabilities, enabling users to visualize day-ahead fire risk zones on a 1×1 km grid heatmap, inspect emergency shelter POIs and zone-based warnings, and monitor live environmental telemetry (wind patterns, NWS Red Flag Warnings).
+The frontend prototype serves as an interactive showcase of these capabilities, enabling users to visualize day-ahead fire risk zones on a 1×1 km grid heatmap, inspect emergency shelter POIs and zone-based warnings, and monitor live environmental telemetry (wind patterns, NASA FIRMS active wildfire hotspots).
 
 ## 1. System Architecture: The Python & Django Monolith + Python Inference Engine
 
 The system utilizes a Modular Monolith architecture to minimize deployment overhead while maintaining strict separation of concerns. The system is strictly scoped to the 9-county **San Francisco Bay Area** bounding box using a 1km x 1km spatial grid. The system is deployed on **Google Cloud Platform (GCP)** to leverage native Google Earth Engine integration and Vertex AI for ML model hosting.
 
 **Revised Data Flow (Vertex Native Ingestion Architecture):**
-[Data Sources (GEE, NOAA, NWS)] → (Celery daily cron) → [Django Harvester] → HTTP POST (lightweight bbox + time_horizon + model_type payload) → [FastAPI ML Adapter (Cloud Run)] → Vertex AI model endpoints (U-Net / PINN / RL) → Unified GeoJSON FeatureCollection → [Django Database Engine] → PostGIS (Cloud SQL) + Redis (Memorystore) → [Django REST API (Cloud Run)] → REST Polling (every 5 min) → [React Frontend (Cloud CDN)]
+[Data Sources (GEE, NOAA, FIRMS)] → (Cloud Scheduler & Celery) → [Django Harvester] → HTTP POST (lightweight bbox + time_horizon + model_type payload) → [FastAPI ML Adapter (Cloud Run)] → Private Cloud Run microservices (U-Net / PIML / RL) → Unified GeoJSON FeatureCollection → [Django Database Engine] → PostGIS (Cloud SQL) + Redis (Memorystore) → [Django REST API (Cloud Run)] → REST Polling (every 5 min) → [React Frontend (Firebase Hosting)]
 
 ---
 
@@ -82,7 +82,7 @@ This stack ensures total Python parity between the AI developers and the backend
 - **Frontend (UI/UX):** React.js, Mapbox GL JS (via `react-map-gl/mapbox` for rendering complex GeoJSON polygons), Deck.gl (WebGL overlay for dynamic animated wind particles).
 - **Backend (Core Monolith):** Python, Django, Django REST Framework, Celery (Task Scheduling & Orchestration), Celery Beat (Cron Scheduler).
 - **Database:** PostgreSQL (hosted on **GCP Cloud SQL**).
-  - _Extension:_ `PostGIS` (Managed via **GeoDjango**. Contains only the Bay Area `.osm.pbf` extract to ensure A* pathfinding executes under 2.0 seconds).
+  - _Extension:_ `PostGIS` (Managed via **GeoDjango** for spatial indexing, 19,344 hexagonal grid cells, fire progression boundary polygons, and emergency shelter POI proximity queries).
 - **Caching & Message Broker:** Redis (hosted on **GCP Memorystore**). Serves dual-duty as the Celery task broker and the high-speed GeoJSON cache for the REST API.
 - **Data & Storage:** Google Cloud Storage (GCS) for trained model weights and React build output. Google Earth Engine (GEE) and NASA FIRMS for real-time fire detection and satellite imagery.
 - **API Documentation:** Auto-generated OpenAPI 3.0 via `drf-spectacular` at `/api/docs/`. FastAPI auto-generates Swagger at `/docs`.
@@ -236,7 +236,6 @@ Given the timeline and academic constraints, the following features are explicit
 | `GET` | `/api/predictions/history/` | Historical predictions with date range filter (reads permanently retained `PredictionPolygon` PostGIS records) | Paginated GeoJSON FeatureCollection list |
 | `GET` | `/api/telemetry/wind/` | Current wind speed/direction for Deck.gl particles | JSON: `{speed, direction, timestamp}` |
 | `GET` | `/api/telemetry/shelters/` | FEMA/CalOES emergency shelter locations | GeoJSON FeatureCollection (Points) |
-| `GET` | `/api/telemetry/alerts/` | Active NWS Red Flag Warnings | GeoJSON FeatureCollection (Polygons) |
 | `GET` | `/api/telemetry/hotspots/` | NASA FIRMS raw satellite hotspots (wildland detections & suppressed flares) | GeoJSON FeatureCollection (Points with FRP, confidence, satellite, flare metadata) |
 | `GET` | `/api/metrics/` | Model performance metrics (ROC-AUC, F1, accuracy) | JSON array of `ModelPerformanceMetric` records |
 | `GET` | `/api/health/` | System health check | JSON: `{db, redis, last_inference, staleness, workers}` |
@@ -267,7 +266,6 @@ Given the timeline and academic constraints, the following features are explicit
 | Google Earth Engine | SDK | `NOAA/GOES/18/MCMIPC` | GOES-18 Cloud & Moisture Imagery | Daily composite |
 | Google Earth Engine | SDK | `NASA/VIIRS/002/VNP09GA` | VIIRS active fire hotspots (375 m) | Daily |
 | NOAA / OpenWeather | `GET` | `api.openweathermap.org/data/2.5/...` | Wind speed, direction, temperature, humidity | Daily |
-| NWS Alerts API | `GET` | `api.weather.gov/alerts/active` | Red Flag Warnings (Bay Area zone) | Every 6 hours |
 | NASA FIRMS | `GET` | `firms.modaps.eosdis.nasa.gov/api/area/...` | VIIRS 375 m active fire hotspots for scout | Every 30 minutes |
 
 ---
@@ -295,7 +293,7 @@ The frontend MVP was developed as a standalone showcase of the system's capabili
 ### 9.2 Map Layering & Visual Hierarchy (Strict Z-Index)
 To prevent visual clutter, the map employs a strict hierarchical rendering order from bottom to top:
 1. **Base Topography:** Mapbox `dark-v11` / `outdoors-v12` base map with 3D terrain exaggeration.
-2. **Red Flag Warning Zone:** A static NWS environmental danger polygon rendered as a translucent red area.
+2. **Active Wildfire Perimeter Zone:** NASA FIRMS satellite detection clusters and observed fire boundary polygons.
 3. **AQI 45-Mile Radial Grid:** Dynamic air quality mesh interpolated across regional reporting sensors.
 4. **Predictive Spread (U-Net / PINN / Ensemble):** Semi-transparent color ramp polygons representing predicted fire progression filtered by time horizon.
 5. **Deck.gl Wind Particles:** An animated WebGL vector field simulating continuous atmospheric breeze and gust patterns.
@@ -359,23 +357,50 @@ Given the SLAs defined in the Non-Functional Requirements, performance is contin
 The deployment strategy for the Fight Fire With AI MVP leverages containerization and cloud infrastructure to ensure scalability and ease of deployment.
 
 ### 13.1 Infrastructure Architecture
-- **Containerization:** All modules (Django Backend, FastAPI ML Adapter, React Frontend, Celery Workers) are containerized using **Docker** and managed via `docker-compose` for local development and parity.
-- **Cloud Provider:** Deployed on **Google Cloud Platform (GCP)**.
-  - **Backend API:** Django REST API hosted on **Cloud Run** (serverless, scales to zero — cost-effective for student budget).
-  - **ML Adapter:** FastAPI hosted on **Cloud Run** (separate service with ML dependencies isolated).
-  - **ML Model Hosting:** Trained U-Net, PINN, and RL models served via **Vertex AI** managed endpoints with automatic retraining support.
-  - **Database:** **Cloud SQL** for PostgreSQL with PostGIS extension enabled.
-  - **Cache/Broker:** **Memorystore** (Redis) for Celery task queuing and GeoJSON cache.
-  - **Object Storage:** **Google Cloud Storage (GCS)** for trained model weights and React build artifacts.
-  - **Frontend:** Compiled React static assets hosted on **Cloud Storage** and distributed via **Cloud CDN**.
-  - **Background Workers:** Celery Workers + Celery Beat running on a **Compute Engine** e2-micro instance (persistent — needs to stay alive for cron scheduling).
-  - **Satellite Data:** **Google Earth Engine** (free academic tier) — natively integrated with GCP project.
+- **Containerization:** All operational workloads (Django REST API, FastAPI ML Adapter, U-Net, PIML, Celery Workers) are containerized using **Docker** and managed via `docker-compose` for local parity.
+- **Cloud Provider:** Deployed on **Google Cloud Platform (GCP)** under project `ffwai-prod` (region `us-central1`) using a cost-optimized, serverless architecture:
+  - **Frontend Distribution:** Static React 19 SPA hosted on **Firebase Hosting** (`https://ffwai-prod.web.app`) with global edge CDN, automated SSL, and `/api/**` URL rewrites to Cloud Run `django-backend` (eliminating CORS and load balancer costs).
+  - **Backend API:** Django REST API hosted on **Cloud Run** (`https://django-backend-492249904968.us-central1.run.app`) (serverless, scales to zero at $0 idle cost). Connects to private VPC resources via **Direct VPC Egress** (`--network=ffwai-vpc --subnet=ffwai-subnet --vpc-egress=private-ranges-only`).
+  - **Background Worker:** Celery Worker Consumer running on **Cloud Run** (`celery-worker`). Uses a custom unprivileged runner (`run_celery_worker.py`) that manages the Celery worker process (`celery -A core worker -l INFO -c 2`) alongside an embedded daemon HTTP health server on `$PORT` to satisfy Cloud Run startup and liveness probes. Connected to Redis via Direct VPC Egress with result persistence (`CELERY_RESULT_BACKEND`).
+  - **Scheduled Triggers:** **Google Cloud Scheduler** dispatching authenticated HTTPS POST requests via OIDC to trigger daily harvests (`ffwai-daily-inference-trigger` at 06:00 UTC targeting `/api/telemetry/harvest/trigger/`) and active wildfire scouting (`ffwai-active-fire-scout-trigger` every 30m targeting `/api/telemetry/scout/trigger/`), replacing continuous Celery Beat VM instances.
+  - **ML Adapter:** FastAPI hosted on **Cloud Run** (`https://ml-adapter-492249904968.us-central1.run.app`) coordinating U-Net and PIML microservices.
+  - **ML Model Microservices:** Standalone **Cloud Run** microservices for U-Net (`https://unet-service-492249904968.us-central1.run.app` on port 8081) and PIML (`https://piml-service-492249904968.us-central1.run.app` on port 8082) with scale-to-zero capability.
+  - **Database:** **Cloud SQL** for PostgreSQL 16 with PostGIS extension enabled (`ffwai-postgres-7764938b` at `10.178.0.5:5432`), exposed strictly via private RFC 1918 VPC peering.
+  - **Cache & Task Broker:** **Memorystore for Redis 7.0** (`ffwai-redis` at `10.178.96.131:6379`) on private VPC peering for Celery queues and 30-minute GeoJSON cache.
+  - **Object Storage:** **Google Cloud Storage (GCS)** (`fightfirewai-features-${PROJECT_ID}`) for satellite imagery rasters and feature caches.
+  - **Secrets Management:** **Google Cloud Secret Manager** (`SECRET_KEY`, `DB_PASSWORD`, `FIRMS_MAP_KEY`) mounted into containers at runtime.
+  - **Satellite Auth:** **Google Earth Engine** authenticated via Application Default Credentials (ADC) attached to Cloud Run Service Accounts (`roles/earthengine.viewer`), eliminating static JSON key files.
 
-### 13.2 CI/CD Pipeline
-- **Continuous Integration (CI):** GitHub Actions automatically trigger on every Pull Request to run `eslint`, `pytest`, and build verifications.
-- **Continuous Deployment (CD):** Upon merging to the `main` branch, the CI/CD pipeline builds new Docker images, pushes them to **Google Artifact Registry**, and triggers a rolling update on the Cloud Run services.
+### 13.2 Production Deployment Registry & Endpoints
+| Component | Service Name / Target | URL / Connection | Status |
+| :--- | :--- | :--- | :--- |
+| **Frontend SPA** | Firebase Hosting (`ffwai-prod`) | `https://ffwai-prod.web.app` | Active / Deployed |
+| **Django Backend API** | Cloud Run (`django-backend`) | `https://django-backend-492249904968.us-central1.run.app` | Active / Healthy |
+| **Celery Worker** | Cloud Run (`celery-worker`) | Internal (`run_celery_worker.py` on `$PORT`) | Active / Healthy |
+| **FastAPI ML Adapter**| Cloud Run (`ml-adapter`) | `https://ml-adapter-492249904968.us-central1.run.app` | Active / Healthy |
+| **U-Net Microservice**| Cloud Run (`unet-service`) | `https://unet-service-492249904968.us-central1.run.app` | Active / Healthy |
+| **PIML Microservice** | Cloud Run (`piml-service`) | `https://piml-service-492249904968.us-central1.run.app` | Active / Healthy |
+| **Cloud SQL PostGIS** | Cloud SQL (`ffwai-postgres-7764938b`)| `10.178.0.5:5432` (VPC Peering) | Active / Healthy |
+| **Memorystore Redis** | Redis 7.0 (`ffwai-redis`) | `10.178.96.131:6379` (VPC Peering) | Active / Healthy |
+| **Daily Inference** | Cloud Scheduler (`ffwai-daily-inference-trigger`)| `0 6 * * * (UTC)` -> `/api/telemetry/harvest/trigger/` | Enabled |
+| **Active Fire Scout** | Cloud Scheduler (`ffwai-active-fire-scout-trigger`)| `*/30 * * * * (UTC)` -> `/api/telemetry/scout/trigger/` | Enabled |
+| **AQI Telemetry** | Cloud Scheduler (`ffwai-aqi-trigger`)| `*/30 * * * * (UTC)` -> `/api/telemetry/aqi/trigger/` | Enabled |
 
-### 13.3 Local Development Stack & Lifecycle Ordering
+### 13.3 Infrastructure as Code & CI/CD Lifecycle
+- **Infrastructure as Code (IaC):** Modular **Terraform** (`infra/terraform/`) manages foundational stateful resources (VPC, Cloud SQL PostGIS, Memorystore Redis, Secret Manager, Cloud Storage, IAM Service Accounts, Cloud Scheduler) with remote state tracked in GCS (`infra/scripts/bootstrap_gcs_state.sh`).
+- **Database Lifecycle Management:** Run-to-completion **Cloud Run Jobs** executed during deployment:
+  1. `migrate-job`: runs `python manage.py migrate`
+  2. `grid-job`: precomputes and populates 19,344 PostGIS hexagonal cells (`python manage.py generate_grid`)
+  3. `shelter-job`: seeds Bay Area emergency shelters (`python manage.py seed_shelters`)
+  Decoupling database lifecycle tasks from container startup eliminates race conditions across autoscaling Cloud Run instances.
+- **Continuous Integration (CI):** `.github/workflows/ci.yaml` triggers on Pull Requests and branch pushes to run `pytest` (backend & ML adapter), ESLint, and frontend production build checks.
+- **Manual Production Deployment Trigger (`workflow_dispatch`):** `.github/workflows/manual_deploy.yaml` provides a controlled, interactive "Run workflow" button in the GitHub repository UI, allowing any authorized team member to trigger deployments directly to GCP project `ffwai-prod`.
+  - **Keyless OIDC Authentication:** Leverages **Google Cloud Workload Identity Federation** (`github-actions-pool` / `github-actions-provider`) allowing GitHub Actions to impersonate `sa-github-deployer@ffwai-prod.iam.gserviceaccount.com` without generating or storing long-lived JSON private key files. Configured via `infra/scripts/setup_workload_identity.sh`.
+  - **Modular Component Selector:** Workflow input dropdown allows selective deployment: `all` (default), `frontend` (Firebase Hosting via Application Default Credentials), `backend` (Django REST API & Celery Worker), or `ml` (FastAPI Adapter, U-Net, and PIML microservices).
+  - **Production Quality Gates:** Restricts production rollout strictly to the `main` branch. Executes pre-flight test suites prior to container compilation with an emergency bypass flag (`skip_tests`).
+  - **Automated Database Lifecycle:** Runs Cloud Run Job `ffwai-migrate-job` to execute schema migrations against Cloud SQL PostGIS before rolling out backend revisions.
+
+### 13.4 Local Development Stack & Lifecycle Ordering
 To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
 1. **Infrastructure Initialization:** Starts Docker containers (`docker compose up -d --build`) for PostgreSQL/PostGIS (5432), Redis (6379), U-Net (8081), and PINN (8082).
 2. **Infrastructure Readiness Gate:** Actively polls until PostgreSQL (`pg_isready`) and Redis (`redis-cli ping`) accept TCP connections.
@@ -390,6 +415,16 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
      - `trigger_active_inference.delay()` (NASA FIRMS VIIRS 375m active fire scout using 2-day rolling window)
    - Automatically pre-warms Redis and PostGIS across strictly supported forecast horizons (`0h`, `1h`, `3h`, `6h`).
    - Incident containment runs continuously on Celery Beat every 30 minutes (`archive-old-predictions-30min`).
+
+### 13.5 Team Access Control & IAM Role Architecture
+To support collaborative development across the backend, ML, and frontend engineers without permission bottlenecks, GCP project access is provisioned using predefined roles:
+- **Principal Types:** Existing Google accounts (`user:<email>`) or centralized Google Groups (`group:<group-email>`). Principals and roles do not need manual creation—predefined roles are attached to identities using policy bindings.
+- **Collaborative Engineering Model (Model A):**
+  - `roles/editor`: Full read/write management across Cloud Run, Cloud SQL PostGIS, Memorystore Redis, Secret Manager, Cloud Build, and Artifact Registry.
+  - `roles/iam.serviceAccountUser`: Mandatory permission allowing developers to deploy Cloud Run services and jobs running under runtime service accounts (`sa-django-backend`, `sa-celery-worker`, `sa-ml-services`).
+  - `roles/firebasehosting.admin`: Full permissions to build and deploy the React 19 frontend SPA to Firebase Hosting.
+- **Automated Provisioning:** Managed via `infra/scripts/grant_team_access.sh <email-or-group> [collaborative|least-privilege]` with optional dry-run preview mode (`DRY_RUN=1`).
+- **Web Console Access:** Firebase Console project access is configured separately at `https://console.firebase.google.com/project/ffwai-prod/settings/usersandpermissions`.
 
 ---
 
