@@ -412,6 +412,16 @@ To prevent race conditions during local startup (`scripts/run_local.sh`), startu
    - Automatically pre-warms Redis and PostGIS across strictly supported forecast horizons (`0h`, `1h`, `3h`, `6h`).
    - Incident containment runs continuously on Celery Beat every 30 minutes (`archive-old-predictions-30min`).
 
+### 13.5 Team Access Control & IAM Role Architecture
+To support collaborative development across the backend, ML, and frontend engineers without permission bottlenecks, GCP project access is provisioned using predefined roles:
+- **Principal Types:** Existing Google accounts (`user:<email>`) or centralized Google Groups (`group:<group-email>`). Principals and roles do not need manual creation—predefined roles are attached to identities using policy bindings.
+- **Collaborative Engineering Model (Model A):**
+  - `roles/editor`: Full read/write management across Cloud Run, Cloud SQL PostGIS, Memorystore Redis, Secret Manager, Cloud Build, and Artifact Registry.
+  - `roles/iam.serviceAccountUser`: Mandatory permission allowing developers to deploy Cloud Run services and jobs running under runtime service accounts (`sa-django-backend`, `sa-celery-worker`, `sa-ml-services`).
+  - `roles/firebasehosting.admin`: Full permissions to build and deploy the React 19 frontend SPA to Firebase Hosting.
+- **Automated Provisioning:** Managed via `infra/scripts/grant_team_access.sh <email-or-group> [collaborative|least-privilege]` with optional dry-run preview mode (`DRY_RUN=1`).
+- **Web Console Access:** Firebase Console project access is configured separately at `https://console.firebase.google.com/project/ffwai-prod/settings/usersandpermissions`.
+
 ---
 
 ## 14. ML Integration Contract
