@@ -20,6 +20,7 @@ import requests
 import calendar
 import xml.etree.ElementTree as ET
 from .models import EmergencyShelter
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -274,73 +275,158 @@ def hotspots_telemetry(request):
 
 
 FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
+CALIFORNIA_BBOX = "-124.4,32.5,-114.1,42.0"  # West, South, East, North
 
 @api_view(["GET"])
 def get_firms_hotspots(request):
     """
-    GET /api/telemetry/firms/
-    Accepts optional query params: ?date=YYYY-MM-DD&time=HHMM
+    GET /api/telemetry/firms/?date=YYYY-MM-DD
+    Fetches active hotspot telemetry filtered for the SF Bay Area on a specific date.
     """
-    target_date = request.GET.get('date')
-    target_time = request.GET.get('time')  # e.g., '2115'
-
-    # SF Bay Area Bounding Box: West, South, East, North
-    bbox = "-123.1,36.8,-121.5,38.8"
-    
-    # Query VIIRS Suomi-NPP detections for the Bay Area (5-day max limit for Area API)
-    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{bbox}/5"
+    target_date = request.GET.get('date', datetime.utcnow().strftime('%Y-%m-%d'))
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{BAY_AREA_BBOX}/1/{target_date}"
 
     try:
-        res = requests.get(url, timeout=12)
+        res = requests.get(url, timeout=10)
         if res.status_code != 200:
-            return JsonResponse({'status': 'error', 'message': f'FIRMS API returned status {res.status_code}'}, status=500)
+            return JsonResponse({'status': 'error', 'message': f'FIRMS API status {res.status_code}'}, status=500)
 
         lines = res.text.strip().splitlines()
         if len(lines) <= 1:
-            return JsonResponse({'status': 'success', 'hotspots': [], 'passes': {}})
+            return JsonResponse({'status': 'success', 'hotspots': []})
 
         reader = csv.DictReader(lines)
-        all_hotspots = []
-        passes_map = {}
+        hotspots = []
 
         for row in reader:
-            acq_date = row['acq_date']
-            acq_time = row['acq_time'].zfill(4)
+            lat = float(row['latitude'])
+            lon = float(row['longitude'])
 
-            if acq_date not in passes_map:
-                passes_map[acq_date] = set()
-            passes_map[acq_date].add(acq_time)
-
-            all_hotspots.append({
-                "lat": float(row['latitude']),
-                "lon": float(row['longitude']),
-                "frp": float(row['frp']),
-                "confidence": row['confidence'],
-                "bright_ti4": float(row['bright_ti4']),
-                "acq_date": acq_date,
-                "acq_time": acq_time,
-                "satellite": row['satellite'],
-                "daynight": row['daynight']
-            })
-
-        formatted_passes = {d: sorted(list(t_set)) for d, t_set in passes_map.items()}
-
-        filtered_hotspots = all_hotspots
-        if target_date:
-            filtered_hotspots = [h for h in filtered_hotspots if h['acq_date'] == target_date]
-        if target_time:
-            filtered_hotspots = [h for h in filtered_hotspots if h['acq_time'] == target_time]
+            # Strict SF Bay Area Bounding Box Check
+            if 36.8 <= lat <= 38.8 and -123.1 <= lon <= -121.5:
+                hotspots.append({
+                    "lat": lat,
+                    "lon": lon,
+                    "brightness": float(row.get('bright_ti4', 300.0)),
+                    "frp": float(row.get('frp', 0.0)),
+                    "confidence": row.get('confidence', 'n'),
+                    "acq_date": row.get('acq_date', target_date),
+                    "acq_time": row.get('acq_time', '').zfill(4),
+                    "satellite": row.get('satellite', 'VIIRS')
+                })
 
         return JsonResponse({
             'status': 'success',
-            'passes': formatted_passes,
-            'hotspots': filtered_hotspots,
-            'total_count': len(filtered_hotspots)
+            'date': target_date,
+            'hotspots': hotspots,
+            'total_count': len(hotspots)
         })
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    """
+    GET /api/telemetry/firms/available-dates/
+    Queries NASA FIRMS rolling 5-day area feed or returns fallback active dates.
+    """
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{CALIFORNIA_BBOX}/5"
 
+    try:
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200 and res.text.strip():
+            lines = res.text.strip().splitlines()
+            if len(lines) > 1:
+                reader = csv.DictReader(lines)
+                detected_dates = {row['acq_date'] for row in reader if 'acq_date' in row}
+                sorted_dates = sorted(list(detected_dates), reverse=True)
+                if sorted_dates:
+                    return JsonResponse({'status': 'success', 'dates': sorted_dates})
+
+    except Exception as e:
+        logger.error(f"Failed to fetch dynamic FIRMS dates: {e}")
+
+    today = datetime.utcnow().date()
+    fallback_dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
+    return JsonResponse({'status': 'success', 'dates': fallback_dates})
+    firms_key = os.getenv("FIRMS_MAP_KEY", "b4858267b75c999edb2cc1b152881eb0")
+    bbox = "-124.4,32.5,-114.1,42.0"  # Entire California
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/VIIRS_SNPP_NRT/{bbox}/5"
+
+    try:
+        res = requests.get(url, timeout=10)
+        print(f"DEBUG FIRMS STATUS: {res.status_code}")
+        print(f"DEBUG FIRMS BODY SAMPLE: {res.text[:300]}")  # Print first 300 chars
+
+        if res.status_code == 200 and res.text.strip():
+            lines = res.text.strip().splitlines()
+            print(f"DEBUG FIRMS TOTAL CSV LINES: {len(lines)}")
+            
+            if len(lines) > 1:
+                reader = csv.DictReader(lines)
+                detected_dates = {row['acq_date'] for row in reader if 'acq_date' in row}
+                sorted_dates = sorted(list(detected_dates), reverse=True)
+                print(f"DEBUG DETECTED DATES: {sorted_dates}")
+                
+                if sorted_dates:
+                    return JsonResponse({'status': 'success', 'dates': sorted_dates})
+
+    except Exception as e:
+        print(f"DEBUG FIRMS ERROR: {e}")
+
+    # Fallback to recent rolling dates if FIRMS has 0 current detections
+    today = datetime.utcnow().date()
+    fallback_dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
+    return JsonResponse({'status': 'success', 'dates': fallback_dates})
+    """
+    GET /api/telemetry/firms/available-dates/
+    Queries NASA FIRMS rolling 5-day area feed or returns fallback active dates.
+    """
+    firms_key = os.getenv("FIRMS_MAP_KEY", "b4858267b75c999edb2cc1b152881eb0")
+    bbox = "-124.4,32.5,-114.1,42.0"  # California bounding box
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/VIIRS_SNPP_NRT/{bbox}/5"
+
+    try:
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200 and res.text.strip():
+            lines = res.text.strip().splitlines()
+            if len(lines) > 1:
+                reader = csv.DictReader(lines)
+                detected_dates = {row['acq_date'] for row in reader if 'acq_date' in row}
+                sorted_dates = sorted(list(detected_dates), reverse=True)
+                if sorted_dates:
+                    return JsonResponse({'status': 'success', 'dates': sorted_dates})
+
+    except Exception as e:
+        logger.error(f"Failed to fetch dynamic FIRMS dates: {e}")
+
+    # Fallback to recent rolling dates if FIRMS API rate-limits or yields 0 detections
+    today = datetime.utcnow().date()
+    fallback_dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
+    return JsonResponse({'status': 'success', 'dates': fallback_dates})
+    """
+    GET /api/telemetry/firms/available-dates/
+    Queries NASA FIRMS 10-day rolling area feed and extracts unique dates containing active hotspots.
+    """
+    bbox = "-123.1,36.8,-121.5,38.8"
+    firms_key = os.getenv("FIRMS_MAP_KEY", "b4858267b75c999edb2cc1b152881eb0")
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/VIIRS_SNPP_NRT/{bbox}/10"
+
+    try:
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200 and res.text.strip():
+            lines = res.text.strip().splitlines()
+            if len(lines) > 1:
+                reader = csv.DictReader(lines)
+                detected_dates = {row['acq_date'] for row in reader if 'acq_date' in row}
+                
+                # Return the 15 most recent dates with detected hotspots
+                sorted_dates = sorted(list(detected_dates), reverse=True)[:15]
+                return JsonResponse({'status': 'success', 'dates': sorted_dates})
+
+        return JsonResponse({'status': 'success', 'dates': []})
+    except Exception as e:
+        logger.error(f"Failed to fetch FIRMS available dates: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500) 
+    
 @api_view(["GET"])
 def get_firms_active_dates(request):
     """
@@ -1448,7 +1534,6 @@ def get_palisades_event_telemetry(request):
         }
     })
 
-
 @api_view(["POST"])
 def trigger_harvest(request):
     """
@@ -1499,3 +1584,48 @@ def trigger_aqi(request):
         "timestamp": django_tz.now().isoformat(),
     })
 
+
+# SF Bay Area Bounding Box: West, South, East, North
+BAY_AREA_BBOX = "-123.1,36.8,-121.5,38.8"
+
+@api_view(["GET"])
+def get_firms_available_dates(request):
+    """
+    GET /api/telemetry/firms/available-dates/
+    Queries recent dates and returns ONLY dates with at least 1 hotspot inside the SF Bay Area.
+    Caches results for 1 hour to prevent API rate-limiting and timeouts.
+    """
+    cache_key = "firms:bay_area_active_dates"
+    cached_dates = cache.get(cache_key)
+    
+    if cached_dates:
+        return JsonResponse({'status': 'success', 'dates': cached_dates})
+
+    valid_dates = []
+    today = datetime.utcnow().date()
+
+    for days_back in range(30):
+        target_date = (today - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_MAP_KEY}/VIIRS_SNPP_NRT/{BAY_AREA_BBOX}/1/{target_date}"
+        
+        try:
+            # Increased timeout to 10 seconds to prevent Read timed out warnings
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200 and res.text.strip():
+                lines = res.text.strip().splitlines()
+                if len(lines) > 1:
+                    valid_dates.append(target_date)
+                    if len(valid_dates) >= 10:
+                        break
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"FIRMS date check skipped for {target_date}: {e}")
+            continue
+
+    # Cache valid dates for 60 minutes (3600 seconds)
+    if valid_dates:
+        cache.set(cache_key, valid_dates, timeout=3600)
+
+    return JsonResponse({
+        'status': 'success',
+        'dates': valid_dates
+    })

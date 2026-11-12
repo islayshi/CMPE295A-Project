@@ -22,6 +22,7 @@ from .views import (
     trigger_harvest,
     trigger_scout,
     trigger_aqi,
+    get_firms_available_dates,
 )
 
 urlpatterns = [
@@ -47,4 +48,5 @@ urlpatterns = [
     path("usgs/", get_usgs_telemetry, name="telemetry-usgs"),
     path("rtma/", get_rtma_telemetry, name="telemetry-rtma"),
     path("palisades/", get_palisades_event_telemetry, name="telemetry-palisades"),
+    path("firms/available-dates/", get_firms_available_dates, name="telemetry-firms-available-dates")
 ]
