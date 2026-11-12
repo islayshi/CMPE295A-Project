@@ -160,11 +160,13 @@ class Command(BaseCommand):
         # -------------------------------------------------------
         existing_count = BayAreaGrid.objects.count()
         if existing_count > 0 and not clear:
-            raise CommandError(
-                f"\nBayAreaGrid already contains {existing_count:,} cells.\n"
-                f"Use --clear to delete existing cells and regenerate,\n"
-                f"or use --dry-run to preview without writing."
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\n  ✓ BayAreaGrid already contains {existing_count:,} cells. "
+                    f"Grid is already initialized; skipping generation (pass --clear to force regeneration).\n"
+                )
             )
+            return
 
         if clear and existing_count > 0:
             self.stdout.write(

@@ -53,3 +53,30 @@ def test_delete_terrainfeature_migration_registered():
         for op in migration.operations
     )
 
+
+@pytest.mark.django_db
+def test_generate_grid_idempotent_when_cells_exist():
+    """Verify generate_grid skips generation gracefully without CommandError when cells exist."""
+    from django.contrib.gis.geos import Polygon, Point
+    from io import StringIO
+
+    cell = Polygon((
+        (-122.22, 37.05), (-122.2143, 37.05),
+        (-122.2143, 37.0545), (-122.22, 37.0545),
+        (-122.22, 37.05),
+    ), srid=4326)
+    BayAreaGrid.objects.create(
+        id=99999,
+        geometry=cell,
+        centroid=Point(-122.215, 37.055, srid=4326),
+        row=0,
+        col=0,
+    )
+
+    out = StringIO()
+    call_command("generate_grid", stdout=out)
+    output = out.getvalue()
+    assert "already contains" in output or "already populated" in output
+    assert "Skipping generation" in output
+
+
