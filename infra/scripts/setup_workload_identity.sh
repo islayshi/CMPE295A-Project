@@ -141,6 +141,8 @@ DEPLOYMENT_ROLES=(
     "roles/cloudbuild.builds.editor"
     "roles/firebasehosting.admin"
     "roles/cloudsql.client"
+    "roles/storage.admin"
+    "roles/serviceusage.serviceUsageConsumer"
 )
 
 for role in "${DEPLOYMENT_ROLES[@]}"; do
