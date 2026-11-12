@@ -1,0 +1,161 @@
+name: Manual GCP Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to deploy to ffwai-prod'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+          - ml
+      run_migrations:
+        description: 'Execute Cloud SQL database migrations (for backend/all)'
+        required: true
+        default: true
+        type: boolean
+      skip_tests:
+        description: 'Emergency Hotfix: Skip pre-flight CI tests'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  pre-flight-tests:
+    name: Pre-Flight CI Quality Gate
+    if: inputs.skip_tests != true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        if: inputs.component != 'frontend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install GDAL & geospatial system libraries
+        if: inputs.component != 'frontend'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gdal-bin libgdal-dev libgeos-dev libpq-dev libsqlite3-mod-spatialite
+
+      - name: Install Python dependencies
+        if: inputs.component != 'frontend'
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r ml_adapter/requirements.txt
+
+      - name: Run Django & Harvester pytest suite
+        if: inputs.component == 'all' || inputs.component == 'backend'
+        env:
+          SPATIALITE_LIBRARY_PATH: "mod_spatialite"
+        run: |
+          cd backend
+          pytest
+
+      - name: Run ML Adapter pytest suite
+        if: inputs.component == 'all' || inputs.component == 'ml'
+        run: |
+          PYTHONPATH=. pytest ml_adapter/tests
+
+      - name: Set up Node.js 20
+        if: inputs.component == 'all' || inputs.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Verify Frontend Production Build
+        if: inputs.component == 'all' || inputs.component == 'frontend'
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+  deploy-production:
+    name: Deploy to Google Cloud (ffwai-prod)
+    needs: [pre-flight-tests]
+    if: always() && (needs.pre-flight-tests.result == 'success' || needs.pre-flight-tests.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enforce Strict 'main' Branch Deployment Guard
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "ERROR: Deployments to production (ffwai-prod) are strictly restricted to the 'main' branch."
+            echo "Current trigger ref: ${{ github.ref }}"
+            echo "Please merge your changes into 'main' via a Pull Request before deploying."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ffwai-prod
+
+      # ------------------------------------------------------------------------
+      # FRONTEND DEPLOYMENT (Firebase Hosting via ADC)
+      # ------------------------------------------------------------------------
+      - name: Set up Node.js for Frontend
+        if: inputs.component == 'all' || inputs.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build & Deploy Frontend to Firebase Hosting
+        if: inputs.component == 'all' || inputs.component == 'frontend'
+        env:
+          FIREBASE_CLI_PREVIEWS: "true"
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          npx --yes firebase-tools deploy --only hosting --project ffwai-prod
+
+      # ------------------------------------------------------------------------
+      # CONTAINER BUILDS & CLOUD RUN ROLLOUT (Backend & ML Services)
+      # ------------------------------------------------------------------------
+      - name: Build & Push Docker Images via Google Cloud Build
+        if: inputs.component != 'frontend'
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          ./infra/scripts/build_and_push.sh ffwai-prod us-central1 latest
+
+      - name: Execute Cloud SQL Database Migrations Job
+        if: inputs.run_migrations == true && (inputs.component == 'all' || inputs.component == 'backend')
+        run: |
+          ./infra/scripts/run_migrations.sh ffwai-prod us-central1 ffwai-vpc ffwai-vpc-subnet-us-central1 latest
+
+      - name: Roll Out Cloud Run Services & Update Schedulers
+        if: inputs.component != 'frontend'
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          ./infra/scripts/deploy_services.sh ffwai-prod us-central1 ffwai-vpc ffwai-vpc-subnet-us-central1 latest

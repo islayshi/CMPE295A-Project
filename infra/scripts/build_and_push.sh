@@ -9,6 +9,7 @@ PROJECT_ID="${1:-${GCP_PROJECT_ID:-}}"
 REGION="${2:-us-central1}"
 REPO_NAME="ffwai-docker-repo"
 TAG="${3:-latest}"
+COMPONENT="${COMPONENT:-all}"
 
 if [ -z "$PROJECT_ID" ]; then
     echo "ERROR: GCP Project ID is required."
@@ -28,31 +29,35 @@ gcloud artifacts repositories create "${REPO_NAME}" \
     --description="Fight Fire With AI Container Images" \
     --project="${PROJECT_ID}"
 
-echo "==> Building and pushing container images using Google Cloud Build..."
+echo "==> Building and pushing container images using Google Cloud Build (Component: ${COMPONENT})..."
 
 # 1. Django REST API & Celery Worker Image
-echo "==> Building django-backend image..."
-gcloud builds submit backend \
-    --tag "${REGISTRY}/django-backend:${TAG}" \
-    --project="${PROJECT_ID}"
+if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "backend" ]]; then
+    echo "==> Building django-backend image..."
+    gcloud builds submit backend \
+        --tag "${REGISTRY}/django-backend:${TAG}" \
+        --project="${PROJECT_ID}"
+fi
 
 # 2. FastAPI ML Adapter Image
-echo "==> Building ml-adapter image..."
-gcloud builds submit ml_adapter \
-    --tag "${REGISTRY}/ml-adapter:${TAG}" \
-    --project="${PROJECT_ID}"
+if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "ml" ]]; then
+    echo "==> Building ml-adapter image..."
+    gcloud builds submit ml_adapter \
+        --tag "${REGISTRY}/ml-adapter:${TAG}" \
+        --project="${PROJECT_ID}"
 
-# 3. U-Net Inference Microservice Image
-echo "==> Building unet-service image..."
-gcloud builds submit ml_services/unet_service \
-    --tag "${REGISTRY}/unet-service:${TAG}" \
-    --project="${PROJECT_ID}"
+    # 3. U-Net Inference Microservice Image
+    echo "==> Building unet-service image..."
+    gcloud builds submit ml_services/unet_service \
+        --tag "${REGISTRY}/unet-service:${TAG}" \
+        --project="${PROJECT_ID}"
 
-# 4. PIML Simulation Microservice Image
-echo "==> Building piml-service image..."
-gcloud builds submit ml_services/ml_pinn_service \
-    --tag "${REGISTRY}/piml-service:${TAG}" \
-    --project="${PROJECT_ID}"
+    # 4. PIML Simulation Microservice Image
+    echo "==> Building piml-service image..."
+    gcloud builds submit ml_services/ml_pinn_service \
+        --tag "${REGISTRY}/piml-service:${TAG}" \
+        --project="${PROJECT_ID}"
+fi
 
 echo "==> All images built and pushed successfully to ${REGISTRY}!"
 

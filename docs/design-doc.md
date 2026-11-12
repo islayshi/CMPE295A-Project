@@ -393,8 +393,12 @@ The deployment strategy for the Fight Fire With AI MVP leverages containerizatio
   2. `grid-job`: precomputes and populates 19,344 PostGIS hexagonal cells (`python manage.py generate_grid`)
   3. `shelter-job`: seeds Bay Area emergency shelters (`python manage.py seed_shelters`)
   Decoupling database lifecycle tasks from container startup eliminates race conditions across autoscaling Cloud Run instances.
-- **Continuous Integration (CI):** GitHub Actions triggers on Pull Requests to run `pytest`, `eslint`, and container build validation.
-- **Continuous Deployment (CD):** GitHub Actions / Cloud Build builds container images, pushes to **Google Artifact Registry** (`ffwai-docker-repo`), executes lifecycle Cloud Run Jobs, and rolls out serving revisions to Cloud Run services.
+- **Continuous Integration (CI):** `.github/workflows/ci.yaml` triggers on Pull Requests and branch pushes to run `pytest` (backend & ML adapter), ESLint, and frontend production build checks.
+- **Manual Production Deployment Trigger (`workflow_dispatch`):** `.github/workflows/manual_deploy.yaml` provides a controlled, interactive "Run workflow" button in the GitHub repository UI, allowing any authorized team member to trigger deployments directly to GCP project `ffwai-prod`.
+  - **Keyless OIDC Authentication:** Leverages **Google Cloud Workload Identity Federation** (`github-actions-pool` / `github-actions-provider`) allowing GitHub Actions to impersonate `sa-github-deployer@ffwai-prod.iam.gserviceaccount.com` without generating or storing long-lived JSON private key files. Configured via `infra/scripts/setup_workload_identity.sh`.
+  - **Modular Component Selector:** Workflow input dropdown allows selective deployment: `all` (default), `frontend` (Firebase Hosting via Application Default Credentials), `backend` (Django REST API & Celery Worker), or `ml` (FastAPI Adapter, U-Net, and PIML microservices).
+  - **Production Quality Gates:** Restricts production rollout strictly to the `main` branch. Executes pre-flight test suites prior to container compilation with an emergency bypass flag (`skip_tests`).
+  - **Automated Database Lifecycle:** Runs Cloud Run Job `ffwai-migrate-job` to execute schema migrations against Cloud SQL PostGIS before rolling out backend revisions.
 
 ### 13.4 Local Development Stack & Lifecycle Ordering
 To prevent race conditions during local startup (`scripts/run_local.sh`), startup follows a strict ordered lifecycle:
