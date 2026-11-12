@@ -81,6 +81,8 @@ jobs:
 
       - name: Verify Frontend Production Build
         if: inputs.component == 'all' || inputs.component == 'frontend'
+        env:
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
         run: |
           cd frontend
           npm ci
@@ -132,6 +134,7 @@ jobs:
         if: inputs.component == 'all' || inputs.component == 'frontend'
         env:
           FIREBASE_CLI_PREVIEWS: "true"
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
         run: |
           cd frontend
           npm ci
