@@ -7,7 +7,7 @@ import logging
 import os
 import ee
 from pathlib import Path
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import sys
 from django.utils import timezone as django_tz
 from django.conf import settings

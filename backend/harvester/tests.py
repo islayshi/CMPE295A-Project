@@ -128,6 +128,7 @@ def test_trigger_daily_inference_happy_path():
     # Mock all sub-tasks so they do not make real network calls
     with patch("harvester.tasks.fetch_nws_alerts") as mock_nws, \
          patch("harvester.tasks.fetch_wind_data") as mock_wind, \
+         patch("harvester.tasks.fetch_aqi_data") as mock_aqi, \
          patch("harvester.tasks.fetch_vegetation_indices") as mock_veg, \
          patch("harvester.tasks.fetch_goes18_imagery") as mock_goes, \
          patch("harvester.tasks.fetch_viirs_hotspots") as mock_viirs, \
@@ -135,7 +136,7 @@ def test_trigger_daily_inference_happy_path():
          patch("harvester.tasks.cache.set") as mock_cache_set:
 
         # Configure delay() mocks so they do nothing (fire-and-forget)
-        for mock_task in [mock_nws, mock_wind, mock_veg, mock_goes, mock_viirs]:
+        for mock_task in [mock_nws, mock_wind, mock_aqi, mock_veg, mock_goes, mock_viirs]:
             mock_task.delay = MagicMock()
 
         # Run the orchestrator task synchronously (no Celery worker needed)
