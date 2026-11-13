@@ -464,11 +464,13 @@ def test_trigger_active_inference_dispatches_unet_and_pinn_tasks():
 
         mock_chord.assert_called_once()
         header_tasks = mock_chord.call_args[0][0]
-        # Must dispatch 2 tasks per cluster: one for U-Net, one for PINN/PIML
-        assert len(header_tasks) == 2
+        # 4 tasks per cluster: U-Net, PINN/PIML, the adapter's ensemble and the fusion UNet
+        assert len(header_tasks) == 4
         models = [t.args[1] if len(t.args) > 1 else t.kwargs.get("model_type") for t in header_tasks]
         assert "unet" in models
         assert "pinn" in models
+        assert "ensemble" in models
+        assert "fusion" in models
 
 
 def test_aggregate_active_predictions_populates_unet_and_pinn_caches():
