@@ -206,6 +206,15 @@ def collect(bbox, issue: dt.datetime, unet, source, cfg: dict) -> tuple[Patch, d
     notes["viirs_detections"] = int(len(dets))
     notes["viirs_recent_detections"] = int(recent.sum())
 
+    # PIML first (VIIRS start + physics fields): its weather request goes out before the U-Net's burst of
+    # GOES and Open-Meteo downloads, and with no wildland fire there is nothing to forecast, so stop early.
+    p, pmeta, states = run_piml(bbox, issue, patch, source)
+    notes["piml_fires"] = int(pmeta.get("fires_detected", 0))
+    if not states:
+        return patch, a, notes
+    a["pinn"] = p.astype(np.float16)
+    a["phys"] = physics_fields(states, patch).astype(np.float16)
+
     # U-Net inputs once, then GOES alone and GOES + VIIRS seeds
     goes_now = None
     try:
@@ -230,15 +239,10 @@ def collect(bbox, issue: dt.datetime, unet, source, cfg: dict) -> tuple[Patch, d
     except Exception as exc:          # the model still runs without the U-Net (trained with such samples)
         notes["unet_error"] = f"{type(exc).__name__}: {exc}"
 
-    # PIML: VIIRS start (+ physics fields), then GOES-updated start
-    p, pmeta, states = run_piml(bbox, issue, patch, source)
-    notes["piml_fires"] = int(pmeta.get("fires_detected", 0))
-    if states:
-        a["pinn"] = p.astype(np.float16)
-        a["phys"] = physics_fields(states, patch).astype(np.float16)
-        if goes_now is not None and goes_now.any():
-            pg, _, _ = run_piml(bbox, issue, patch, source, goes=goes_now)
-            a["pinn_goes"] = pg.astype(np.float16)
-        else:
-            a["pinn_goes"] = a["pinn"]
+    # PIML again with its start brought up to the issue time and merged with GOES fire (weather is cached)
+    if goes_now is not None and goes_now.any():
+        pg, _, _ = run_piml(bbox, issue, patch, source, goes=goes_now)
+        a["pinn_goes"] = pg.astype(np.float16)
+    else:
+        a["pinn_goes"] = a["pinn"]
     return patch, a, notes

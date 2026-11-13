@@ -180,6 +180,41 @@ class ContractTests(unittest.TestCase):
             self.assertTrue(np.all((x >= LATTICE_X0 + c * 1000 - 0.5) & (x <= LATTICE_X0 + (c + 1) * 1000 + 0.5)), ring)
             self.assertTrue(np.all((y >= LATTICE_Y0 - (r + 1) * 1000 - 0.5) & (y <= LATTICE_Y0 - r * 1000 + 0.5)), ring)
 
+    def test_fetch_retries_resets_and_429(self):
+        """Connection resets and HTTP 429 are retried; other 4xx are not."""
+        import sys
+        import types
+
+        calls = []
+
+        def get(url, headers=None, timeout=None):
+            calls.append(url)
+            if len(calls) == 1:
+                raise ConnectionResetError("forcibly closed by the remote host")
+            if len(calls) == 2:
+                return types.SimpleNamespace(status_code=429, text="slow down", reason="Too Many Requests", content=b"")
+            return types.SimpleNamespace(status_code=200, text="ok", reason="OK", content=b"ok")
+
+        fake = types.ModuleType("requests")
+        fake.get = get
+        saved_mod, saved_waits = sys.modules.get("requests"), ni.RETRY_WAITS_S
+        sys.modules["requests"], ni.RETRY_WAITS_S = fake, (0.0, 0.0, 0.0)
+        try:
+            self.assertEqual(ni._http_fetch("https://api.open-meteo.com/v1/forecast?x=1"), b"ok")
+            self.assertEqual(len(calls), 3)
+            calls.clear()
+            fake.get = lambda url, headers=None, timeout=None: (calls.append(url) or types.SimpleNamespace(
+                status_code=400, text="bad", reason="Bad Request", content=b""))
+            with self.assertRaises(ConnectionError):
+                ni._http_fetch("https://api.open-meteo.com/v1/forecast?x=1")
+            self.assertEqual(len(calls), 1)
+        finally:
+            ni.RETRY_WAITS_S = saved_waits
+            if saved_mod is None:
+                sys.modules.pop("requests", None)
+            else:
+                sys.modules["requests"] = saved_mod
+
     def test_lattice_round_trip(self):
         from pinn_service.lattice import LatticeGrid, from_3310, to_3310
         lon = np.array([-122.3, -121.0, -119.5, -116.9])

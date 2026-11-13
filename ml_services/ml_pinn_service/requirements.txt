@@ -3,6 +3,7 @@ scipy>=1.11
 pydantic>=2.6
 fastapi>=0.110
 uvicorn>=0.29
+requests>=2.31   # HTTP with retries (falls back to urllib without it)
 # tests over HTTP (optional):
 httpx>=0.27
 # build_static_layers.py only (not needed in the container):
