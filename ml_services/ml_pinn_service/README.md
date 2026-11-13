@@ -45,7 +45,7 @@ Tests (no network needed): `python -m unittest pinn_service.tests.test_service`.
 ## Open questions for the team
 
 1. **Clipping.** Output is clamped to the request bbox per the contract, but a 6 h forecast spreads km beyond a 1 km scout box. `metadata.cells_outside_bbox_dropped` counts what was cut. Can the scout send fire + ~10 km, or accept cells outside the box?
-2. **grid_id numbering.** Cell geometry already matches the adapter fixtures. The numbering (row-major from (−124.5, 32.5), starting at 1) is provisional. What numbering does the U-Net use?
+2. **grid_id numbering.** Resolved: the service now uses the U-Net service's 1 km EPSG:3310 lattice (`grid_id = row * 1000 + col`, `pinn_service/lattice.py`), so the adapter's ensemble merges PIML and U-Net cells on the same ids.
 3. **risk_label vocabulary.** What does the U-Net use, so the labels match?
 4. **Scout coverage.** Is it the Bay Area only, or all of California? The bundled fuel/slope layers cover the Bay Area + ~25 km.
 

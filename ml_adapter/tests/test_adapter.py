@@ -400,3 +400,61 @@ def test_predict_ensemble_live_no_active_fire(mock_call_unet, mock_call_pinn):
 
 
 
+
+
+SAMPLE_FUSION_FC = {
+    "type": "FeatureCollection",
+    "metadata": {"timestamp": "2026-10-23T12:00:00Z", "source_model": "fusion", "status": "ok", "total_cells": 1},
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": [[[-122.2, 37.1], [-122.19, 37.1], [-122.19, 37.11], [-122.2, 37.11], [-122.2, 37.1]]]},
+            "properties": {"grid_id": 449203, "fire_probability": 0.31, "horizon_hours": 6, "source_model": "fusion",
+                           "members": 1, "risk_label": "HIGH_RISK"},
+        }
+    ],
+}
+
+
+@patch("ml_adapter.main.call_fusion", new_callable=AsyncMock)
+def test_predict_progression_fusion_live(mock_call_fusion):
+    mock_call_fusion.return_value = SAMPLE_FUSION_FC
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        payload = {
+            "bbox": [-122.9, 36.9, -121.5, 38.3],
+            "time_horizon": 6,
+            "model_type": "fusion",
+            "date": "2026-10-23",
+            "mock": False,
+            "seed_points": [[-122.2, 37.1]],
+        }
+        response = client.post("/predict/progression", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["features"][0]["properties"]["source_model"] == "fusion"
+        assert data["status"] == "ok"
+        mock_call_fusion.assert_awaited_once_with(
+            bbox=(-122.9, 36.9, -121.5, 38.3),
+            time_horizon=6,
+            date="2026-10-23",
+        )
+
+
+@patch("ml_adapter.main.call_fusion", new_callable=AsyncMock)
+def test_predict_progression_fusion_no_active_fire(mock_call_fusion):
+    mock_call_fusion.return_value = {"type": "FeatureCollection",
+                                     "metadata": {"source_model": "fusion", "status": "no_active_fire"}, "features": []}
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        response = client.post("/predict/progression", json={"bbox": [-122.9, 36.9, -121.5, 38.3], "model_type": "fusion"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "no_active_fire"
+        assert data["metadata"]["source_model"] == "fusion"
+        assert data["features"] == []
+
+
+def test_predict_progression_unknown_model_lists_fusion():
+    with patch("ml_adapter.main.MOCK_INFERENCE", False):
+        response = client.post("/predict/progression", json={"model_type": "gan"})
+        assert response.status_code == 400
+        assert "fusion" in response.json()["detail"]

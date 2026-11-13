@@ -168,11 +168,36 @@ class ContractTests(unittest.TestCase):
             lon, lat = np.mean(f["geometry"]["coordinates"][0][:4], axis=0)
             self.assertFalse(abs(lon + 122.3) < 0.02 and abs(lat - 37.7) < 0.02)
 
-    def test_cells_on_adapter_fixture_lattice(self):
-        """Cell edges sit on round 0.01 deg lines, like the U-Net fixture cells."""
+    def test_cells_on_unet_lattice(self):
+        """grid_id = row * 1000 + col on the U-Net service's 1 km EPSG:3310 lattice, so the adapter can merge."""
+        from pinn_service.lattice import LATTICE_X0, LATTICE_Y0, to_3310
+        self.assertEqual(self.fc["metadata"]["grid_resolution_km"], 1.0)
+        self.assertFalse(self.fc["metadata"]["grid_ids_provisional"])
         for f in self.fc["features"][:50]:
             ring = np.array(f["geometry"]["coordinates"][0])
-            self.assertTrue(np.allclose(ring * 100, np.round(ring * 100), atol=1e-6), ring)
+            x, y = to_3310(ring[:-1, 0], ring[:-1, 1])
+            r, c = divmod(f["properties"]["grid_id"], 1000)
+            self.assertTrue(np.all((x >= LATTICE_X0 + c * 1000 - 0.5) & (x <= LATTICE_X0 + (c + 1) * 1000 + 0.5)), ring)
+            self.assertTrue(np.all((y >= LATTICE_Y0 - (r + 1) * 1000 - 0.5) & (y <= LATTICE_Y0 - r * 1000 + 0.5)), ring)
+
+    def test_lattice_round_trip(self):
+        from pinn_service.lattice import LatticeGrid, from_3310, to_3310
+        lon = np.array([-122.3, -121.0, -119.5, -116.9])
+        lat = np.array([37.7, 38.6, 36.2, 33.0])
+        x, y = to_3310(lon, lat)
+        lo2, la2 = from_3310(x, y)
+        self.assertLess(np.abs(lo2 - lon).max(), 1e-9)
+        self.assertLess(np.abs(la2 - lat).max(), 1e-9)
+        g = LatticeGrid()
+        for flat, a, b in zip(g.locate(lon, lat), lon, lat):
+            x0, y0, x1, y1 = g.bounds(flat)
+            self.assertTrue(x0 <= a <= x1 and y0 <= b <= y1)
+        try:
+            from pyproj import Transformer
+        except ImportError:
+            return
+        px, py = Transformer.from_crs("EPSG:4326", "EPSG:3310", always_xy=True).transform(lon, lat)
+        self.assertLess(max(np.abs(px - x).max(), np.abs(py - y).max()), 0.01)
 
     def test_burned_area_never_shrinks(self):
         by_h: dict[int, dict[int, float]] = {}

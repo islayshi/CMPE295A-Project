@@ -57,6 +57,14 @@ if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "ml" ]]; then
     gcloud builds submit ml_services/ml_pinn_service \
         --tag "${REGISTRY}/piml-service:${TAG}" \
         --project="${PROJECT_ID}"
+
+    # 5. Physics-informed Fusion UNet Microservice Image (build context = ml_services/: it bundles the
+    #    U-Net and PIML code, see ml_services/fusion_service/README.md)
+    echo "==> Building fusion-service image..."
+    gcloud builds submit ml_services \
+        --config ml_services/fusion_service/cloudbuild.yaml \
+        --substitutions=_IMAGE="${REGISTRY}/fusion-service:${TAG}" \
+        --project="${PROJECT_ID}"
 fi
 
 echo "==> All images built and pushed successfully to ${REGISTRY}!"

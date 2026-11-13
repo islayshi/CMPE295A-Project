@@ -64,12 +64,12 @@ Docker: see the header of `Dockerfile` (pass the FIRMS key with `-e`, never bake
 | `INGESTION` | `native` | `npz` = offline replay from `$FEATURE_DIR/YYYY-MM-DD.npz` |
 | `STATIC_LAYERS` | `pinn_service/static/bay_area_static.npz` | Fuel/slope file from `build_static_layers.py` |
 | `LEARNED_ALPHA` | `pinn_service/static/learned_alpha.json` | Learned α model written by `pinn_v2/realfire_final.py`; if it is missing the service uses the last-interval α and says so |
-| `GRID_SPEC` | unset → provisional CA lattice | Shared lattice: CSV `grid_id,min_lon,min_lat,max_lon,max_lat`, or JSON |
+| `GRID_SPEC` | unset → U-Net 1 km lattice | `provisional` for the old 0.01° lattice; or a CSV `grid_id,min_lon,min_lat,max_lon,max_lat`, or JSON |
 | `AIP_HTTP_PORT`, `AIP_HEALTH_ROUTE`, `AIP_PREDICT_ROUTE` | 8082, `/health`, `/predict` | Set by Vertex AI |
 
 ## Known gaps (tracked in the plan doc)
 
-- **Lattice.** Cells are 0.01° × 0.01° on round 0.01° lines, the same cell geometry as the adapter's U-Net fixtures, so the two models' cells coincide. The grid_id numbering (row-major from (−124.5, 32.5), starting at 1) is provisional until the U-Net's numbering is shared; switch with `GRID_SPEC`.
+- **Lattice.** Cells are the U-Net service's 1 km EPSG:3310 (California Albers) cells, `grid_id = row * 1000 + col` from the corner (x = −430 km, y = 480 km), so the adapter's ensemble merges both models cell by cell. Polygons are the projected cell corners clipped to the bbox (`lattice.py`, no pyproj needed). `GRID_SPEC=provisional` restores the old 0.01° lattice.
 - **Clipping.** Clamping to a 1 km request bbox throws away most of a 6 h spread forecast (see `cells_outside_bbox_dropped`). This needs a decision with the backend.
 - **Weather.** Weather is taken at one point per fire, which is fine for windows of tens of km. Open-Meteo is a free public API; for production, check its terms and rate limits or move to NOAA HRRR.
 - **Static coverage.** The static layers cover the Bay Area (+ ~25 km). Fires elsewhere get no fuel data and a warning. Rebuild with a larger `--bbox` for wider coverage.

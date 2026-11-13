@@ -1,0 +1,10 @@
+# Local `docker build -f fusion_service/Dockerfile ml_services` context
+.dockerignore
+**/__pycache__/
+**/*.pyc
+**/tests/
+**/test_features/
+**/firms_key*.txt
+**/.env
+**/*.ipynb
+unet_service/u_net_files/

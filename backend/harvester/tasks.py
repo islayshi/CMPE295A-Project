@@ -167,6 +167,48 @@ def _get_oidc_token(target_url: str) -> str | None:
         return None
 
 
+
+# Models run for every detected fire cluster (each through the ML adapter's /predict/progression).
+# "ensemble" = the adapter's weighted U-Net + PIML union; "fusion" = the physics-informed fusion UNet service.
+INFERENCE_MODELS = ("unet", "pinn", "ensemble", "fusion")
+OPTIONAL_MODELS = ("ensemble", "fusion")     # retried once; a failure returns an empty collection
+
+
+def _refresh_stub_geometries(features, existing_grid_ids):
+    """Move stub grid cells (row == -1) whose stored polygon is far (> 1.5 km, so a cell clipped at a bbox edge
+    never counts) from the polygon now sent for the same grid_id onto the new polygon. Generated BayAreaGrid
+    cells (row >= 0) are never changed."""
+    from django.contrib.gis.geos import GEOSGeometry
+    from grid.models import BayAreaGrid
+
+    if not existing_grid_ids:
+        return 0
+    incoming = {}
+    for feature in features:
+        gid = feature.get("properties", {}).get("grid_id")
+        if gid in existing_grid_ids and gid not in incoming and feature.get("geometry"):
+            incoming[gid] = feature["geometry"]
+    if not incoming:
+        return 0
+    moved = []
+    for cell in BayAreaGrid.objects.filter(id__in=list(incoming), row=-1):
+        try:
+            geom = GEOSGeometry(json.dumps(incoming[cell.id]))
+        except Exception:
+            continue
+        c_old, c_new = cell.centroid, geom.centroid
+        # degrees -> metres (rough, enough to tell "same cell" from "another cell")
+        dx = (c_old.x - c_new.x) * 111320.0 * 0.79
+        dy = (c_old.y - c_new.y) * 110540.0
+        if (dx * dx + dy * dy) ** 0.5 > 1500.0:
+            cell.geometry, cell.centroid = geom, c_new
+            moved.append(cell)
+    if moved:
+        BayAreaGrid.objects.bulk_update(moved, ["geometry", "centroid"])
+        logger.info('{"event": "store_stub_grids_refreshed", "moved": %d}', len(moved))
+    return len(moved)
+
+
 def _call_ml_adapter(payload: dict, retries: int = 3) -> dict | None:
     """
     POSTs the feature payload to the FastAPI ML Adapter and returns GeoJSON.
@@ -262,6 +304,12 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
                 BayAreaGrid.objects.bulk_create(missing_grids_to_create, ignore_conflicts=True)
                 logger.info('{"event": "store_stub_grids", "created": %d}', len(missing_grids_to_create))
 
+        # Stub cells (row == -1) were created from the first polygon sent for that grid_id. The PIML service used a
+        # provisional 0.01 deg numbering before it moved to the U-Net's 1 km lattice (grid_id = row * 1000 + col),
+        # so a stub made from an old PIML polygon can sit kilometres from the lattice cell with the same id.
+        # Re-point such stubs to the polygon now being sent (only stubs; generated grid cells are never touched).
+        _refresh_stub_geometries(features, existing_grid_ids)
+
     import datetime as dt
 
     target_timestamp = timestamp
@@ -343,7 +391,7 @@ def store_geojson_result(geojson: dict, incident_id: int | None = None) -> int:
                     pass
 
         cache.set("ffwai:predictions:current", json.dumps(feature_collection), timeout=21600)
-        if source_model and source_model in ("unet", "pinn", "rl", "ensemble"):
+        if source_model and source_model in ("unet", "pinn", "rl", "ensemble", "fusion"):
             cache.set(f"ffwai:predictions:current:{source_model}", json.dumps(feature_collection), timeout=21600)
 
     logger.info('{"event": "store_complete", "predictions_written": %d}', len(predictions_to_create))
@@ -898,10 +946,14 @@ def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, tim
         token = _get_oidc_token(url)
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        response = requests.post(url, json=payload, headers=headers, timeout=120)
+        # the fusion UNet builds its own U-Net and PIML inputs, so it needs longer than either model alone
+        response = requests.post(url, json=payload, headers=headers, timeout=300 if model_type == "fusion" else 120)
         response.raise_for_status()
         
         geojson_result = response.json()
+        if model_type == "ensemble":
+            # the adapter serves one model's output alone when the other is down; keep it under "ensemble"
+            geojson_result.setdefault("metadata", {})["source_model"] = "ensemble"
         
         predictions_written = store_geojson_result(geojson_result, incident_id=incident_id)
         logger.info('{"event": "async_inference_complete", "predictions_written": %d, "incident_id": %s}', predictions_written, incident_id)
@@ -909,6 +961,10 @@ def run_async_inference(self, bbox, model_type="ensemble", incident_id=None, tim
         
     except Exception as exc:
         logger.error('{"event": "async_inference_error", "error": "%s", "incident_id": %s}', str(exc), incident_id)
+        if model_type in OPTIONAL_MODELS and self.request.retries >= 1:
+            # a failed ensemble/fusion run must not fail the chord (U-Net and PIML results still get aggregated)
+            return {"type": "FeatureCollection", "features": [],
+                    "metadata": {"source_model": model_type, "status": "error", "error": str(exc)[:300]}}
         raise self.retry(exc=exc)
 
 
@@ -980,14 +1036,18 @@ def aggregate_active_predictions(results):
         "features": primary_feats,
     }
     cache.set(CURRENT_RISK_CACHE_KEY, json.dumps(merged_fc), timeout=21600)
+    # The ensemble view shows the adapter's weighted U-Net + PIML union (model_type "ensemble") when it ran;
+    # otherwise, as before, every model's cells together.
+    ensemble_feats = features_by_model.get("ensemble") or [
+        f for m, fs in features_by_model.items() if m in ("unet", "pinn") for f in fs] or all_features
     cache.set("ffwai:predictions:current:ensemble", json.dumps({
         "type": "FeatureCollection",
         "metadata": {
             "timestamp": timestamp,
-            "total_cells": len(all_features),
+            "total_cells": len(ensemble_feats),
             "source_model": "ensemble",
         },
-        "features": all_features,
+        "features": ensemble_feats,
     }), timeout=21600)
     logger.info('{"event": "aggregate_active_predictions_complete", "total_cells": %d}', len(all_features))
     return {"status": "success", "total_cells": len(all_features)}
@@ -1081,7 +1141,7 @@ def trigger_active_inference(self):
         ]
         if not seed_points and getattr(cluster, "centroid_lon", None) is not None and getattr(cluster, "centroid_lat", None) is not None:
             seed_points = [[cluster.centroid_lon, cluster.centroid_lat]]
-        for model in ("unet", "pinn"):
+        for model in INFERENCE_MODELS:
             task_sig = run_async_inference.s(
                 cluster.bbox,
                 model_type=model,

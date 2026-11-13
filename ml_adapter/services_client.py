@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 UNET_SERVICE_URL = os.getenv("UNET_SERVICE_URL", "http://localhost:8081")
 PINN_SERVICE_URL = os.getenv("PINN_SERVICE_URL", "http://localhost:8082")
+FUSION_SERVICE_URL = os.getenv("FUSION_SERVICE_URL", "http://localhost:8083")
 DEFAULT_W_UNET = float(os.getenv("DEFAULT_W_UNET", "0.6"))
 DEFAULT_W_PINN = float(os.getenv("DEFAULT_W_PINN", "0.4"))
 
@@ -103,6 +104,25 @@ async def call_pinn(
     if seed_points is not None:
         payload["seed_points"] = seed_points
     return await call_inference_service(PINN_SERVICE_URL, payload, timeout=timeout)
+
+
+async def call_fusion(
+    bbox: tuple[float, float, float, float] | list[float],
+    time_horizon: int = 6,
+    date: str | None = None,
+    timeout: float = 280.0,
+) -> dict[str, Any]:
+    """Queries the physics-informed fusion UNet service (it builds its own U-Net and PIML inputs, so it takes
+    longer than either model alone). It finds the fire from FIRMS itself and ignores seed points."""
+    if date is None:
+        date = datetime.now(timezone.utc).isoformat()
+    payload: dict[str, Any] = {
+        "bbox": list(bbox),
+        "time_horizon": time_horizon,
+        "model_type": "fusion",
+        "date": date,
+    }
+    return await call_inference_service(FUSION_SERVICE_URL, payload, timeout=timeout)
 
 
 def _compute_risk_label(horizon: int, probability: float) -> str:
@@ -275,5 +295,16 @@ async def probe_services_health() -> dict[str, Any]:
             results["pinn"] = r.json() if r.status_code == 200 else {"status": "error", "code": r.status_code}
         except Exception as exc:
             results["pinn"] = {"status": "unreachable", "error": str(exc)}
+
+        # Check fusion UNet
+        try:
+            h_fusion = {}
+            t_fusion = _get_oidc_token(FUSION_SERVICE_URL)
+            if t_fusion:
+                h_fusion["Authorization"] = f"Bearer {t_fusion}"
+            r = await client.get(f"{FUSION_SERVICE_URL.rstrip('/')}/health", headers=h_fusion)
+            results["fusion"] = r.json() if r.status_code == 200 else {"status": "error", "code": r.status_code}
+        except Exception as exc:
+            results["fusion"] = {"status": "unreachable", "error": str(exc)}
 
     return results

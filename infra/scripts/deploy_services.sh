@@ -7,6 +7,7 @@ set -euo pipefail
 # Deploys:
 # 1. Private U-Net Inference Microservice (port 8081)
 # 2. Private PIML Physics Simulation Microservice (port 8082)
+# 2b. Private Physics-informed Fusion UNet Microservice (port 8083)
 # 3. Private FastAPI ML Adapter (port 8001)
 # 4. Public Django REST API Backend (port 8000, Direct VPC Egress)
 # 5. Background Celery Worker Pool (Direct VPC Egress)
@@ -62,6 +63,25 @@ if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "ml" ]]; then
 
     PIML_URL=$(gcloud run services describe piml-service --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
 
+    echo "==> 2b. Deploying private Fusion UNet Service..."
+    gcloud run deploy fusion-service \
+        --image="${REGISTRY}/fusion-service:${TAG}" \
+        --region="${REGION}" \
+        --project="${PROJECT_ID}" \
+        --ingress=all \
+        --no-allow-unauthenticated \
+        --service-account="sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
+        --set-secrets="FIRMS_MAP_KEY=firms-map-key:latest" \
+        --min-instances=0 \
+        --max-instances=2 \
+        --concurrency=1 \
+        --timeout=300 \
+        --port=8083 \
+        --memory=4Gi \
+        --cpu=2
+
+    FUSION_URL=$(gcloud run services describe fusion-service --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
+
     echo "==> 3. Deploying private FastAPI ML Adapter..."
     gcloud run deploy ml-adapter \
         --image="${REGISTRY}/ml-adapter:${TAG}" \
@@ -73,7 +93,8 @@ if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "ml" ]]; then
         --subnet="${SUBNET}" \
         --vpc-egress=private-ranges-only \
         --service-account="sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
-        --set-env-vars="MOCK_INFERENCE=false,UNET_SERVICE_URL=${UNET_URL},PINN_SERVICE_URL=${PIML_URL}" \
+        --set-env-vars="MOCK_INFERENCE=false,UNET_SERVICE_URL=${UNET_URL},PINN_SERVICE_URL=${PIML_URL},FUSION_SERVICE_URL=${FUSION_URL}" \
+        --timeout=300 \
         --min-instances=0 \
         --max-instances=3 \
         --port=8001 \
@@ -157,6 +178,12 @@ gcloud run services add-iam-policy-binding unet-service \
     --role="roles/run.invoker" --quiet || true
 
 gcloud run services add-iam-policy-binding piml-service \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --member="serviceAccount:sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" --quiet || true
+
+gcloud run services add-iam-policy-binding fusion-service \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
     --member="serviceAccount:sa-ml-services@${PROJECT_ID}.iam.gserviceaccount.com" \
