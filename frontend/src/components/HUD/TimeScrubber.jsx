@@ -26,6 +26,14 @@ const MODEL_THEMES = {
     tickText: 'text-purple-700 font-bold scale-110',
     tickBar: 'bg-purple-600',
   },
+  fusion: {
+    badge: 'bg-amber-50 text-amber-800 border-amber-200',
+    ping: 'bg-amber-400',
+    dot: 'bg-amber-600',
+    slider: 'accent-amber-600',
+    tickText: 'text-amber-700 font-bold scale-110',
+    tickBar: 'bg-amber-600',
+  },
 };
 
 export default function TimeScrubber({

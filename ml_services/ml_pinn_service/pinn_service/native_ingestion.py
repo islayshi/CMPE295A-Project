@@ -56,24 +56,48 @@ DEFAULT_STATIC = PACKAGE_DIR / "static" / "bay_area_static.npz"
 
 # --------------------------------------------------------------------------- HTTP
 
-def _urllib_fetch(url: str, timeout: float = 30.0) -> bytes:
+RETRY_WAITS_S = (1.0, 3.0, 8.0)   # waits between attempts; a reset or 429 often clears within seconds
+
+
+def _http_fetch(url: str, timeout: float = 30.0) -> bytes:
+    """GET with retries. Uses `requests` when installed (more robust connection handling, e.g. on Windows and
+    when several services share one egress IP), else urllib. Client errors (4xx except 429) are not retried."""
     import urllib.error
 
-    request = urllib.request.Request(url, headers={"User-Agent": "WildfirePINN/0.3 (research)"})
+    try:
+        import requests
+    except ImportError:
+        requests = None
+    headers = {"User-Agent": "WildfirePINN/0.3 (research)"}
     last = ""
-    for attempt in range(2):
+    for attempt in range(len(RETRY_WAITS_S) + 1):
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.read()
+            if requests is not None:
+                r = requests.get(url, headers=headers, timeout=timeout)
+                if r.status_code >= 400:
+                    body = r.text[:300].strip().replace("\n", " ")
+                    last = f"HTTP {r.status_code}: {body or r.reason}"
+                    if 400 <= r.status_code < 500 and r.status_code != 429:
+                        break
+                else:
+                    return r.content
+            else:
+                request = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    return response.read()
         except urllib.error.HTTPError as exc:
             body = exc.read(300).decode("utf-8", "replace").strip().replace("\n", " ")
             last = f"HTTP {exc.code}: {body or exc.reason}"
-            if 400 <= exc.code < 500:
+            if 400 <= exc.code < 500 and exc.code != 429:
                 break  # a client error will not fix itself on retry
-        except Exception as exc:  # noqa: BLE001 - network errors of every kind are retried once
+        except Exception as exc:  # noqa: BLE001 - network errors of every kind are retried
             last = str(exc)
-        time.sleep(0.5 * (attempt + 1))
+        if attempt < len(RETRY_WAITS_S):
+            time.sleep(RETRY_WAITS_S[attempt])
     raise ConnectionError(f"{urllib.parse.urlsplit(url).netloc}: {last}")
+
+
+_urllib_fetch = _http_fetch      # old name, kept for callers and tests
 
 
 FETCH: Callable[[str], bytes] = _urllib_fetch

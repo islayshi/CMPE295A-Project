@@ -8,11 +8,11 @@ Contract rules enforced here (sponsor guide, section C):
 
 The grid. Sponsor FAQ Q1 (rev 2): any stable California 1 km lattice id is
 accepted; the backend stubs unknown cells from the polygon we send. For the
-ensemble to combine U-Net and PINN cell by cell, both services should use the
-SAME lattice. Until the U-Net's lattice is shared, the service uses a
-provisional California-wide 0.01 deg lattice (the cell geometry of the adapter's
-U-Net fixtures); point ``GRID_SPEC`` at a
-CSV (grid_id,min_lon,min_lat,max_lon,max_lat) or JSON spec to switch. The
+ensemble to combine U-Net and PIML cell by cell, both services must use the
+SAME lattice, so the default is the U-Net service's 1 km EPSG:3310 lattice
+(grid_id = row * 1000 + col, see lattice.py). ``GRID_SPEC=provisional`` restores
+the old 0.01 deg lattice; ``GRID_SPEC`` pointing at a CSV
+(grid_id,min_lon,min_lat,max_lon,max_lat) or JSON spec loads another grid. The
 response metadata says which lattice was used.
 """
 
@@ -29,6 +29,7 @@ from pathlib import Path
 import numpy as np
 
 from .contract import MODEL_TYPE, MODEL_VERSION
+from .lattice import LatticeGrid
 
 CALIFORNIA_EXTENT = (-124.5, 32.5, -114.0, 42.1)  # multiples of 0.01 deg
 
@@ -118,8 +119,10 @@ def grid_from_csv(path: Path) -> GridSpec:
 
 
 @lru_cache(maxsize=1)
-def active_grid() -> GridSpec:
-    spec = os.environ.get("GRID_SPEC")
+def active_grid() -> GridSpec | LatticeGrid:
+    spec = os.environ.get("GRID_SPEC", "").strip()
+    if spec.lower() == "provisional":
+        return provisional_grid()
     if spec:
         path = Path(spec)
         if path.suffix.lower() == ".csv":
@@ -130,7 +133,7 @@ def active_grid() -> GridSpec:
         if data.get("row_order", "south_to_north") == "north_to_south":
             ids = ids[::-1]
         return GridSpec(data["min_lon"], data["min_lat"], data["dlon"], data["dlat"], ids, f"grid spec {path.name}", False)
-    return provisional_grid()
+    return LatticeGrid()
 
 
 def _ring(bounds, bbox) -> list[list[float]] | None:
@@ -158,7 +161,7 @@ def build_feature_collection(
     probabilities: dict[int, dict[int, float]],
     ensemble_size: int,
     bbox: list[float],
-    grid: GridSpec,
+    grid: GridSpec | LatticeGrid,
     threshold: float,
     extra_metadata: dict,
     high_risk: float = 0.6,
@@ -177,7 +180,7 @@ def build_feature_collection(
             p = float(np.clip(p, 0.0, 1.0))
             if p <= 0.0 or p < threshold:
                 continue
-            ring = _ring(grid.bounds(flat), bbox)
+            ring = grid.ring(flat, bbox) if hasattr(grid, "ring") else _ring(grid.bounds(flat), bbox)
             if ring is None:
                 clipped += 1
                 continue

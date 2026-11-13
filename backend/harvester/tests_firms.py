@@ -464,11 +464,13 @@ def test_trigger_active_inference_dispatches_unet_and_pinn_tasks():
 
         mock_chord.assert_called_once()
         header_tasks = mock_chord.call_args[0][0]
-        # Must dispatch 2 tasks per cluster: one for U-Net, one for PINN/PIML
-        assert len(header_tasks) == 2
+        # 4 tasks per cluster: U-Net, PINN/PIML, the adapter's ensemble and the fusion UNet
+        assert len(header_tasks) == 4
         models = [t.args[1] if len(t.args) > 1 else t.kwargs.get("model_type") for t in header_tasks]
         assert "unet" in models
         assert "pinn" in models
+        assert "ensemble" in models
+        assert "fusion" in models
 
 
 def test_aggregate_active_predictions_populates_unet_and_pinn_caches():
@@ -644,3 +646,38 @@ def test_store_geojson_result_aggregates_across_all_active_incidents():
 
 
 
+
+
+def test_aggregate_active_predictions_keeps_ensemble_and_fusion_separate():
+    """The ensemble view uses the adapter's ensemble output and the fusion UNet gets its own cache key."""
+    from harvester.tasks import aggregate_active_predictions
+
+    fc = lambda model, gid: {  # noqa: E731
+        "type": "FeatureCollection",
+        "metadata": {"source_model": model},
+        "features": [{"type": "Feature", "properties": {"grid_id": gid, "source_model": model}}],
+    }
+    cached = {}
+
+    def mock_set(key, val, timeout=None):
+        cached[key] = json.loads(val) if isinstance(val, str) else val
+
+    with patch("harvester.tasks.cache.set", side_effect=mock_set):
+        aggregate_active_predictions([fc("unet", 101), fc("pinn", 201), fc("ensemble", 301), fc("fusion", 401)])
+
+    assert [f["properties"]["grid_id"] for f in cached["ffwai:predictions:current:ensemble"]["features"]] == [301]
+    assert [f["properties"]["grid_id"] for f in cached["ffwai:predictions:current:fusion"]["features"]] == [401]
+    assert [f["properties"]["grid_id"] for f in cached["ffwai:predictions:current"]["features"]] == [201]
+
+
+def test_optional_model_failure_does_not_break_the_chord():
+    """A fusion run that still fails after one retry returns an empty collection instead of raising."""
+    from harvester.tasks import run_async_inference
+
+    with patch("harvester.tasks.requests.post", side_effect=RuntimeError("fusion down")), \
+         patch("harvester.tasks._get_oidc_token", return_value=None):
+        res = run_async_inference.apply(args=([-122.3, 37.3, -122.0, 37.6],),
+                                        kwargs={"model_type": "fusion"}, retries=1).get()
+    assert res["features"] == []
+    assert res["metadata"]["source_model"] == "fusion"
+    assert res["metadata"]["status"] == "error"
