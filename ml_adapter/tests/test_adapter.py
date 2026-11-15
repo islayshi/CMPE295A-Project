@@ -458,3 +458,9 @@ def test_predict_progression_unknown_model_lists_fusion():
         response = client.post("/predict/progression", json={"model_type": "gan"})
         assert response.status_code == 400
         assert "fusion" in response.json()["detail"]
+
+
+def test_no_oidc_token_lookup_for_local_services():
+    from ml_adapter.services_client import _get_oidc_token
+    for url in ("http://localhost:8083", "http://127.0.0.1:8081/predict", "http://fusion.localhost:8083"):
+        assert _get_oidc_token(url) is None

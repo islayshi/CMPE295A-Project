@@ -28,6 +28,8 @@ def _get_oidc_token(target_url: str) -> str | None:
     """
     from urllib.parse import urlparse
     parsed = urlparse(target_url)
+    if (parsed.hostname or "") in ("localhost", "127.0.0.1", "::1") or (parsed.hostname or "").endswith(".localhost"):
+        return None  # local Docker services need no token (and the lookup would wait for a timeout)
     audience = f"{parsed.scheme}://{parsed.netloc}"
 
     try:

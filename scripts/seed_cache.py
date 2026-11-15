@@ -60,7 +60,7 @@ def check_ml_adapter(max_retries: int = 10, delay: float = 1.0) -> bool:
     health_url = f"{settings.ML_ADAPTER_URL}/health"
     for attempt in range(1, max_retries + 1):
         try:
-            resp = requests.get(health_url, timeout=2)
+            resp = requests.get(health_url, timeout=20)   # /health also probes every model service
             if resp.status_code == 200:
                 return True
         except requests.RequestException:
