@@ -681,3 +681,12 @@ def test_optional_model_failure_does_not_break_the_chord():
     assert res["features"] == []
     assert res["metadata"]["source_model"] == "fusion"
     assert res["metadata"]["status"] == "error"
+
+
+def test_no_oidc_token_lookup_for_local_adapter():
+    from harvester.tasks import _get_oidc_token
+
+    with patch("google.oauth2.id_token.fetch_id_token") as fetch:
+        assert _get_oidc_token("http://localhost:8001/predict/progression") is None
+        assert _get_oidc_token("http://127.0.0.1:8001/health") is None
+        fetch.assert_not_called()

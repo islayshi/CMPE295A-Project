@@ -154,8 +154,11 @@ def _get_oidc_token(target_url: str) -> str | None:
     Fetches a Google IAM OIDC ID token for authenticated service-to-service Cloud Run calls.
     Returns None if running locally without Google ADC or outside GCP.
     """
+    from urllib.parse import urlparse
+    host = urlparse(target_url).hostname or ""
+    if host in ("localhost", "127.0.0.1", "::1") or host.endswith(".localhost"):
+        return None  # local services need no token (and the lookup waits ~12 s for a metadata-server timeout)
     try:
-        from urllib.parse import urlparse
         import google.auth.transport.requests
         import google.oauth2.id_token
         parsed = urlparse(target_url)
