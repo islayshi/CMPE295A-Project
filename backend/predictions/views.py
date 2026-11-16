@@ -40,7 +40,7 @@ def current_predictions(request):
     GeoJSON FeatureCollection. Fetches from Redis cache O(1).
 
     Query params:
-      model   (optional): "ensemble" (default), "unet", "pinn", "rl"
+      model   (optional): "ensemble" (default), "unet", "pinn", "rl", "fusion"
       horizon (optional): integer horizon hours (0, 1, 3, 6)
     """
     raw_model = request.query_params.get("model")
@@ -82,7 +82,7 @@ def current_predictions(request):
                 timestamp__gte=six_hours_ago,
             ).select_related("grid")
 
-            if raw_model and model_param in ("unet", "pinn", "rl"):
+            if raw_model and model_param in ("unet", "pinn", "rl", "fusion"):
                 active_polygons = active_polygons.filter(source_model=model_param)
             elif raw_model and model_param == "ensemble":
                 ensemble_polygons = active_polygons.filter(source_model="ensemble")
@@ -117,7 +117,7 @@ def current_predictions(request):
             ).filter(
                 Q(fire_incident__isnull=True) | Q(fire_incident__is_active=True)
             )
-            if raw_model and model_param in ("unet", "pinn", "rl"):
+            if raw_model and model_param in ("unet", "pinn", "rl", "fusion"):
                 qs = qs.filter(source_model=model_param)
             elif raw_model and model_param == "ensemble":
                 ensemble_qs = qs.filter(source_model="ensemble")

@@ -60,7 +60,7 @@ def check_ml_adapter(max_retries: int = 10, delay: float = 1.0) -> bool:
     health_url = f"{settings.ML_ADAPTER_URL}/health"
     for attempt in range(1, max_retries + 1):
         try:
-            resp = requests.get(health_url, timeout=2)
+            resp = requests.get(health_url, timeout=20)   # /health also probes every model service
             if resp.status_code == 200:
                 return True
         except requests.RequestException:
@@ -83,6 +83,7 @@ def main():
         cache.delete("ffwai:predictions:current:ensemble")
         cache.delete("ffwai:predictions:current:unet")
         cache.delete("ffwai:predictions:current:pinn")
+        cache.delete("ffwai:predictions:current:fusion")
 
     # 1. Wind Telemetry
     print(f"1. Fetching live wind data (Open-Meteo)...")
@@ -252,7 +253,7 @@ def main():
                 seed_pt = target["centroid"]
                 print(f"   * Cluster: {target['name']} at centroid {seed_pt}...")
 
-                for model in ["unet", "pinn", "ensemble"]:
+                for model in ["unet", "pinn", "ensemble", "fusion"]:
                     print(f"     - Invoking {model.upper()} via ML Adapter...")
                     feat_count = 0
                     try:
@@ -282,7 +283,7 @@ def main():
                                 "mock": settings.MOCK_INFERENCE,
                                 "seed_points": [seed_pt],
                             }
-                            resp = requests.post(url, json=payload, timeout=120)
+                            resp = requests.post(url, json=payload, timeout=300 if model == "fusion" else 120)
                             resp.raise_for_status()
                             benchmark_fc = resp.json()
                             b_features = benchmark_fc.get("features", [])
@@ -317,7 +318,7 @@ def main():
             active_incidents = list(FireIncident.objects.filter(is_active=True).values_list("id", flat=True))
             if active_incidents:
                 from predictions.serializers import PredictionPolygonGeoJSONSerializer
-                for model_key in ["ensemble", "unet", "pinn"]:
+                for model_key in ["ensemble", "unet", "pinn", "fusion"]:
                     model_polys = PredictionPolygon.objects.filter(
                         fire_incident_id__in=active_incidents,
                         source_model=model_key,
@@ -350,7 +351,7 @@ def main():
                 cache.set("ffwai:predictions:current:ensemble", curr, timeout=21600)
 
             # Verify and report Redis cache keys
-            for key_suffix in ["", ":ensemble", ":unet", ":pinn"]:
+            for key_suffix in ["", ":ensemble", ":unet", ":pinn", ":fusion"]:
                 cache_key = f"ffwai:predictions:current{key_suffix}"
                 cached = cache.get(cache_key)
                 if cached:

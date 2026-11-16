@@ -20,6 +20,7 @@ SOURCE_MODEL_CHOICES = [
     ("pinn", "PINN (Physics-Informed Neural Network)"),
     ("rl", "RL Agent (DQN/PPO Progression)"),
     ("ensemble", "Ensemble (Combined Voting)"),
+    ("fusion", "Fusion UNet (Physics-Informed)"),
     ("mock", "Mock (MOCK_INFERENCE=True fixture)"),
 ]
 

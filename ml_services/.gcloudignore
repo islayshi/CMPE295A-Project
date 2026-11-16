@@ -1,0 +1,10 @@
+# Source uploaded by `gcloud builds submit ml_services --config ml_services/fusion_service/cloudbuild.yaml`
+.gcloudignore
+**/__pycache__/
+**/*.pyc
+**/tests/
+**/test_features/
+**/firms_key*.txt
+**/.env
+**/*.ipynb
+unet_service/u_net_files/

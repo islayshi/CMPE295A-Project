@@ -270,7 +270,8 @@ def test_trigger_active_inference_scout():
 
         mock_chord.assert_called_once()
         header_tasks = mock_chord.call_args[0][0]
-        assert len(header_tasks) == 2
+        assert len(header_tasks) == 4
+        assert [t.kwargs["model_type"] for t in header_tasks] == ["unet", "pinn", "ensemble", "fusion"]
 
 
 @pytest.mark.django_db

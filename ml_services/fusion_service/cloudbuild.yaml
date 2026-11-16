@@ -1,0 +1,12 @@
+# Builds the fusion service image with ml_services/ as the build context (it needs the U-Net and PIML code).
+#   gcloud builds submit ml_services --config ml_services/fusion_service/cloudbuild.yaml \
+#       --substitutions=_IMAGE=us-central1-docker.pkg.dev/ffwai-prod/ffwai-docker-repo/fusion-service:latest
+substitutions:
+  _IMAGE: fusion-service:latest
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "fusion_service/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+options:
+  machineType: E2_HIGHCPU_8
+timeout: 1800s

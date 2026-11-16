@@ -36,6 +36,7 @@ try:
     from ml_adapter.services_client import (
         call_unet,
         call_pinn,
+        call_fusion,
         combine_ensemble_features,
         probe_services_health,
     )
@@ -43,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
     from services_client import (
         call_unet,
         call_pinn,
+        call_fusion,
         combine_ensemble_features,
         probe_services_health,
     )
@@ -136,7 +138,7 @@ async def predict_progression(request: PredictionRequest) -> JSONResponse:
     """
     POST /predict/progression
 
-    Dispatches prediction requests to downstream inference services (U-Net, PINN, or Ensemble).
+    Dispatches prediction requests to downstream inference services (U-Net, PINN, fusion UNet, or Ensemble).
     When live models report 0 features, returns a clean GeoJSON FeatureCollection with
     features: [] and status: "no_active_fire".
     """
@@ -165,12 +167,19 @@ async def predict_progression(request: PredictionRequest) -> JSONResponse:
             if "status" not in geojson:
                 geojson["status"] = geojson.get("metadata", {}).get("status", "ok")
             return JSONResponse(content=geojson)
+        elif request.model_type == 'fusion':
+            geojson = await call_fusion(bbox=request.bbox, time_horizon=request.time_horizon, date=request.date)
+            if not geojson.get("features"):
+                return _clean_empty_feature_collection(model_type='fusion', status="no_active_fire", mock=False)
+            if "status" not in geojson:
+                geojson["status"] = geojson.get("metadata", {}).get("status", "ok")
+            return JSONResponse(content=geojson)
         elif request.model_type == 'ensemble':
             return await predict_ensemble(request)
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported model_type: {request.model_type}. Allowed: unet, pinn, ensemble",
+                detail=f"Unsupported model_type: {request.model_type}. Allowed: unet, pinn, fusion, ensemble",
             )
     except HTTPException:
         raise

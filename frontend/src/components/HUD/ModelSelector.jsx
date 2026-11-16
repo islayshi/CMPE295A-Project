@@ -14,9 +14,14 @@ const MODELS = [
   {
     id: 'ensemble',
     label: 'Ensemble',
-    hint: 'Multi-Model Consensus (Pending AI/ML Team Specification)',
-    disabled: true,
+    hint: 'Weighted blend of U-Net (0.6) and PIML (0.4), cell by cell on the shared 1 km grid',
     activeClass: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500/20 font-semibold',
+  },
+  {
+    id: 'fusion',
+    label: 'Fusion',
+    hint: 'Physics-informed fusion UNet: learns from U-Net, PIML, physics, VIIRS, GOES, weather and terrain (+3 h / +6 h)',
+    activeClass: 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500/20 font-semibold',
   },
 ];
 
